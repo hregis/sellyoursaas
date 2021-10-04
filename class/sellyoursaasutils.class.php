@@ -1752,7 +1752,7 @@ class SellYourSaasUtils
 
 		dol_syslog(__METHOD__, LOG_DEBUG);
 
-		$sql = 'SELECT c.rowid, c.ref_customer, cd.rowid as lid, cd.date_fin_validite';
+		$sql = 'SELECT c.rowid, c.ref_customer, ce.suspendmaintenance_message, cd.rowid as lid, cd.date_fin_validite';
 		$sql.= ' FROM '.MAIN_DB_PREFIX.'contrat as c, '.MAIN_DB_PREFIX.'contratdet as cd, '.MAIN_DB_PREFIX.'contrat_extrafields as ce,';
 		$sql.= ' '.MAIN_DB_PREFIX.'societe_extrafields as se';
 		$sql.= ' WHERE cd.fk_contrat = c.rowid AND ce.fk_object = c.rowid';
@@ -1775,7 +1775,9 @@ class SellYourSaasUtils
 			while ($i < $num) {
 				$obj = $this->db->fetch_object($resql);
 				if ($obj) {
-					if (! empty($contractprocessed[$obj->rowid]) || ! empty($contractignored[$obj->rowid]) || ! empty($contracterror[$obj->rowid])) continue;
+					if (! empty($contractprocessed[$obj->rowid]) || ! empty($contractignored[$obj->rowid]) || ! empty($contracterror[$obj->rowid])) {
+						continue;
+					}
 
 					// Test if this is a paid or not instance
 					$object = new Contrat($this->db);
@@ -1926,7 +1928,8 @@ class SellYourSaasUtils
 
 	/**
 	 * Action executed by scheduler
-	 * Suspend expired services of test instances if we are after planned end date (+ grace offset SELLYOURSAAS_NBDAYS_AFTER_EXPIRATION_BEFORE_TRIAL_SUSPEND)
+	 * Suspend expired services of test instances (a test instance = instance without template neither standard invoice) if it is not a redirect instance and if we are
+	 * after the planned end date (+ grace offset SELLYOURSAAS_NBDAYS_AFTER_EXPIRATION_BEFORE_TRIAL_SUSPEND)
 	 * CAN BE A CRON TASK
 	 *
 	 * @return	int			0 if OK, <>0 if KO (this function is used also by cron so only 0 is OK)
@@ -1950,7 +1953,8 @@ class SellYourSaasUtils
 
 	/**
 	 * Action executed by scheduler
-	 * Suspend expired services of paid instances if we are after planned end date (+ grace offset in SELLYOURSAAS_NBDAYS_AFTER_EXPIRATION_BEFORE_PAID_SUSPEND)
+	 * Suspend expired services of paid instances (a paid instance = instance with template or standard invoice) if it is not a redirect instance and if we are
+	 * after the planned end date (+ grace offset in SELLYOURSAAS_NBDAYS_AFTER_EXPIRATION_BEFORE_PAID_SUSPEND)
 	 * CAN BE A CRON TASK
 	 *
 	 * @return	int			0 if OK, <>0 if KO (this function is used also by cron so only 0 is OK)
@@ -2016,7 +2020,7 @@ class SellYourSaasUtils
 
 		$this->db->begin();
 
-		$sql = 'SELECT c.rowid, c.ref_customer, cd.rowid as lid';
+		$sql = 'SELECT c.rowid, c.ref_customer, ce.suspendmaintenance_message, cd.rowid as lid';
 		$sql.= ' FROM '.MAIN_DB_PREFIX.'contrat as c, '.MAIN_DB_PREFIX.'contratdet as cd, '.MAIN_DB_PREFIX.'contrat_extrafields as ce,';
 		$sql.= ' '.MAIN_DB_PREFIX.'societe_extrafields as se';
 		$sql.= ' WHERE cd.fk_contrat = c.rowid AND ce.fk_object = c.rowid';
@@ -2059,9 +2063,15 @@ class SellYourSaasUtils
 
 					dol_syslog("* Process fetch line nb ".$ifetchservice." - contract id=".$object->id." ref=".$object->ref." ref_customer=".$object->ref_customer);
 
+					if (preg_match('/^http/i', $object->array_options['options_suspendmaintenance_message'])) {
+						dol_syslog("It is a redirect contract in test mode, it will not be processed by this batch");
+						continue;											// Discard if this is a redirect contract
+					}
+
 					dol_syslog('Call sellyoursaasIsPaidInstance', LOG_DEBUG, 1);
 					$isAPayingContract = sellyoursaasIsPaidInstance($object);
 					dol_syslog('', 0, -1);
+
 					if ($mode == 'test' && $isAPayingContract) {
 						dol_syslog("It is a paying contract, it will not be processed by this batch");
 						continue;											// Discard if this is a paid instance when we are in test mode
