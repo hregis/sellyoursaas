@@ -14,6 +14,7 @@
 # undeploy    remove only instance (must be easy to restore) - rest can be done later with clean.sh
 
 export now=`date +'%Y-%m-%d %H:%M:%S'`
+export nowlog=`date +'%Y%m%d-%H%M%S'`
 
 echo
 echo
@@ -122,7 +123,7 @@ export REMOTEIP=${23}
 export SELLYOURSAAS_ACCOUNT_URL=${24}
 export instancenameold=${25}
 export domainnameold=${26}
-export customurl=${27}
+export customurl=${27//£/ }
 if [ "x$customurl" == "x-" ]; then
 	customurl=""
 fi
@@ -581,8 +582,8 @@ if [[ "$dnsserver" == "1" ]]; then
 				exit 16
 			fi
 			
-			echo `date +'%Y-%m-%d %H:%M:%S'`" **** Archive file with cp /etc/bind/${ZONE} /etc/bind/archives/${ZONE}-$now"
-			cp /etc/bind/${ZONE} /etc/bind/archives/${ZONE}-$now
+			echo `date +'%Y-%m-%d %H:%M:%S'`" **** Archive file with cp /etc/bind/${ZONE} /etc/bind/archives/${ZONE}-$nowlog"
+			cp /etc/bind/${ZONE} /etc/bind/archives/${ZONE}-$nowlog
 			
 			echo `date +'%Y-%m-%d %H:%M:%S'`" **** Move new host file"
 			mv -fu /tmp/${ZONE}.$PID /etc/bind/${ZONE}
@@ -656,8 +657,8 @@ if [[ "$dnsserver" == "1" ]]; then
 				exit 18
 			fi
 			
-			echo `date +'%Y-%m-%d %H:%M:%S'`" **** Archive file with cp /etc/bind/${ZONE} /etc/bind/archives/${ZONE}-$now"
-			cp /etc/bind/${ZONE} /etc/bind/archives/${ZONE}-$now
+			echo `date +'%Y-%m-%d %H:%M:%S'`" **** Archive file with cp /etc/bind/${ZONE} /etc/bind/archives/${ZONE}-$nowlog"
+			cp /etc/bind/${ZONE} /etc/bind/archives/${ZONE}-$nowlog
 			
 			echo `date +'%Y-%m-%d %H:%M:%S'`" **** Move new host file with mv -fu /tmp/${ZONE}.$PID /etc/bind/${ZONE}"
 			mv -fu /tmp/${ZONE}.$PID /etc/bind/${ZONE}
@@ -1304,6 +1305,7 @@ fi
 #fi
 
 echo `date +'%Y-%m-%d %H:%M:%S'`" Process of action $mode of $instancename.$domainname for user $osusername finished with no error"
+echo `date +'%Y-%m-%d %H:%M:%S'`" return 0" 
 echo
 
 exit 0

@@ -111,7 +111,7 @@ export REMOTEIP=${23}
 export SELLYOURSAAS_ACCOUNT_URL=${24}
 export instancenameold=${25}
 export domainnameold=${26}
-export customurl=${27}
+export customurl=${27//£/ }
 if [ "x$customurl" == "x-" ]; then
 	customurl=""
 fi
@@ -770,7 +770,8 @@ fi
 
 
 echo `date +'%Y-%m-%d %H:%M:%S'`" Process of action $mode of $instancename.$domainname for user $osusername finished"
+sleep 1
+echo `date +'%Y-%m-%d %H:%M:%S'`" return 0"
 echo
 
-sleep 1
 exit 0

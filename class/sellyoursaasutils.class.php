@@ -2794,7 +2794,7 @@ class SellYourSaasUtils
 	 * @param	string					$appusername	App login. Used for replacement of __APPUSERNAME__
 	 * @param	string					$email			Initial email. Used for replacement of __APPEMAIL__
 	 * @param	string					$password		Initial password. Used for replacement of __APPPASSWORD__
-	 * @param	string					$forceaddevent	'1'=Force to add event. If '0', add of event is done only for remoteaction = 'backup','deploy','deployall','deployoption','rename','suspend','suspendmaintenance','unsuspend','undeploy','undeployall'
+	 * @param	string					$forceaddevent	'1'=Force to add event. '-1'=Never add. If '0', add of event is done only for remoteaction = 'backup','deploy','deployall','deployoption','rename','suspend','suspendmaintenance','unsuspend','undeploy','undeployall'
 	 *													$forceaddevent is set by caller but is also overwrote to on when we detect qty has changed.
 	 * @param	string					$comment		Comment
 	 * @param   int                     $timeout        Time out in seconds
@@ -3047,8 +3047,10 @@ class SellYourSaasUtils
 				$contract->fetch($tmpobject->fk_contrat);
 				$contract->fetch_thirdparty();
 
-				// Set var to force to add an event at end of remote action.
-				$forceaddevent = 1;
+				// We are in a case of $remoteaction that need to add an event when forceaddevent = 0, to force to add an event at end of remote action.
+				if ($forceaddevent != '-1') {
+					$forceaddevent = 1;
+				}
 				if ($remoteaction == 'rename') {
 					$forceaddevent = 'Rename old name '.$object->oldcopy->ref_customer.' into '.$contract->ref_customer;
 				}
@@ -3112,7 +3114,8 @@ class SellYourSaasUtils
 				$sshaccesstype         = (empty($contract->array_options['options_sshaccesstype'])?0:$contract->array_options['options_sshaccesstype']);
 				$customurl             = $contract->array_options['options_custom_url'];
 				$customvirtualhostline = $contract->array_options['options_custom_virtualhostline'];   // Set with value 'php_value date.timezone "'.$_POST["tz_string"].'"'; into file register_instance.php
-				$SSLON='On';
+				$SSLON='On';	// Is SSL enabled on the custom url virtual host ?
+
 				$CERTIFFORCUSTOMDOMAIN =$customurl;
 				if ($CERTIFFORCUSTOMDOMAIN) {
 					// Kept for backward compatibility
@@ -3195,6 +3198,8 @@ class SellYourSaasUtils
 				if (! empty($contract->array_options['options_timezone'])) {
 					$substitarray['TZ=UTC'] = 'TZ='.$contract->array_options['options_timezone'];
 				}
+				$substitarray['__SMTP_SPF_STRING__'] = '_spf'.$sldAndSubdomain.'.'.$domainname;
+
 
 				$dirfortmpfiles = DOL_DATA_ROOT.'/sellyoursaas/temp';
 				dol_mkdir($dirfortmpfiles, '', '0775');
@@ -3261,7 +3266,7 @@ class SellYourSaasUtils
 				$commandurl.= '&'.$urlforsellyoursaasaccount;			            // Param 24 in .sh
 				$commandurl.= '&'.$sldAndSubdomainold;
 				$commandurl.= '&'.$domainnameold;
-				$commandurl.= '&'.$customurl;
+				$commandurl.= '&'.str_replace(' ', '£', $customurl);
 				$commandurl.= '&'.$tmpobject->id;		// ID of line of contract
 				$commandurl.= '&'.$conf->global->SELLYOURSAAS_NOREPLY_EMAIL;
 				$commandurl.= '&'.$CERTIFFORCUSTOMDOMAIN;
@@ -3283,7 +3288,7 @@ class SellYourSaasUtils
 				if (! $error) {
 					$urltoget='http://'.$serverdeployment.':8080/'.$remoteaction.'?'.urlencode($commandurl);
 					include_once DOL_DOCUMENT_ROOT.'/core/lib/geturl.lib.php';
-					$retarray = getURLContent($urltoget, 'GET', '', 0, array(), array('http', 'https'), 2);   // Timeout is defined before
+					$retarray = getURLContent($urltoget, 'GET', '', 0, array(), array('http', 'https'), 2);   // Timeout is defined before into $conf->global->MAIN_USE_RESPONSE_TIMEOUT
 
 					if ($retarray['curl_error_no'] != '' || $retarray['http_code'] != 200) {
 						$error++;
@@ -3349,23 +3354,26 @@ class SellYourSaasUtils
 				if (! empty($producttmp->array_options['options_resource_formula'])) {
 					$targetdir = $conf->global->DOLICLOUD_INSTANCES_PATH;
 
-					$generatedunixlogin=$contract->array_options['options_username_os'];
-					$generatedunixpassword=$contract->array_options['options_password_os'];
 					$tmp=explode('.', $contract->ref_customer, 2);
 					$sldAndSubdomain=$tmp[0];
 					$domainname=$tmp[1];
-					$generateddbname      =$contract->array_options['options_database_db'];
-					$generateddbport      =($contract->array_options['options_port_db']?$contract->array_options['options_port_db']:3306);
-					$generateddbusername  =$contract->array_options['options_username_db'];
-					$generateddbpassword  =$contract->array_options['options_password_db'];
-					$generateddbprefix    =($contract->array_options['options_prefix_db']?$contract->array_options['options_prefix_db']:'llx_');
-					$generatedunixhostname=$contract->array_options['options_hostname_os'];
-					$generateddbhostname  =$contract->array_options['options_hostname_db'];
-					$generateduniquekey   =getRandomPassword(true);
 
-					$customurl            =$contract->array_options['options_custom_url'];
-					$customvirtualhostline=$contract->array_options['options_custom_virtualhostline'];
-					$SSLON='On';
+					$generatedunixlogin   = $contract->array_options['options_username_os'];
+					$generatedunixpassword= $contract->array_options['options_password_os'];
+					$generateddbname      = $contract->array_options['options_database_db'];
+					$generateddbport      = ($contract->array_options['options_port_db']?$contract->array_options['options_port_db']:3306);
+					$generateddbusername  = $contract->array_options['options_username_db'];
+					$generateddbpassword  = $contract->array_options['options_password_db'];
+					$generateddbprefix    = ($contract->array_options['options_prefix_db']?$contract->array_options['options_prefix_db']:'llx_');
+					$generatedunixhostname= $contract->array_options['options_hostname_os'];
+					$generateddbhostname  = $contract->array_options['options_hostname_db'];
+					$generateduniquekey   = getRandomPassword(true);
+
+					$sshaccesstype        = (empty($contract->array_options['options_sshaccesstype'])?0:$contract->array_options['options_sshaccesstype']);
+					$customurl            = $contract->array_options['options_custom_url'];
+					$customvirtualhostline= $contract->array_options['options_custom_virtualhostline'];
+					$SSLON='On';	// Is SSL enabled on the custom url virtual host ?
+
 					$CERTIFFORCUSTOMDOMAIN=$customurl;
 					if ($CERTIFFORCUSTOMDOMAIN) {
 						// Kept for backward compatibility

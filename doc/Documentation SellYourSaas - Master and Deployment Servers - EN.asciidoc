@@ -895,7 +895,8 @@ There are two scenario depending on your version of Ubuntu. Follow the instructi
 sudo apt update
 sudo apt install -y ntp git gzip zip zstd memcached ncdu acl
 sudo apt install -y mariadb-server mariadb-client
-sudo apt install -y php php-cli apache2 php-pear apache2-bin libapache2-mod-php php-fpm php-gd php-json php-ldap php-mysqlnd php-curl php-memcached php-rrd php-imagick php-geoip php-mcrypt php-intl php-zip php-bz2 php-ssh2 php-mbstring
+sudo apt install -y apache2 apache2-bin lynx
+sudo apt install -y php php-cli php-pear libapache2-mod-php php-fpm php-gd php-json php-ldap php-mysqlnd php-curl php-memcached php-rrd php-imagick php-geoip php-mcrypt php-intl php-zip php-bz2 php-ssh2 php-mbstring
 sudo apt install -y watchdog cpulimit libapache2-mpm-itk apparmor apparmor-profiles apparmor-utils rkhunter chkrootkit
 sudo apt install -y bind9
 sudo apt install -y spamc spamassassin clamav clamav-daemon
@@ -911,7 +912,8 @@ sudo apt install -y mailutils postfix
 sudo apt update
 sudo apt install -y systemd-timesyncd git gzip zip zstd memcached ncdu acl
 sudo apt install -y mariadb-server mariadb-client
-sudo apt install -y php php-cli apache2 php-pear apache2-bin libapache2-mod-php php-fpm php-gd php-json php-ldap php-mysql php-curl php-memcached php-rrd php-imagick php-geoip php-intl php-zip php-bz2 php-ssh2 php-mbstring php-dev libmcrypt-dev
+sudo apt install -y apache2 apache2-bin lynx
+sudo apt install -y php php-cli php-pear libapache2-mod-php php-fpm php-gd php-json php-ldap php-mysql php-curl php-memcached php-rrd php-imagick php-geoip php-intl php-zip php-bz2 php-ssh2 php-mbstring php-dev libmcrypt-dev
 sudo apt install -y watchdog cpulimit libapache2-mpm-itk apparmor apparmor-profiles apparmor-utils rkhunter chkrootkit
 sudo apt install -y bind9
 sudo apt install -y spamc spamassassin clamav clamav-daemon
@@ -1202,6 +1204,9 @@ Then reload the new configuration:
 [source, bash]
 ---------------
 systemctl reload service_name.service
+or
+systemctl stop mysqld.service
+systemctl start mysqld.service
 ---------------
 
 
@@ -1848,7 +1853,7 @@ mysql           soft     nofile           4096
 mysql           hard     nofile           32768
 ---------------
 
-Pour voir les limites:
+To see limits of OS:
 
 [source,bash]
 ---------------
@@ -2150,12 +2155,11 @@ FLUSH PRIVILEGES;
 ---------------
 
 
-==== Secure the root account (optional)
+==== Secure the root account
 
 On *all servers*:
 
-In order not to allow brute force cracking, if it is not already the case, put the user *root* of the database in authentication
-from the system root account only (using *auth_socket* or *unix_socket*):
+In order not to allow brute force cracking, if it is not already the case, put the user *root* of the database in authentication from the system root account only (using *auth_socket* or *unix_socket*):
 
 For Mysql: The plugin is *auth_socket* and you have to install it manually. More info on: https://dev.mysql.com/doc/refman/5.7/en/socket-pluggable-authentication.html
 
@@ -2193,7 +2197,7 @@ update mysql.user set plugin='unix_socket' where user='root' and host='localhost
 You must stop/start database server to validate this change !
 
 
-Note: The show specific parameters that are not the default values, you can launch:
+Note: To show specific parameters that are not the default values, you can launch:
 
 [source,bash]
 ---------------
@@ -2225,7 +2229,7 @@ Give permission, on the *Master server*, to the account *sellyoursaas* of each d
 
 [source,sql]
 ---------------
-CREATE USER 'sellyoursaas'@'ip.server.deployment' IDENTIFIED BY '...';   (password is the one into /etc/sellyoursaas.conf of the deployment server)
+CREATE USER 'sellyoursaas'@'ip.server.deployment' IDENTIFIED BY '...';   (password is the one into /etc/sellyoursaas.conf quitof the deployment server)
 
 GRANT CREATE TEMPORARY TABLES, DELETE, INSERT, SELECT, UPDATE ON nom_de_base_dolibarr_master.* TO 'sellyoursaas'@'ip.server.deployment';
 
@@ -2999,7 +3003,7 @@ chmod +t /dev/shm /var/lib/php/sessions
 
 ==== Define size of upload and session options
 
-Modify the file *php.ini* (the one for *apache* and the one for *cli*) to allow upload of bigger files:
+Modify the file */etc/php/*.*/apache2/php.ini* (the one for *apache* and the one for *cli*) to allow upload of bigger files:
 
 [source,bash]
 ---------------
@@ -3086,10 +3090,10 @@ And copy them on local directory:
 [source,bash]
 ---------------
 mkdir /tmp/spam;
-cp -p /home/admin/wwwroot/dolibarr_documents/sellyoursaas/spam/blacklistmail /tmp/spam;
-cp -p /home/admin/wwwroot/dolibarr_documents/sellyoursaas/spam/blacklistip /tmp/spam;
-cp -p /home/admin/wwwroot/dolibarr_documents/sellyoursaas/spam/blacklistfrom /tmp/spam;
-cp -p /home/admin/wwwroot/dolibarr_documents/sellyoursaas/spam/blacklistcontent /tmp/spam;
+cp -p /home/admin/wwwroot/dolibarr_documents/sellyoursaas/spam/blacklistmail /tmp/spam/;
+cp -p /home/admin/wwwroot/dolibarr_documents/sellyoursaas/spam/blacklistip /tmp/spam/;
+cp -p /home/admin/wwwroot/dolibarr_documents/sellyoursaas/spam/blacklistfrom /tmp/spam/;
+cp -p /home/admin/wwwroot/dolibarr_documents/sellyoursaas/spam/blacklistcontent /tmp/spam/;
 chmod a+rwx /tmp/spam; chmod a+rw /tmp/spam/*
 
 cp -p /home/admin/wwwroot/dolibarr_documents/sellyoursaas/spam/blacklistmail /home/admin/wwwroot/dolibarr_documents/sellyoursaas_local/spam/blacklistmail;
@@ -3334,7 +3338,7 @@ For example, you can use *supervision@mysaasdomain.com* as the email for letsenc
 
 This enables the automatic renewal of wildcard certificates so you do not need to renew manually every 90 days (systemd timer is run regularly, if the certificate is within 30 days of expiry, it is renewed automatically and the symbolic links in */etc/letsencrypt/live/<domain>* are updated, so if you use those in your vhosts you have nothing more to do)
 
-To read generated .pem files, you can run
+To read certificate .crt or .pem files, you can run:
 
 [source,bash]
 ---------------
@@ -4014,6 +4018,10 @@ systemctl status cron
 ---------------
 
 - Edit the crons from *root* and *admin* 
+
+---------------
+crontab -e
+---------------
 
 
 ==== Set reverse IP name and add a DNS name for IP
@@ -5085,10 +5093,11 @@ If it fails, you can fix path with this command
 ==== Error mysqldump: Error 3024: Query execution was interrupted, maximum statement execution time exceeded when dumping table `....` at row: ...
 
 The value for *max_execution_time* is too low or there is a table that has an abnormal number of records.
-- Check parameter max_execution_time into */etc/mysql/mysql.conf.d/mysqld.cnf* or similar files.
-- Try to run the mysqldump after increasing the max_execution_time dynamically from mysql with:
-    SHOW VARIABLES LIKE 'MAX_EXECUTION_TIME'
+- Check parameter *max_execution_time* into */etc/mysql/mysql.conf.d/mysqld.cnf* or similar files.
+- Try to run the mysqldump after increasing the *max_execution_time* dynamically from mysql with:
+    SHOW VARIABLES LIKE 'MAX_EXECUTION_TIME';
     SET GLOBAL MAX_EXECUTION_TIME=120000;
+  Note: The change is effective for new sessions only. Exit and start a new session to see the change.
 - See chapter <<check_database_used>> to analyze size of database. A table may be abnormaly large.
 
 
