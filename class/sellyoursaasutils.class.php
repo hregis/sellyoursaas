@@ -117,10 +117,9 @@ class SellYourSaasUtils
 						}
 
 						// Search contract linked to invoice
-						$invoice->fetchObjectLinked();
+						$invoice->fetchObjectLinked(null, '', null, '', 'OR', 1, 'sourcetype', 1);
 
 						if (is_array($invoice->linkedObjects['contrat']) && count($invoice->linkedObjects['contrat']) > 0) {
-							//dol_sort_array($object->linkedObjects['facture'], 'date');
 							foreach ($invoice->linkedObjects['contrat'] as $idcontract => $contract) {
 								if (! empty($draftinvoiceprocessed[$invoice->id])) continue;	// If already processed because of a previous contract line, do nothing more
 
@@ -730,7 +729,7 @@ class SellYourSaasUtils
 		$sql.= ' FROM '.MAIN_DB_PREFIX.'facture as f, '.MAIN_DB_PREFIX.'societe_extrafields as se, '.MAIN_DB_PREFIX.'societe_rib as sr';
 		$sql.= ' WHERE sr.fk_soc = f.fk_soc';
 		$sql.= " AND f.paye = 0 AND f.type = 0 AND f.fk_statut = ".Facture::STATUS_VALIDATED;
-		$sql.= " AND sr.status = ".$servicestatus;
+		$sql.= " AND sr.status = ".((int) $servicestatus);
 		$sql.= " AND f.fk_soc = se.fk_object AND se.dolicloud = 'yesv2'";
 		$sql.= " ORDER BY f.datef ASC, f.rowid ASC, sr.default_rib DESC, sr.tms DESC";		// Lines may be duplicated. Never mind, we will exclude duplicated invoice later.
 		//print $sql;exit;
@@ -1359,7 +1358,9 @@ class SellYourSaasUtils
 						include_once DOL_DOCUMENT_ROOT.'/core/class/html.formmail.class.php';
 						$formmail=new FormMail($this->db);
 
-						if (! empty($labeltouse)) $arraydefaultmessage=$formmail->getEMailTemplate($this->db, 'facture_send', $user, $outputlangs, 0, 1, $labeltouse);
+						if (! empty($labeltouse)) {
+							$arraydefaultmessage=$formmail->getEMailTemplate($this->db, 'facture_send', $user, $outputlangs, 0, 1, $labeltouse);
+						}
 
 						if (! empty($labeltouse) && is_object($arraydefaultmessage) && $arraydefaultmessage->id > 0) {
 							$subject = $arraydefaultmessage->topic;
@@ -1375,7 +1376,8 @@ class SellYourSaasUtils
 						// Set the property ->ref_customer with ref_customer of contract so __REF_CLIENT__ will be replaced in email content
 						// Search contract linked to invoice
 						$foundcontract = null;
-						$invoice->fetchObjectLinked();
+						$invoice->fetchObjectLinked(null, '', null, '', 'OR', 1, 'sourcetype', 1);
+
 						if (is_array($invoice->linkedObjects['contrat']) && count($invoice->linkedObjects['contrat']) > 0) {
 							//dol_sort_array($object->linkedObjects['facture'], 'date');
 							foreach ($invoice->linkedObjects['contrat'] as $idcontract => $contract) {
@@ -1423,10 +1425,14 @@ class SellYourSaasUtils
 
 						$trackid = 'inv'.$invoice->id;
 						$moreinheader = 'X-Dolibarr-Info: doTakeStripePaymentForThirdParty'."\r\n";
+						$addr_cc = '';
+						if (!empty($invoice->thirdparty->array_options['options_emailccinvoice'])) {
+							$addr_cc = $invoice->thirdparty->array_options['options_emailccinvoice'];
+						}
 
 						// Send email (substitutionarray must be done just before this)
 						include_once DOL_DOCUMENT_ROOT.'/core/class/CMailFile.class.php';
-						$mailfile = new CMailFile($subjecttosend, $invoice->thirdparty->email, $from, $texttosend, $listofpaths, $listofmimes, $listofnames, '', '', 0, -1, '', '', $trackid, $moreinheader);
+						$mailfile = new CMailFile($subjecttosend, $invoice->thirdparty->email, $from, $texttosend, $listofpaths, $listofmimes, $listofnames, $addr_cc, '', 0, -1, '', '', $trackid, $moreinheader);
 						if ($mailfile->sendfile()) {
 							$result = 1;
 						} else {
@@ -1615,7 +1621,7 @@ class SellYourSaasUtils
 					dol_syslog("* Process contract in doRefreshContracts for contract id=".$object->id." ref=".$object->ref." ref_customer=".$object->ref_customer);
 
 					dol_syslog('Call sellyoursaasIsPaidInstance', LOG_DEBUG, 1);
-					$isAPayingContract = sellyoursaasIsPaidInstance($object, 0, 0);		// This load ->linkedObjectsIds
+					$isAPayingContract = sellyoursaasIsPaidInstance($object, 0, 0);		// This load also ->linkedObjectsIds
 					dol_syslog('', 0, -1);
 					if ($mode == 'test' && $isAPayingContract) {
 						$contractignored[$object->id]=$object->ref;
@@ -1636,7 +1642,7 @@ class SellYourSaasUtils
 					//var_dump($expirationdate.' '.$enddatetoscan);
 
 					// Load linked ->linkedObjects (objects linked)
-					$object->fetchObjectLinked();
+					$object->fetchObjectLinked(null, '', null, '', 'OR', 1, 'sourcetype', 1);
 
 					// Test if there is at least 1 open invoice
 					dol_syslog('Search if there is at least one open invoice', LOG_DEBUG);
@@ -1814,7 +1820,7 @@ class SellYourSaasUtils
 					//var_dump($expirationdate.' '.$enddatetoscan);
 
 					// Test if there is pending invoice
-					$object->fetchObjectLinked();
+					$object->fetchObjectLinked(null, '', null, '', 'OR', 1, 'sourcetype', 1);
 
 					if (is_array($object->linkedObjects['facture']) && count($object->linkedObjects['facture']) > 0) {
 						usort($object->linkedObjects['facture'], "cmp");
@@ -1932,9 +1938,11 @@ class SellYourSaasUtils
 	 * after the planned end date (+ grace offset SELLYOURSAAS_NBDAYS_AFTER_EXPIRATION_BEFORE_TRIAL_SUSPEND)
 	 * CAN BE A CRON TASK
 	 *
-	 * @return	int			0 if OK, <>0 if KO (this function is used also by cron so only 0 is OK)
+	 * @param	int   $noapachereload	0=Reload apache after remote action, 1=No apache reload
+	 * @param	int   $maxnbofinstances	Max number f ionstances (0 = no max)
+	 * @return	int						0 if OK, <>0 if KO (this function is used also by cron so only 0 is OK)
 	 */
-	public function doSuspendExpiredTestInstances()
+	public function doSuspendExpiredTestInstances($noapachereload = 0, $maxnbofinstances = 0)
 	{
 		global $conf, $langs;
 
@@ -1944,7 +1952,7 @@ class SellYourSaasUtils
 		$conf->global->SYSLOG_FILE = 'DOL_DATA_ROOT/dolibarr_doSuspendExpiredTestInstances.log';
 
 		dol_syslog(__METHOD__, LOG_DEBUG);
-		$result = $this->doSuspendInstances('test');
+		$result = $this->doSuspendInstances('test', $noapachereload, $maxnbofinstances);
 
 		$conf->global->SYSLOG_FILE = $savlog;
 
@@ -1957,9 +1965,11 @@ class SellYourSaasUtils
 	 * after the planned end date (+ grace offset in SELLYOURSAAS_NBDAYS_AFTER_EXPIRATION_BEFORE_PAID_SUSPEND)
 	 * CAN BE A CRON TASK
 	 *
-	 * @return	int			0 if OK, <>0 if KO (this function is used also by cron so only 0 is OK)
+	 * @param	int   $noapachereload	0=Reload apache after remote action, 1=No apache reload
+	 * @param	int   $maxnbofinstances	Max number f ionstances (0 = no max)
+	 * @return	int						0 if OK, <>0 if KO (this function is used also by cron so only 0 is OK)
 	 */
-	public function doSuspendExpiredRealInstances()
+	public function doSuspendExpiredRealInstances($noapachereload = 0, $maxnbofinstances = 0)
 	{
 		global $conf, $langs;
 
@@ -1969,7 +1979,7 @@ class SellYourSaasUtils
 		$conf->global->SYSLOG_FILE = 'DOL_DATA_ROOT/dolibarr_doSuspendExpiredRealInstances.log';
 
 		dol_syslog(__METHOD__, LOG_DEBUG);
-		$result = $this->doSuspendInstances('paid');
+		$result = $this->doSuspendInstances('paid', $noapachereload, $maxnbofinstances);
 
 		$conf->global->SYSLOG_FILE = $savlog;
 
@@ -1982,14 +1992,16 @@ class SellYourSaasUtils
 	 * It sets the status of services to "offline" and send an email to the customer.
 	 * Note: An instance can also be suspended from backoffice by setting service to "offline". In such a case, no email is sent.
 	 *
-	 * @param	string	$mode		'test' or 'paid'
-	 * @return	int					0 if OK, <>0 if KO (this function is used also by cron so only 0 is OK)
+	 * @param	string	$mode				'test' or 'paid'
+	 * @param	int   	$noapachereload		0=Reload apache after remote action, 1=Force no apache reload
+	 * @param	int   	$maxnbofinstances	Max number f ionstances (0 = no max)
+	 * @return	int							0 if OK, <>0 if KO (this function is used also by cron so only 0 is OK)
 	 */
-	private function doSuspendInstances($mode)
+	private function doSuspendInstances($mode, $noapachereload = 0, $maxnbofinstances = 0)
 	{
 		global $conf, $langs, $user;
 
-		$MAXPERCALL = 25;
+		$MAXPERCALL = ($maxnbofinstances > 0 ? $maxnbofinstances : 25);
 
 		if ($mode != 'test' && $mode != 'paid') {
 			$this->error = 'Function doSuspendInstances called with bad value for parameter $mode';
@@ -2013,7 +2025,7 @@ class SellYourSaasUtils
 			return -1;
 		}
 
-		dol_syslog(get_class($this)."::doSuspendInstances suspend expired instance in mode ".$mode." with grace delay of ".$gracedelay);
+		dol_syslog(get_class($this)."::doSuspendInstances suspend expired instance in mode ".$mode." with grace delay of ".$gracedelay.", noapachereload=".$noapachereload.", maxnbofinstances=".$maxnbofinstances);
 
 		$now = dol_now();
 		$datetotest = dol_time_plus_duree($now, -1 * abs($gracedelay), 'd');
@@ -2097,7 +2109,7 @@ class SellYourSaasUtils
 						//   if already a template invoice exists, we will suspend instance
 						$customerHasAPaymentMode = sellyoursaasThirdpartyHasPaymentMode($object->thirdparty->id);
 						if ($customerHasAPaymentMode) {
-							// Portion of code similar to more complete code into index.php
+							// Portion of code similar to a more complete code into index.php
 							// We set some parameter to be able to use same code
 							$sellyoursaasutils = $this;
 							$db = $this->db;
@@ -2120,7 +2132,7 @@ class SellYourSaasUtils
 								}
 
 								// Make a test to pass loop if there is already a template invoice
-								$result = $contract->fetchObjectLinked();
+								$result = $contract->fetchObjectLinked(null, '', null, '', 'OR', 1, 'sourcetype', 1);
 								if ($result < 0) {
 									continue;							// There is an error, so we discard this contract to avoid to create template twice
 								}
@@ -2327,7 +2339,7 @@ class SellYourSaasUtils
 									if ($invoice_draft->id > 0) {
 										$srcObject = $invoice_draft;
 
-										$srcObject->fetchObjectLinked();
+										$srcObject->fetchObjectLinked(null, '', null, '', 'OR', 1, 'sourcetype', 1);
 
 										if (! empty($srcObject->linkedObjectsIds['contrat'])) {
 											$contractidid = reset($srcObject->linkedObjectsIds['contrat']);
@@ -2367,15 +2379,14 @@ class SellYourSaasUtils
 									}
 								}
 							}
-						} else // Third party has no payment mode defined, we suspend it.
-						{
+						} else {// Third party has no payment mode defined, we suspend it.
 							$wemustsuspendinstance = true;
 						}
 
 						if ($wemustsuspendinstance) {
-							//$conf->global->noapachereload = 1;       // Set a global variable that can be read later by trigger
-							$conf->global->noapachereload = 0;       // Set a global variable that can be read later by trigger
-							$comment = "Closed by batch doSuspendInstances('".$mode."') the ".dol_print_date($now, 'dayhourrfc').' (noapachereload='.$conf->global->noapachereload.')';
+
+							$conf->global->noapachereload = $noapachereload;	// Set a global variable that can be read later by trigger
+							$comment = "Closed by batch doSuspendInstances('".$mode.", ".$noapachereload.", ".$maxnbofinstances."') the ".dol_print_date($now, 'dayhourrfc').')';
 							$result = $object->closeAll($user, 0, $comment);			// This may execute trigger that make remote actions to suspend instance
 							$conf->global->noapachereload = null;    // unset a global variable that can be read later by trigger
 							if ($result < 0) {
@@ -2449,7 +2460,6 @@ class SellYourSaasUtils
 						}
 					}
 				}
-				$ifetchservice++;
 			}
 		} else {
 			$error++;
@@ -2457,14 +2467,18 @@ class SellYourSaasUtils
 		}
 
 		if (! $error) {
+			// TODO Disable the apache reload after each closing of actions and do it once here.
+
 			$this->db->commit();
 			$this->output = $numofexpiredcontractlines.' expired contract lines found'."\n";
+			$this->output.= 'Launch with noapachereload = '.$noapachereload.", maxnbofinstances = ".$maxnbofinstances."\n";
 			$this->output.= count($contractprocessed).' '.$mode.' running contract(s) with service end date before '.dol_print_date($datetotest, 'dayhourrfc').' suspended'.(count($contractprocessed)>0 ? ' : '.join(',', $contractprocessed) : '').' (search done on contracts of SellYourSaas customers only).'."\n";
 			$this->output.= count($contractconvertedintemplateinvoice).' '.$mode.' running contract(s) with service end date before '.dol_print_date($datetotest, 'dayhourrfc').' converted into template invoice'.(count($contractconvertedintemplateinvoice)>0 ? ' : '.join(',', $contractconvertedintemplateinvoice) : '');
 			if ($erroremail) $this->output.='. Got errors when sending some email : '.$erroremail;
 		} else {
 			$this->db->rollback();
 			$this->output = "Rollback after error\n";
+			$this->output.= 'Launch with noapachereload = '.$noapachereload.", maxnbofinstances = ".$maxnbofinstances."\n";
 			$this->output.= $numofexpiredcontractlines.' expired contract lines found'."\n";
 			$this->output.= count($contractprocessed).' '.$mode.' running contract(s) with service end date before '.dol_print_date($datetotest, 'dayhourrfc').' to suspend'.(count($contractprocessed)>0 ? ' : '.join(',', $contractprocessed) : '').' (search done on contracts of SellYourSaas customers only).'."\n";
 			$this->output.= count($contractconvertedintemplateinvoice).' '.$mode.' running contract(s) with service end date before '.dol_print_date($datetotest, 'dayhourrfc').' to convert into template invoice'.(count($contractconvertedintemplateinvoice)>0 ? ' : '.join(',', $contractconvertedintemplateinvoice) : '');
@@ -2661,7 +2675,7 @@ class SellYourSaasUtils
 								//setEventMessages($contract->error, $contract->errors, 'errors');
 							} else {
 								// Now we force disable of recurring invoices
-								$object->fetchObjectLinked();
+								$object->fetchObjectLinked(null, '', null, '', 'OR', 1, 'sourcetype', 1);
 
 								if (is_array($object->linkedObjects['facturerec'])) {
 									foreach ($object->linkedObjects['facturerec'] as $idtemplateinvoice => $templateinvoice) {
@@ -2819,7 +2833,7 @@ class SellYourSaasUtils
 			$listoflines = array($object);
 		}
 
-		dol_syslog("* sellyoursaasRemoteAction START (remoteaction=".$remoteaction." email=".$email." ".(get_class($object) == 'Contrat' ? ' contractid='.$object->id.' contractref='.$object->ref: '').")", LOG_DEBUG, 1);
+		dol_syslog("* sellyoursaasRemoteAction START (remoteaction=".$remoteaction." initial email=".$email.(get_class($object) == 'Contrat' ? ' contractid='.$object->id.' contractref='.$object->ref: '')." timeout=".$timeout.")", LOG_DEBUG, 1);
 
 		include_once DOL_DOCUMENT_ROOT.'/product/class/product.class.php';
 		include_once DOL_DOCUMENT_ROOT.'/core/lib/security2.lib.php';
@@ -3636,7 +3650,7 @@ class SellYourSaasUtils
 								$forceaddevent = 'Qty line '.$tmpobject->id.' updated '.$currentqty.' -> '.$newqty;
 
 								// Test if there is template invoice linkded
-								$contract->fetchObjectLinked();
+								$contract->fetchObjectLinked(null, '', null, '', 'OR', 1, 'sourcetype', 1);
 
 								if (is_array($contract->linkedObjects['facturerec']) && count($contract->linkedObjects['facturerec']) > 0) {
 									//dol_sort_array($contract->linkedObjects['facture'], 'date');

@@ -53,6 +53,9 @@ class Packages extends CommonObject
 	 */
 	public $picto = 'label';
 
+	const STATUS_DRAFT = 0;
+	const STATUS_ACTIVE = 1;
+
 
 	/**
 	 *  'type' field format ('integer', 'integer:ObjectClass:PathToClass[:AddCreateButtonOrNot[:Filter]]', 'sellist:TableName:LabelFieldName[:KeyFieldName[:KeyFieldParent[:Filter]]]', 'varchar(x)', 'double(24,8)', 'real', 'price', 'text', 'text:none', 'html', 'date', 'datetime', 'timestamp', 'duration', 'mail', 'phone', 'url', 'password')

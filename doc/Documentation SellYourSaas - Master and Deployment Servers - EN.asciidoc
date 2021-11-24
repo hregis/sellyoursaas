@@ -310,6 +310,7 @@ Fix permission on */etc/ssh/sshd_config* so only root has read and write access:
 chmod go-rw /etc/ssh/sshd_config
 ---------------
 
+
 Create a file */etc/ssh/sshd_config.d/sellyoursaas.conf* to change login permissions with the following content:
 
 For Ubuntu 18.04: you can concat the content into file *sshd_config* but be sure to not have duplicate values.
@@ -321,6 +322,8 @@ For Ubuntu 18.04: you can concat the content into file *sshd_config* but be sure
 # Permissions on files must be correct to allow login
 StrictModes yes
 
+# MaxAuthTries 6
+MaxAuthTries 10
 # MaxSessions 10
 MaxSessions 25
 
@@ -345,6 +348,10 @@ AllowUsers myunixlogin
 # Legacy changes - To allow an old client (like old PHP) to connect to
 KexAlgorithms +diffie-hellman-group1-sha1
 Ciphers +aes128-cbc
+
+#Match User osu*
+#        ChrootDirectory %h
+
 ---------------
 
 Please note: replace *myunixlogin* with the correct value before taking changes into account with:
@@ -366,16 +373,18 @@ Create a file */etc/sudoers.d/myunixlogin* with the content
 
 [source, conf]
 ---------------
-myunixlogin ALL=(ALL) NOPASSWD:ALL
+myunixlogin ALL=(ALL) ALL
+# You can also add this line to force user to re-enter its password to switch to root
+myunixlogin ALL=(ALL) NOPASSWD:/usr/bin/su - admin
 ---------------
 
-This allows you to switch to admin or any osu... user without typing your password too :
+This allows you to switch to *admin* or any *osu...* user without typing your password too:
 
 [source, bash]
---------------
+---------------
 sudo su - admin
 sudo su - osu...
---------------
+---------------
 
 And set the *root*.*root* and the permissions *r--r-----*
 
@@ -1019,7 +1028,7 @@ ErrorLog ${APACHE_LOG_DIR}/other_vhosts_error.log
 
 On the *Master server*:
 
-Create the file */etc/apache2/.htpasswd* with 
+* Create the file */etc/apache2/.htpasswd* with 
 
 [source, bash]
 ---------------
@@ -1060,9 +1069,8 @@ Choose a password. You will need to give this user and password to anyone who wa
         AuthName "Authenticate to backoffice"
         AuthUserFile /etc/apache2/.htpasswd
         Require valid-user
-        # Or if you prefer restrict to some ip, comment all directives and use this one instead:
-        #Require ip x.y.z.w
-        #Require ip a.b.c.d
+        # Or if you prefer restrict to some ip, you can add lines "Require ip x.y.z.w" into a .conf file into this directory:
+        IncludeOptional /etc/sellyoursaas-allowed-ip.d/*.conf
         </Directory>
 
         #leaving /public, /api and /dav accessible to everyone
@@ -1098,9 +1106,10 @@ Choose a password. You will need to give this user and password to anyone who wa
 
         # Add alias git on sellyoursaas git dir
         Alias "/git" "/home/admin/wwwroot/dolibarr_documents/sellyoursaas/git"
-        <Directory /home/admin/wwwroot>
+        <Directory /home/admin/wwwroot/dolibarr_documents/sellyoursaas/git>
         AllowOverride FileInfo Limit
         Options +Indexes
+        Order allow,deny
         Require ip 1.2.3.4
         </Directory>
 
@@ -1388,7 +1397,7 @@ NOTE: Remember to also modify *mybusinessips* by your ip(s) separated by spaces 
 # "ignoreip" can be an IP address, a CIDR mask or a DNS host. Fail2ban will not
 # ban a host which matches an address in this list. Several addresses can be
 # defined using space separator.
-ignoreip = 127.0.0.1/8 mybusinessips
+ignoreip = 127.0.0.1/8 mybusinessips ipofmaster
 
 # "bantime" is the number of seconds that a host is banned.
 bantime  = 3600
@@ -2072,7 +2081,9 @@ to put into section *[Service]* a value that is a limit number of files that is 
 [source,bash]
 ---------------
 LimitNOFILE=50000
-Restart=on-watchdog
+Restart=no
+#Restart=on-abort     # on-abort is also possible
+#Restart=on-watchdog  # on-watchdog is also possible
 ---------------
 
 This may avoid warning like "Could not increase number of max_open_files to more than".
@@ -2102,8 +2113,10 @@ with
 ---------------
 bind-address = 0.0.0.0
 max_connections      = 500
-max_user_connections = 30
+max_user_connections = 25
+# wait_timeout and interactive_timeout must be set both or none
 wait_timeout         = 7200
+interactive_timeout  = 7200
 table_open_cache     = 10000
 table_definition_cache = 8000
 sort_buffer_size=2M
@@ -2665,6 +2678,14 @@ aa-enforce bin.secureBash
 ---------------
 
 
+* Note: To unload ALL apparmor profiles:
+
+[source,bash]
+---------------
+aa-teardown
+---------------
+
+
 * Note: To disable a profile of rules
 
 [source,bash]
@@ -3114,6 +3135,12 @@ chmod -R a+rw /home/admin/wwwroot/dolibarr_documents/sellyoursaas_local/spam;
 su root syslog
 ---------------
 
+* Modify the */etc/logrotate.d/apache2* to increase the delay of purge to 365 days.
+
+[source,conf]
+---------------
+rotate 365
+---------------
 
 * Create a file */etc/logrotate.d/logrotate_admin_log*
 
@@ -3283,7 +3310,7 @@ This must be done on deployment servers only.
 
 ==== Obtain wildcard certificate files for *.withX.mysaasdomainname.com
 
-===== From a SSL provider 
+===== Solution 1: From a SSL provider 
 
 * Create the key *withX.mysaasdomainname.com.key* and csr *withX.mysaasdomainname.com.csr* files like so:
 
@@ -3316,7 +3343,7 @@ Choose:
 
 * Submit the *.csr* file to the SSL certificate provider.
 
-===== From LetsEncrypt
+===== Solution 2: From LetsEncrypt
 
 * To create a SSL certficate *on the master* :
 
@@ -3336,7 +3363,7 @@ certbot certonly -n --manual-public-ip-logging-ok --server https://acme-v02.api.
 
 For example, you can use *supervision@mysaasdomain.com* as the email for letsencrypt account.
 
-This enables the automatic renewal of wildcard certificates so you do not need to renew manually every 90 days (systemd timer is run regularly, if the certificate is within 30 days of expiry, it is renewed automatically and the symbolic links in */etc/letsencrypt/live/<domain>* are updated, so if you use those in your vhosts you have nothing more to do)
+This create certificates and also enable the automatic renewal of wildcard certificates so you do not need to renew manually every 90 days (systemd timer is run regularly, if the certificate is within 30 days of expiry, it is renewed automatically and the symbolic links in */etc/letsencrypt/live/<domain>* are updated, so if you use those in your vhosts you have nothing more to do)
 
 To read certificate .crt or .pem files, you can run:
 
@@ -3345,8 +3372,16 @@ To read certificate .crt or .pem files, you can run:
 openssl x509 -in fullchain.pem -text
 ---------------
 
+To read renewal scheduler:
 
-* To renew a certificate *on the master*:
+[source,bash]
+---------------
+systemctl list-timers
+systemctl status snap.certbot.renew.timer
+---------------
+
+
+* To renew a certificate on the *master*:
 
 [source,bash]
 ---------------
@@ -3355,7 +3390,7 @@ ou
 certbot renew --manual --force-renewal
 ---------------
 
-* For wildcard certificates on *deployment servers*:
+* To renew a certificate on the *deployment servers*:
 
 You can use the same command as used originally (with --dry-run option first if you want to check)
 
@@ -3376,7 +3411,7 @@ or from command line: host -t txt _acme-challenge.withX.mysaasdomainname.com
 
 * Get the SSL certificate files (file *.crt* of the certificate and the intermediate certificate) and install them into */etc/apache2*)
 
-* Create a symbolic link with the generic name *withX.sellyoursaas.com.key*, *withX.sellyoursaas.com.crt* and *withX.sellyoursaas.com-intermediate.crt*:
+* Create a symbolic link with the generic name *withX.sellyoursaas.com.key*, *withX.sellyoursaas.com.crt* and *withX.sellyoursaas.com-intermediate.crt* to the certificate files:
 
 For example, if your certificates files were generated with letsencrypt, you can do:
 
@@ -4574,7 +4609,7 @@ sudo chown mysql /var/run/mysqld;
 sudo mysqld_safe --skip-grant-tables &
 ---------------
 
-* With a mode different from recovery, modify server.conf to set 1, 2, 3, 4
+* With a mode different for recovery, modify */etc/mysql/mariadb.conf.d/50-server.conf* to set 1, 2, 3, 4
 
 [source,bash]
 ---------------
@@ -4589,7 +4624,7 @@ NOTE: If launching takes a long time, to follow what's happening, do:
 
 [source,bash]
 ---------------
-lsof -p PID_de_mysql 
+lsof -p PID_of_ps_grep_mysqld 
 ---------------
 to see files and DBs treated in relog. They are open either by date of the inodes or by alphabetical order in the dbn folder... (do it several times to determine which)
 
@@ -5153,5 +5188,5 @@ When logged with a customer linux account osu..., you get this error:
 mysql -A -C -u dbu... -p'...' -h localhost -D dbn...
 ERROR 2002 (HY000): Can't connect to local MySQL server through socket '/var/run/mysqld/mysqld.sock' (13)
 
-Mariadb may try to use socket mode to connect to the database instead of IP. Try to replace "localhost" with "127.0.0.1" or add the parameter --protocol tcp.
+Mariadb may try to use socket mode to connect to the database instead of IP. Try to replace "localhost" with "127.0.0.1" or add the parameter *--protocol tcp*.
 
