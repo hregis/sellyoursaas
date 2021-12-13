@@ -138,7 +138,7 @@ function sellyoursaasIsPaidInstance($contract, $mode = 0, $loadalsoobjects = 0)
 	var_dump($contract->linkedObjects);*/
 
 	$foundtemplate=0;
-	if (is_array($contract->linkedObjectsIds['facturerec'])) {
+	if (!empty($contract->linkedObjectsIds['facturerec']) && is_array($contract->linkedObjectsIds['facturerec'])) {
 		foreach ($contract->linkedObjectsIds['facturerec'] as $idelementelement => $templateinvoiceid) {
 			$foundtemplate++;
 			break;
@@ -149,7 +149,7 @@ function sellyoursaasIsPaidInstance($contract, $mode = 0, $loadalsoobjects = 0)
 
 	if ($mode == 0) {
 		$foundinvoice=0;
-		if (is_array($contract->linkedObjectsIds['facture'])) {
+		if (!empty($contract->linkedObjectsIds['facture']) && is_array($contract->linkedObjectsIds['facture'])) {
 			foreach ($contract->linkedObjectsIds['facture'] as $idelementelement => $invoiceid) {
 				$foundinvoice++;
 				break;
@@ -166,28 +166,41 @@ function sellyoursaasIsPaidInstance($contract, $mode = 0, $loadalsoobjects = 0)
 /**
  * Return if instance has a last payment in error or not
  *
- * @param 	Contrat $contract		Object contract
- * @return	int						>0 if this is a contract with current payment error
+ * @param 	Contrat 	$contract			Object contract
+ * @return	int								>0 if this is a contract with current payment error
  */
 function sellyoursaasIsPaymentKo($contract)
 {
 	global $db;
 
-	$contract->fetchObjectLinked();
+	// TODO Replace this with a direct select on actioncomm linked to open invoices of contract.
+
+	$loadalsoobjects = 1;	// We nee the object 'facture' to test its status
+	$contract->fetchObjectLinked(null, '', null, '', 'OR', 1, 'sourcetype', $loadalsoobjects);
+
 	$paymenterror=0;
 
 	if (is_array($contract->linkedObjects['facture'])) {
-		foreach ($contract->linkedObjects['facture'] as $idinvoice => $invoice) {
-			if ($invoice->statut == Facture::STATUS_CLOSED) continue;
+		foreach ($contract->linkedObjects['facture'] as $rowidelementelement => $invoice) {
+			if ($invoice->statut == Facture::STATUS_CLOSED) {
+				continue;
+			}
 
 			// The invoice is not paid, we check if there is at least one payment issue
-			$sql=' SELECT id FROM '.MAIN_DB_PREFIX."actioncomm WHERE elementtype = 'invoice' AND fk_element = ".$invoice->id." AND code='INVOICE_PAYMENT_ERROR'";
+			// See also request into index.php
+			$sql = "SELECT id FROM ".MAIN_DB_PREFIX."actioncomm";
+			$sql .= " WHERE elementtype = 'invoice' AND fk_element = ".$invoice->id;
+			$sql .= " AND (code LIKE 'AC_PAYMENT_%_KO' OR label = 'Cancellation of payment by the bank')";
+			$sql .= ' ORDER BY datep DESC';
+
 			$resql=$db->query($sql);
 			if ($resql) {
-				$num=$db->num_rows($resql);
+				$num = $db->num_rows($resql);
 				$db->free($resql);
 				return $num;
-			} else dol_print_error($db);
+			} else {
+				dol_print_error($db);
+			}
 		}
 	}
 
@@ -208,7 +221,7 @@ function sellyoursaasHasOpenInvoices($contract)
 	$atleastoneopeninvoice=0;
 
 	if (is_array($contract->linkedObjects['facture'])) {
-		foreach ($contract->linkedObjects['facture'] as $idinvoice => $invoice) {
+		foreach ($contract->linkedObjects['facture'] as $rowidelementelement => $invoice) {
 			if ($invoice->statut == Facture::STATUS_CLOSED) continue;
 			if ($invoice->statut == Facture::STATUS_ABANDONED) continue;
 			if (empty($invoice->paid)) {
@@ -227,14 +240,18 @@ function sellyoursaasHasOpenInvoices($contract)
  *
  * @param 	Contrat $contract				Object contract
  * @param	int		$onlyexpirationdate		1=Return only property 'expiration_date' (no need to load each product line properties to also set the 'nbofgbs', 'status', 'duration_value', ...)
- * @return	array							Array of data array('expirationdate'=>Timestamp of expiration date, or 0 if error or not found)
+ * @return	array							Array of data array(
+ * 												'expirationdate'=>Timestamp of expiration date, or 0 if error or not found,
+ * 												'status'=>Status of line of package app,
+ * 												'duration_value', 'duration_unit', 'nbusers', 'nbofgbs', 'appproductid'
+ * 											)
  */
 function sellyoursaasGetExpirationDate($contract, $onlyexpirationdate = 0)
 {
 	global $db;
 
 	$expirationdate = 0;
-	$status = 0;
+	$statusofappline = 0;
 	$duration_value = 0;
 	$duration_unit = '';
 	$nbofusers = 0;
@@ -254,7 +271,7 @@ function sellyoursaasGetExpirationDate($contract, $onlyexpirationdate = 0)
 		}
 
 		if (empty($onlyexpirationdate) && $line->fk_product > 0) {
-			if (empty($cachefortmpprod[$line->fk_product])) {
+			if (empty($cachefortmpprod[$line->fk_product])) {	// if product not already loaded into the cache
 				$tmpprod = new Product($db);
 				$result = $tmpprod->fetch($line->fk_product, '', '', '', 1, 1, 1);
 				if ($result > 0) {
@@ -271,7 +288,7 @@ function sellyoursaasGetExpirationDate($contract, $onlyexpirationdate = 0)
 				$duration_unit = $prodforline->duration_unit;
 				$appproductid = $prodforline->id;
 
-				$status = $line->statut;
+				$statusofappline = $line->statut;
 
 				if (empty($duration_value) || empty($duration_unit)) {
 					dol_syslog("Error, the definition of duration for product ID ".$prodforline->id." is uncomplete.", LOG_ERR);
@@ -290,7 +307,7 @@ function sellyoursaasGetExpirationDate($contract, $onlyexpirationdate = 0)
 		}
 	}
 
-	return array('expirationdate'=>$expirationdate, 'status'=>$status, 'duration_value'=>$duration_value, 'duration_unit'=>$duration_unit, 'nbusers'=>$nbofusers, 'nbofgbs'=>$nbofgbs, 'appproductid'=>$appproductid);
+	return array('expirationdate'=>$expirationdate, 'status'=>$statusofappline, 'duration_value'=>$duration_value, 'duration_unit'=>$duration_unit, 'nbusers'=>$nbofusers, 'nbofgbs'=>$nbofgbs, 'appproductid'=>$appproductid);
 }
 
 

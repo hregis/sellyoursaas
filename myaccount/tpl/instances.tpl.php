@@ -33,7 +33,8 @@ $forcesubdomain = GETPOST('forcesubdomain', 'alpha');
 
 // List of available plans/products
 $arrayofplans=array();
-$sqlproducts = 'SELECT p.rowid, p.ref, p.label, p.price, p.price_ttc, p.duration, pe.availabelforresellers';
+$arrayofplansfull=array();
+$sqlproducts = 'SELECT p.rowid, p.ref, p.label, p.price, p.price_ttc, p.duration, pe.availabelforresellers, pa.restrict_domains';
 $sqlproducts.= ' FROM '.MAIN_DB_PREFIX.'product as p, '.MAIN_DB_PREFIX.'product_extrafields as pe';
 $sqlproducts.= ' LEFT JOIN '.MAIN_DB_PREFIX.'packages as pa ON pe.package = pa.rowid';
 $sqlproducts.= ' WHERE p.tosell = 1 AND p.entity = '.$conf->entity;
@@ -117,6 +118,10 @@ if ($resqlproducts) {
 				if ($tmpprod->duration) $arrayofplans[$obj->rowid].=$tmpduration;
 			}
 			$arrayofplans[$obj->rowid].=')';
+
+			$arrayofplansfull[$obj->rowid]['id'] = $obj->rowid;
+			$arrayofplansfull[$obj->rowid]['label'] = $arrayofplans[$obj->rowid];
+			$arrayofplansfull[$obj->rowid]['restrict_domains'] = $obj->restrict_domains;
 		}
 		$i++;
 	}
@@ -877,12 +882,12 @@ if (count($listofcontractid) == 0) {				// Should not happen
 	print '<br>';
 
 	print '<!-- Form to add an instance -->'."\n";
-	print '<form id="formaddanotherinstance" class="form-group reposition" style="display: none;" action="register_instance.php" method="POST">';
+	print '<form id="formaddanotherinstance" class="form-group reposition" style="'.(GETPOST('addanotherinstance', 'int') ? '' : 'display: none;').'" action="register_instance.php" method="POST">';
 	print '<input type="hidden" name="token" value="'.newToken().'">';
 	print '<input type="hidden" name="action" value="deployall" />';
 	print '<input type="hidden" name="fromsocid" value="0" />';
-	print '<input type="hidden" name="reusesocid" value="'.$socid.'" />';
-	print '<!-- thirdpartyidinsession = '.$_SESSION['dol_loginsellyoursaas'].' -->';
+	print '<input type="hidden" name="reusesocid" value="'.((int) $socid).'" />';
+	print '<!-- thirdpartyidinsession = '.dol_escape_htmltag($_SESSION['dol_loginsellyoursaas']).' -->';
 
 	print '<div class="row">
     	<div class="col-md-12">
@@ -904,7 +909,7 @@ if ($MAXINSTANCES && count($listofcontractid) < $MAXINSTANCES) {
 
 		print '<div class="horizontal-fld centpercent marginbottomonly">';
 		print '<strong>'.$langs->trans("YourSubscriptionPlan").'</strong> ';
-		print $form->selectarray('service', $arrayofplans, $planid, 0, 0, 0, '', 0, 0, 0, '', 'minwidth500');
+		print $form->selectarray('service', $arrayofplans, $planid, 0, 0, 0, '', 0, 0, 0, '', 'width500 minwidth500');
 		print '<br>';
 		print '</div>';
 		//print ajax_combobox('service');
@@ -913,7 +918,7 @@ if ($MAXINSTANCES && count($listofcontractid) < $MAXINSTANCES) {
 
         			<div class="horizontal-fld clearboth margintoponly">
         			<div class="control-group required">
-        			<label class="control-label" for="password" trans="1">'.$langs->trans("Password").'</label><input name="password" type="password" maxlength="128" required />
+        			<label class="control-label" for="password" trans="1">'.$langs->trans("Password").'</label><input name="password" type="password" maxlength="128"'.(GETPOST('addanotherinstance', 'int') ? ' autofocus' : '').' required />
         			</div>
         			</div>
         			<div class="horizontal-fld margintoponly">
@@ -928,29 +933,54 @@ if ($MAXINSTANCES && count($listofcontractid) < $MAXINSTANCES) {
         			<label trans="1">'.$langs->trans("ChooseANameForYourApplication").'</label>
         			<div class="linked-flds">
         			<span class="opacitymedium">https://</span>
-        			<input class="sldAndSubdomain" type="text" name="sldAndSubdomain" id="sldAndSubdomain" value="" maxlength="29" required />
-        			<select name="tldid" id="tldid" >';
+        			<input class="sldAndSubdomain" type="text" name="sldAndSubdomain" id="sldAndSubdomain" value="'.dol_escape_htmltag(GETPOST('sldAndSubdomain')).'" maxlength="29" required />
+        			<select name="tldid" id="tldid">';
 		// SERVER_NAME here is myaccount.mydomain.com (we can exploit only the part mydomain.com)
 		$domainname = getDomainFromURL($_SERVER["SERVER_NAME"], 1);
 
+		// listofdomain can be:  with1.mydomain.com,with2.mydomain.com:ondomain1.com+ondomain2.com,...
 		$listofdomain = explode(',', $conf->global->SELLYOURSAAS_SUB_DOMAIN_NAMES);
 		foreach ($listofdomain as $val) {
 			$newval=$val;
 			$reg = array();
-			if (preg_match('/:(.*)$/', $newval, $reg)) {      // If this domain must be shown only if domain match
-				$newval = preg_replace('/:.*$/', '', $newval);
-				if ($reg[1] != $domainname && $newval != GETPOST('forcesubdomain', 'alpha')) continue;
+			$tmpdomains = array();
+			if (preg_match('/:(.+)$/', $newval, $reg)) {      // If this domain must be shown only if domain match
+				$newval = preg_replace('/:.*$/', '', $newval);	// the part before the : that we use to compare the forcesubdomain parameter.
+				$domainqualified = false;
+				$tmpdomains = explode('+', $reg[1]);
+				foreach($tmpdomains as $tmpdomain) {
+					if ($tmpdomain == $domainname || $newval == GETPOST('forcesubdomain', 'alpha')) {
+						$domainqualified = true;
+						break;
+					}
+				}
+				if (! $domainqualified) {
+					continue;
+				}
 			}
 			// $newval is subdomain (with.mysaasdomainname.com for example)
 
 			if (! preg_match('/^\./', $newval)) $newval='.'.$newval;
-			print '<option value="'.$newval.'"'.(($newval == '.'.GETPOST('forcesubdomain', 'alpha')) ? ' selected="selected"':'').'>'.$newval.'</option>';
+			print '<option class="optionfordomain';
+			foreach($tmpdomains as $tmpdomain) {	// list of restrictions for the deployment server $newval
+				print ' optionvisibleondomain-'.preg_replace('/[^a-z0-9]/i', '', $tmpdomain);
+			}
+			print '" value="'.$newval.'"'.(($newval == '.'.GETPOST('forcesubdomain', 'alpha')) ? ' selected="selected"':'').'>'.$newval.'</option>';
 		}
 		print '</select>
         			<br class="unfloat" />
         			</div>
         			</div>
-        			</section>';
+        			</section>'."\n";
+
+		// Add code to make constraints on deployment servers
+		print '<!-- JS Code to force plan -->';
+		print '<script type="text/javascript" language="javascript">
+    		jQuery(document).ready(function() {'."\n";
+		foreach($arrayofplansfull as $key => $plan) {
+			print '/* pid='.$key.' => '.$plan['label'].' - '.$plan['id'].' - '.$plan['restrict_domains'].' */'."\n";
+		}
+		print '</script>';
 
 		if (GETPOST('admin', 'alpha')) {
 			print '<div class="horizontal-fld clearboth margintoponly">';

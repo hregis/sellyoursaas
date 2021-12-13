@@ -241,6 +241,10 @@ ul.nav-tabs li a.active {
 	font-size: 1.8em;
 }
 
+select#tldid {
+    margin-top: 2px;
+}
+
 div.tab-content {
 	padding-top: 15px;	
 }
@@ -256,11 +260,13 @@ div.tab-content {
     border-radius: 5px;
     text-align: center;
 }
+
 @media only screen and (max-width: 400px)	/* reduction 3 */
 {
 	.boxresource { width: 120px; }
 	.hideonsmartphone { display: none; }
 }
+
 
 .jnotify-container .jnotify-notification .jnotify-background {
 	opacity: 1;	
@@ -281,6 +287,7 @@ div.tab-content {
 .width50  { width: 50px; }
 .width100 { width: 100px; }
 .width200 { width: 200px; }
+.width500 { width: 500px; }
 .maxwidth25  { max-width: 25px; }
 .maxwidth50  { max-width: 50px; }
 .maxwidth75  { max-width: 75px; }
@@ -306,7 +313,7 @@ div.tab-content {
 .width80p { width:80%; }
 .width100p { width:100%; }
 
-@media only screen and (min-width: 750px)
+@media only screen and (min-width: 769px)
 {
 	input#username {
     	width: 300px;
@@ -316,6 +323,7 @@ div.tab-content {
 /* Force values for small screen */
 @media only screen and (max-width: 560px)
 {
+	.width500 { width: 260px; }
 	.minwidth50  { min-width: 50px !important; }
     .minwidth75  { min-width: 75px !important; }
     .minwidth100 { min-width: 100px !important; }
@@ -346,8 +354,20 @@ div.tab-content {
 	input[type='file'] {
 		width: inherit;
 	}
+
+	.home-page-url a.blue.btn-sm {
+	    font-size: 0.9em;
+	}
 }
 
+
+/* Force values for small screen (320-480 = smartphone) */
+@media only screen and (max-width: 480px)
+{
+	.home-page-url a.blue.btn-sm {
+	    font-size: 0.9em;
+	}
+}
 
 
 .boxresource .uppercase {

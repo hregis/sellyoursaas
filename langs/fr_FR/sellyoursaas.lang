@@ -137,7 +137,7 @@ SignMeUp=Créer mon instance
 ErrorPasswordMismatch=Erreur, les 2 saisies de mot de passe doivent être identiques
 ErrorOnlyCharAZAllowedFor=Seuls les caractères a-z, 0-9 ou - sont autorisés pour le %s
 NameForYourApplication=nom d'adresse
-AccountAlreadyExistsForEmail=Un compte existe déjà pour cet email. Si vous avez déjà un compte client et voulez créer une seconde instance sur le même compte, logguez vous simplement sur votre <a href="%s" target="_myaccount">espace client</a> pour créer votre instance suplémentaire.
+AccountAlreadyExistsForEmail=Un compte existe déjà pour cet email. Si vous avez déjà un compte client et voulez créer une seconde instance sur le même compte, logguez vous simplement sur votre <a href="%s" target="_myaccount">espace client</a> pour créer votre instance supplémentaire.
 AnonymousUser=Utilisateur anonyme
 NotLanguage=Pas la langue
 DeploymentDateStart=Date début déploiement (UTC)
@@ -483,7 +483,7 @@ GetFileOfIps=Télécharger fichier des IPs
 ParametersOnMasterServer=Paramètres du serveur Master
 ParametersOnDeploymentServers=Paramètres des serveurs de Déploiement
 RestrictDomainNames=Visible sur certains domaines seulement
-KeepEmptyForNoRestrictionOnDomain=Gardez vide si les services (en vente) qui incluent ce package doivent être toujours visibles sur le tableau de bord. Entrez un ou plusieurs noms de domaines, séparés par un virgule, pour exclure la visibilité des services fournissant ce package lorsque le tableau de bord n'a pas le même nom de domaine.<br>Exemple: mydomain.com, mydomain2.com
+KeepEmptyForNoRestrictionOnDomain=Gardez vide si les services (en vente) qui incluent ce package doivent être toujours visibles sur le tableau de bord. Entrez un ou plusieurs noms de domaines, séparés par un virgule, pour exclure la visibilité des services fournissant ce package lorsque le tableau de bord n'a pas le même nom de domaine.<br>Exemple: mydomain.com,mydomain2.com
 SellYourSaasSubDomainsHelp=Entrez la liste complète (séparée par une virgule) des sous-domaines à afficher dans les listes déroulantes lorsqu'un utilisateur souhaite créer une nouvelle instance. Si le sous-domaine doit être visible uniquement lorsque le tableau de bord ou la page d'inscription se trouve sur un domaine particulier, entrez le domaine après ':'. Mettre un nom factice rendra le sous-domaine jamais visible, sauf si vous ajoutez &forcesubdomain= comme paramètre sur la page d'enregistrement d'instance.
 DelayAutomaticPayment=Retarder le paiement automatique
 DelayAutomaticPaymentDesc=Ne pas essayer de prendre le paiement automatiquement avant cette date

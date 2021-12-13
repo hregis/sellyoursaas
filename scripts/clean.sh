@@ -57,32 +57,32 @@ if [[ "x$databaseport" == "x" ]]; then
 	databaseport="3306"
 fi
 
-if [ "x$instanceserver" == "x1" && "x$IPSERVERDEPLOYMENT" == "x" ]; then
+if [[ "x$instanceserver" == "x1" && "x$IPSERVERDEPLOYMENT" == "x" ]]; then
 	echo "Failed to find the IPSERVERDEPLOYMENT by reading entry 'ipserverdeployment=' into file /etc/sellyoursaas.conf" 1>&2
 	echo "Usage: ${0} [test|confirm]"
 	exit 1
 fi
-if [ "x$database" == "x" ]; then
+if [[ "x$database" == "x" ]]; then
     echo "Failed to find the DATABASE by reading entry 'database=' into file /etc/sellyoursaas.conf" 1>&2
 	echo "Usage: ${0} [test|confirm]"
 	exit 29
 fi
-if [ "x$databasehost" == "x" ]; then
+if [[ "x$databasehost" == "x" ]]; then
     echo "Failed to find the DATABASEHOST by reading entry 'databasehost=' into file /etc/sellyoursaas.conf" 1>&2
 	echo "Usage: ${0} [test|confirm]"
 	exit 30
 fi
-if [ "x$databaseuser" == "x" ]; then
+if [[ "x$databaseuser" == "x" ]]; then
     echo "Failed to find the DATABASEUSER by reading entry 'databaseuser=' into file /etc/sellyoursaas.conf" 1>&2
 	echo "Usage: ${0} [test|confirm]"
 	exit 4
 fi
-if [ "x$archivedirtest" == "x" ]; then
+if [[ "x$archivedirtest" == "x" ]]; then
     echo "Failed to find the archivedirtest value by reading entry 'archivedirtest=' into file /etc/sellyoursaas.conf" 1>&2
 	echo "Usage: ${0} [test|confirm]"
 	exit 31
 fi
-if [ "x$archivedirpaid" == "x" ]; then
+if [[ "x$archivedirpaid" == "x" ]]; then
     echo "Failed to find the archivedirpaid value by reading entry 'archivedirpaid=' into file /etc/sellyoursaas.conf" 1>&2
 	echo "Usage: ${0} [test|confirm]"
 	exit 31
@@ -579,6 +579,16 @@ rm /var/log/repair.lock > /dev/null 2>&1
 echo "***** Now clean journal files older than 60 days"
 echo "find '/var/log/journal/*/user-*.journal' -type f -path '/var/log/journal/*/user-*.journal' -mtime +60 -exec rm -f {} \;"
 find "/var/log/journal/" -type f -path '/var/log/journal/*/user-*.journal' -mtime +60 -exec rm -f {} \;
+
+# Clean tmp files
+
+
+# Now clean also old dir in archives-test
+if [[ "x$masterserver" == "x1" ]]; then
+	echo "***** We are on a master, so we clean sellyoursaas temp files" 
+	echo "Clean sellyoursaas temp files"
+	find "/home/admin/wwwroot/dolibarr_documents/sellyoursaas/temp/." ! -path "/home/admin/wwwroot/dolibarr_documents/sellyoursaas/temp/" -mtime +1 -exec rm -fr {} \;
+fi
 
 # Clean log files
 if [[ "x$instanceserver" == "x1" ]]; then

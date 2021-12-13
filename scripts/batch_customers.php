@@ -37,7 +37,7 @@ $path=dirname($_SERVER['PHP_SELF']).'/';
 // Test if batch mode
 if (substr($sapi_type, 0, 3) == 'cgi') {
 	echo "Error: You are using PHP for CGI. To execute ".$script_file." from command line, you must use PHP for CLI mode.\n";
-	exit(1);
+	exit(-1);
 }
 
 // Global variables
@@ -71,7 +71,7 @@ if (! $res) {
 
 include_once DOL_DOCUMENT_ROOT.'/core/lib/geturl.lib.php';
 include_once DOL_DOCUMENT_ROOT.'/core/class/utils.class.php';
-include_once dol_buildpath("/sellyoursaas/backoffice/lib/refresh.lib.php");
+include_once dol_buildpath("/sellyoursaas/backoffice/lib/refresh.lib.php");		// This set $serverprice
 
 
 // Read /etc/sellyoursaas.conf file
@@ -108,7 +108,7 @@ if ($fp) {
 	}
 } else {
 	print "Failed to open /etc/sellyoursaas.conf file\n";
-	exit;
+	exit(-1);
 }
 
 
@@ -120,7 +120,7 @@ if ($fp) {
 $dbmaster=getDoliDBInstance('mysqli', $databasehost, $databaseuser, $databasepass, $database, $databaseport);
 if ($dbmaster->error) {
 	dol_print_error($dbmaster, "host=".$databasehost.", port=".$databaseport.", user=".$databaseuser.", databasename=".$database.", ".$dbmaster->error);
-	exit;
+	exit(-1);
 }
 if ($dbmaster) {
 	$conf->setValues($dbmaster);
@@ -133,7 +133,7 @@ $langs->load("main");				// To load language file for default language
 
 // Load user and its permissions
 //$result=$user->fetch('','admin');	// Load user for login 'admin'. Comment line to run as anonymous user.
-//if (! $result > 0) { dol_print_error('',$user->error); exit; }
+//if (! $result > 0) { dol_print_error('',$user->error); exit(-1); }
 //$user->getrights();
 
 
@@ -152,7 +152,7 @@ if (! isset($argv[1])) {	// Check parameters
 	print "- updatedatabase      (=updatecountsonly+updatestatsonly) updates list and nb of users, modules and version and stats.\n";
 	print "- updatecountsonly    updates counters of instances only (only nb of user for instances)\n";
 	print "- updatestatsonly     updates stats only (only table dolicloud_stats) and send data to Datagog if enabled ***** Used by cron on master server *****\n";
-	exit;
+	exit(-1);
 }
 print '--- start script with mode '.$argv[1]."\n";
 //print 'Argument 1='.$argv[1]."\n";
@@ -165,11 +165,16 @@ $nbofok=0;
 // Nb of deployed instances
 $nbofinstancedeployed=0;
 // Nb of paying instance
-$nbofactiveok=0;
-$nbofactive=0;
-$nbofactivesusp=0;
-$nbofactivepaymentko=0;
 $nboferrors=0;
+$instances=array();
+$instancespaidsuspended=array();
+$instancespaidsuspendedandpaymenterror=array();
+$instancespaidnotsuspended=array();
+$instancespaidnotsuspendedpaymenterror=array();
+$instancesbackuperror=array();
+$instancesupdateerror=array();
+
+
 $instancefilter=(isset($argv[2])?$argv[2]:'');
 $instancefiltercomplete=$instancefilter;
 
@@ -177,13 +182,9 @@ $instancefiltercomplete=$instancefilter;
 if (! empty($instancefiltercomplete) && ! preg_match('/\./', $instancefiltercomplete) && ! preg_match('/\.home\.lan$/', $instancefiltercomplete)) {
 	$tmparray = explode(',', $conf->global->SELLYOURSAAS_SUB_DOMAIN_NAMES);
 	$tmpstring = preg_replace('/:.*$/', '', $tmparray[0]);
-	$instancefiltercomplete=$instancefiltercomplete.".".$tmpstring;   // Automatically concat first domain name
+	$instancefiltercomplete = $instancefiltercomplete.".".$tmpstring;   // Automatically concat first domain name
 }
 
-$instances=array();
-$instancesactivebutsuspended=array();
-$instancesbackuperror=array();
-$instancesupdateerror=array();
 
 
 include_once DOL_DOCUMENT_ROOT.'/contrat/class/contrat.class.php';
@@ -223,50 +224,76 @@ if ($resql) {
 	$num = $dbtousetosearch->num_rows($resql);
 	$i = 0;
 	if ($num) {
+		// Loop on each deployed instance/contract
 		while ($i < $num) {
 			$obj = $dbtousetosearch->fetch_object($resql);
 			if ($obj) {
+				// We process the instance
 				$instance = $obj->instance;
-				$payment_status='PAID';
 
 				dol_include_once('/sellyoursaas/lib/sellyoursaas.lib.php');
 
+				unset($object->linkedObjects);
+				unset($object->linkedObjectsIds);
+
+				// Load data of instance and set $instance_status (PROCESSING, DEPLOYED, SUSPENDED, UNDEPLOYED)
+				$instance_status = 'UNKNOWN';
 				$result = $object->fetch($obj->id);
 				if ($result <= 0) {
 					$i++;
 					dol_print_error($dbmaster, $object->error, $object->errors);
 					continue;
 				} else {
-					if ($object->array_options['options_deployment_status'] == 'processing') { $instance_status = 'PROCESSING'; } elseif ($object->array_options['options_deployment_status'] == 'undeployed') { $instance_status = 'UNDEPLOYED'; } elseif ($object->array_options['options_deployment_status'] == 'done') {										// should be here due to test into SQL request
+					if ($object->array_options['options_deployment_status'] == 'processing') {
+						$instance_status = 'PROCESSING';
+					} elseif ($object->array_options['options_deployment_status'] == 'undeployed') {
+						$instance_status = 'UNDEPLOYED';
+					} elseif ($object->array_options['options_deployment_status'] == 'done') {
+						// should be here due to test into SQL request
 						$instance_status = 'DEPLOYED';
 						$nbofinstancedeployed++;
-					} else { $instance_status = 'UNKNOWN'; }
+					}
 				}
 
-				$issuspended = sellyoursaasIsSuspended($object);
-				if ($issuspended) {
-					$instance_status = 'SUSPENDED';
+				if ($instance_status == 'DEPLOYED') {
+					$issuspended = sellyoursaasIsSuspended($object);
+					if ($issuspended) {
+						$instance_status = 'SUSPENDED';
+					}
+					// Note: to check that all non deployed instance has line with status that is 5 (close), you can run
+					// select * from llx_contrat as c, llx_contrat_extrafields as ce, llx_contratdet as cd WHERE ce.fk_object = c.rowid
+					// AND cd.fk_contrat = c.rowid AND ce.deployment_status <> 'done' AND cd.statut <> 5;
+					// You should get nothing.
 				}
 
-				$ispaid = sellyoursaasIsPaidInstance($object);
+				// Set $payment_status ('TRIAL', 'PAID' or 'FAILURE')
+				$payment_status='PAID';
+				$ispaid = sellyoursaasIsPaidInstance($object);	// This load linkedObjectsIds
 				if (! $ispaid) {
 					$payment_status='TRIAL';
 				} else {
 					$ispaymentko = sellyoursaasIsPaymentKo($object);
-					if ($ispaymentko) $payment_status='FAILURE';
+					if ($ispaymentko) {
+						$payment_status='FAILURE';
+					}
 				}
 
-				print "Analyze instance ".($i+1)." ".$instance." instance_status=".$instance_status." payment_status=".$payment_status."\n";
+				print "Analyze".($instancefiltercomplete ? '' : ' deployed')." instance ".($i+1)." ".$instance.": instance_status=".$instance_status." payment_status=".$payment_status.(empty($object->array_options['options_suspendmaintenance_message']) ? "" : " (maintenance/redirect: ".($object->array_options['options_suspendmaintenance_message']).")")."\n";
 
 				// Count
 				if (! in_array($payment_status, array('TRIAL'))) {
-					$nbofactive++;
-
+					// We analyze all non trial deployed instances
 					if (in_array($instance_status, array('SUSPENDED'))) {
-						$nbofactivesusp++;
-						$instancesactivebutsuspended[$obj->id]=$obj->ref.' ('.$instance.')';
-					} elseif (in_array($payment_status, array('FAILURE','PAST_DUE'))) $nbofactivepaymentko++;
-					else $nbofactiveok++; // not suspended, not close request
+						$instancespaidsuspended[$obj->id] = $obj->ref.' ('.$instance.')';
+						if (in_array($payment_status, array('FAILURE'))) {
+							$instancespaidsuspendedandpaymenterror[$obj->id] = $obj->ref.' ('.$instance.')';
+						}
+					} else {
+						$instancespaidnotsuspended[$obj->id] = $obj->ref.' ('.$instance.')';
+						if (in_array($payment_status, array('FAILURE'))) {
+							$instancespaidnotsuspendedpaymenterror[$obj->id] = $obj->ref.' ('.$instance.')';
+						}
+					}
 
 					$instances[$obj->id]=$instance;
 					print "Qualify instance ".$instance." with instance_status=".$instance_status." payment_status=".$payment_status."\n";
@@ -285,14 +312,14 @@ if ($resql) {
 	$nboferrors++;
 	dol_print_error($dbtousetosearch);
 }
-print "Found ".count($instances)." not trial instances including ".$nbofactivesusp." suspended + ".$nbofactivepaymentko." active with payment ko\n";
+print "We found ".count($instances)." qualified instances including ".count($instancespaidsuspended)." suspended + ".count($instancespaidnotsuspendedpaymenterror)." active with payment ko\n";
 
 
 //print "----- Start loop for backup_instance\n";
 if ($action == 'backup' || $action == 'backupdelete' ||$action == 'backuprsync' || $action == 'backupdatabase' || $action == 'backuptest' || $action == 'backuptestrsync' || $action == 'backuptestdatabase') {
 	if (empty($conf->global->DOLICLOUD_BACKUP_PATH)) {
 		print "Error: Setup of module SellYourSaas not complete. Path to backup not defined.\n";
-		exit -1;
+		exit(-1);
 	}
 
 	// Loop on each instance
@@ -411,10 +438,11 @@ if ($action == 'updatedatabase' || $action == 'updatestatsonly' || $action == 'u
 	if (! $error && $action != 'updatecountsonly') {
 		$stats=array();
 
-		// Get list of existing stats
+		// Load list of existing stats into $stats
 		$sql ="SELECT name, x, y";                        // name is 'total', 'totalcommissions', 'totalinstancepaying', 'totalinstances', 'totalusers', 'benefit', 'totalcustomers', 'totalcustomerspaying'
 		$sql.=" FROM ".MAIN_DB_PREFIX."dolicloud_stats";
-		$sql.=" WHERE service = '".$servicetouse."'";
+		$sql.=" WHERE service = '".$dbmaster->escape($servicetouse)."'";
+		$sql.=" ORDER BY x, name";
 
 		dol_syslog($script_file."", LOG_DEBUG);
 		$resql=$dbmaster->query($sql);
@@ -442,82 +470,97 @@ if ($action == 'updatedatabase' || $action == 'updatestatsonly' || $action == 'u
 		$endyear=$tmp['year'];
 		if (empty($serverprice)) {
 			print 'ERROR Value of variable $serverprice is not defined.';
-			exit;
+			exit(-1);
 		}
 
-		$YEARSTART = 2018;
-
-		// Update all missing stats
+		// Update all missing stats (we start from january of previous year, but update will be done only if stats not yet
+		// already calculated or if it is stats of current month)
+		$YEARSTART = $endyear - 1;
 		for ($year = $YEARSTART; $year <= $endyear; $year++) {
 			for ($m = 1; $m <= 12; $m++) {
 				$datefirstday=dol_get_first_day($year, $m, 1);
 				$datelastday=dol_get_last_day($year, $m, 1);
-				if ($datefirstday > $today) continue;
+				if ($datefirstday > $today) {
+					continue;
+				}
+
+				$statkeylist=array('total','totalcommissions','totalinstancespaying','totalinstancespayingall','totalinstances','totalusers','totalcustomers','totalcustomerspaying','benefit','serverprice');
 
 				$x=sprintf("%04d%02d", $year, $m);
 
-				$statkeylist=array('total','totalcommissions','totalinstancespaying','totalinstancespayingall','totalinstances','totalusers','benefit','totalcustomerspaying','totalcustomers');
+				$dowehavetomakeupdatefordate = 0;
 				foreach ($statkeylist as $statkey) {
-					if (! isset($stats[$statkey][$x]) || ($today <= $datelastday)) {
-						// Calculate stats fro this key
-						print "Calculate and update stats for ".$statkey." x=".$x.' datelastday='.dol_print_date($datelastday, 'dayhour', 'gmt');
-
-						$rep = null;
-						$part = 0;
-
-						$rep=sellyoursaas_calculate_stats($dbmaster, $datelastday);	// Get qty and amount into template invoices linked to active contracts
-						$part = (empty($conf->global->SELLYOURSAAS_PERCENTAGE_FEE) ? 0 : $conf->global->SELLYOURSAAS_PERCENTAGE_FEE);
-
-						if ($rep) {
-							$total=$rep['total'];
-							$totalcommissions=$rep['totalcommissions'];
-							$totalinstancespaying=$rep['totalinstancespaying'];
-							$totalinstancespayingall=$rep['totalinstancespayingall'];
-							$totalinstances=$rep['totalinstances'];
-							$totalusers=$rep['totalusers'];
-							$totalcustomerspaying=$rep['totalcustomerspaying'];
-							$totalcustomers=$rep['totalcustomers'];
-							$benefit=($total * (1 - $part) - $serverprice - $totalcommissions);
-
-							$y=0;
-							if ($statkey == 'total') $y=$total;
-							if ($statkey == 'totalcommissions') $y=$totalcommissions;
-							if ($statkey == 'totalinstancespaying') $y=$totalinstancespaying;
-							if ($statkey == 'totalinstancespayingall') $y=$totalinstancespayingall;
-							if ($statkey == 'totalinstances') $y=$totalinstances;
-							if ($statkey == 'totalusers') $y=$totalusers;
-							if ($statkey == 'benefit') $y=$benefit;
-							if ($statkey == 'totalcustomerspaying') $y=$totalcustomerspaying;
-							if ($statkey == 'totalcustomers') $y=$totalcustomers;
-
-							print " -> ".$y."\n";
-
-							if ($today <= $datelastday) {	// Remove if current month
-								$sql ="DELETE FROM ".MAIN_DB_PREFIX."dolicloud_stats";
-								$sql.=" WHERE name = '".$statkey."' AND x='".$x."'";
-								$sql.=" AND service = '".$servicetouse."'";
-								dol_syslog("sql=".$sql);
-								$resql=$dbmaster->query($sql);
-								if (! $resql) dol_print_error($dbmaster, '');
-							}
-
-							$sql ="INSERT INTO ".MAIN_DB_PREFIX."dolicloud_stats(service, name, x, y)";
-							$sql.=" VALUES('".$servicetouse."', '".$statkey."', '".$x."', ".$y.")";
-							dol_syslog("sql=".$sql);
-							$resql=$dbmaster->query($sql);
-							//if (! $resql) dol_print_error($dbmaster,'');		// Ignore error, we may have duplicate record here if record already exists and not deleted
-						}
+					if (! isset($stats[$statkey][$x]) || ($today <= $datelastday)) {	// If metric does not exist yet or if we are current month.
+						$dowehavetomakeupdatefordate = 1;
+						break;
 					}
 				}
-			}
-		}
+
+				if ($dowehavetomakeupdatefordate) {
+					// Update stats for the metric
+					print 'Calculate statistics for x='.$x."\n";
+					$rep = sellyoursaas_calculate_stats($dbmaster, $datelastday);	// Get qty and amount into template invoices linked to active contracts
+					$part = (empty($conf->global->SELLYOURSAAS_PERCENTAGE_FEE) ? 0 : $conf->global->SELLYOURSAAS_PERCENTAGE_FEE);
+
+					foreach ($statkeylist as $statkey) {
+						if (! isset($stats[$statkey][$x]) || ($today <= $datelastday)) {	// If metric does not exist yet or if we are current month.
+							// Update stats for the metric $statkey
+							print "Update stats for ".$statkey." x=".$x.' datelastday='.dol_print_date($datelastday, 'dayhour', 'gmt');
+
+							if ($rep) {
+								$total=$rep['total'];
+								$totalcommissions=$rep['totalcommissions'];
+								$totalinstancespaying=$rep['totalinstancespaying'];
+								$totalinstancespayingall=$rep['totalinstancespayingall'];
+								$totalinstances=$rep['totalinstances'];
+								$totalusers=$rep['totalusers'];
+								$totalcustomerspaying=$rep['totalcustomerspaying'];
+								$totalcustomers=$rep['totalcustomers'];
+								$benefit=($total * (1 - $part) - $serverprice - $totalcommissions);
+
+								$y=0;
+								if ($statkey == 'total') $y=$total;
+								if ($statkey == 'totalcommissions') $y=$totalcommissions;
+								if ($statkey == 'totalinstancespaying') $y=$totalinstancespaying;
+								if ($statkey == 'totalinstancespayingall') $y=$totalinstancespayingall;
+								if ($statkey == 'totalinstances') $y=$totalinstances;
+								if ($statkey == 'totalusers') $y=$totalusers;
+								if ($statkey == 'totalcustomerspaying') $y=$totalcustomerspaying;
+								if ($statkey == 'totalcustomers') $y=$totalcustomers;
+								if ($statkey == 'serverprice') $y=$serverprice;
+								if ($statkey == 'benefit') $y=$benefit;
+
+								print " -> ".$y."\n";
+
+								if ($today <= $datelastday) {	// Remove existing entry if current month
+									$sql ="DELETE FROM ".MAIN_DB_PREFIX."dolicloud_stats";
+									$sql.=" WHERE name = '".$dbmaster->escape($statkey)."' AND x='".$dbmaster->escape($x)."'";
+									$sql.=" AND service = '".$dbmaster->escape($servicetouse)."'";
+									dol_syslog("sql=".$sql);
+									$resql = $dbmaster->query($sql);
+									if (! $resql) {
+										dol_print_error($dbmaster, '');
+									}
+								}
+
+								$sql = "INSERT INTO ".MAIN_DB_PREFIX."dolicloud_stats(service, name, x, y)";
+								$sql .= " VALUES('".$dbmaster->escape($servicetouse)."', '".$dbmaster->escape($statkey)."', '".$dbmaster->escape($x)."', ".((float) $y).")";
+
+								$resql = $dbmaster->query($sql);
+								//if (! $resql) dol_print_error($dbmaster,'');		// Ignore error, we may have duplicate record here if record already exists and not deleted
+							}
+						}
+					}	// end of loop on each metric
+				}	// if we have to make update for this period
+			}	// end loop on month
+		} // end loop on year
 	}
 }
 
 
 
 
-// Result
+// Output result
 $out = '';
 if ($action == 'backup' || $action == 'backupdelete' ||$action == 'backuprsync' || $action == 'backupdatabase' || $action == 'backuptest' || $action == 'backuptestrsync' || $action == 'backuptestdatabase') {
 	$out.= "\n";
@@ -525,15 +568,18 @@ if ($action == 'backup' || $action == 'backupdelete' ||$action == 'backuprsync' 
 } else {
 	$out.= "***** Summary for all deployment servers\n";
 }
-$out.= "Nb of instances deployed: ".$nbofinstancedeployed."\n";
-$out.= "Nb of paying instances (deployed with or without payment error): ".$nbofactive."\n";
-$out.= "Nb of paying instances (deployed but suspended): ".$nbofactivesusp;
-$out.= (count($instancesactivebutsuspended)?", suspension on ".join(', ', $instancesactivebutsuspended):"");
-$out.= "\n";
-$out.= "Nb of paying instances (deployed but payment ko, not yet suspended): ".$nbofactivepaymentko."\n";
+$out.= "** Nb of instances deployed: ".$nbofinstancedeployed."\n";
+$out.= "** Nb of paying instances (deployed with or without payment error): ".count($instances)."\n";	// $instance is qualified instances
+$out.= "** Nb of paying instances (deployed suspended): ".count($instancespaidsuspended)."\n";
+$out.= (count($instancespaidsuspended)?"Suspension on ".join(', ', $instancespaidsuspended)."\n":"");
+$out.= "** Nb of paying instances (deployed suspended and payment error): ".count($instancespaidsuspendedandpaymenterror)."\n";
+$out.= (count($instancespaidsuspendedandpaymenterror)?"Suspension and payment error on ".join(', ', $instancespaidsuspendedandpaymenterror)."\n":"");
+$out.= "** Nb of paying instances (deployed not suspended): ".count($instancespaidnotsuspended)."\n";
+$out.= "** Nb of paying instances (deployed not suspended but payment error): ".count($instancespaidnotsuspendedpaymenterror)."\n";
+$out.= (count($instancespaidnotsuspendedpaymenterror)?"Not yet suspended but payment error on ".join(', ', $instancespaidnotsuspendedpaymenterror)."\n":"");
 if ($action != 'updatestatsonly') {
-	$out.= "Nb of paying instances processed ok: ".$nbofok."\n";
-	$out.= "Nb of paying instances processed ko: ".$nboferrors;
+	$out.= "** Nb of paying instances processed ok: ".$nbofok."\n";
+	$out.= "** Nb of paying instances processed ko: ".$nboferrors;
 }
 if (count($instancesbackuperror)) {
 	$out.= ", error for backup on ";
@@ -550,12 +596,22 @@ if (count($instancesupdateerror)) {
 $out.= "\n";
 print $out;
 
+// Write instances into tmp file
+$createlistofpaidinstance = 0;
+if ($createlistofpaidinstance) {
+	if ($handle = fopen('/tmp/listofpaidinstances', 'w')) {
+		foreach ($instances as $id => $instance) {
+			fwrite($handle, $id." ".$instance."\n");
+		}
+		fclose($handle);
+	}
+}
 
 // Send to DataDog (metric)
 if ($action == 'updatestatsonly') {
 	if (! empty($conf->global->SELLYOURSAAS_DATADOG_ENABLED)) {
 		try {
-			print 'Send data to DataDog (sellyoursaas.instancedeployed='.((float) $nbofinstancedeployed).', sellyoursaas.instancepaymentko='.((float) ($nbofactivesusp + $nbofactivepaymentko)).', sellyoursaas.instancepaymentok='.((float) ($nbofactive - ($nbofactivesusp + $nbofactivepaymentko))).")\n";
+			print 'Send data to DataDog (sellyoursaas.instancedeployed='.((float) $nbofinstancedeployed).', sellyoursaas.instancepaymentko='.((float) (count($instancespaidsuspended) + count($instancespaidnotsuspendedpaymenterror))).', sellyoursaas.instancepaymentok='.((float) (count($instances) - (count($instancespaidsuspended) + count($instancespaidnotsuspendedpaymenterror)))).")\n";
 			dol_include_once('/sellyoursaas/core/includes/php-datadogstatsd/src/DogStatsd.php');
 
 			$arrayconfig=array();
@@ -567,9 +623,10 @@ if ($action == 'updatestatsonly') {
 
 			$arraytags=null;
 			$statsd->gauge('sellyoursaas.instancedeployed', (float) ($nbofinstancedeployed), 1.0, $arraytags);
-			$statsd->gauge('sellyoursaas.instancepaymentko', (float) ($nbofactivesusp + $nbofactivepaymentko), 1.0, $arraytags);
-			$statsd->gauge('sellyoursaas.instancepaymentok', (float) ($nbofactive - ($nbofactivesusp + $nbofactivepaymentko)), 1.0, $arraytags);
+			$statsd->gauge('sellyoursaas.instancepaymentko', (float) (count($instancespaidsuspended) + count($instancespaidnotsuspendedpaymenterror)), 1.0, $arraytags);
+			$statsd->gauge('sellyoursaas.instancepaymentok', (float) (count($instances) - (count($instancespaidsuspended) + count($instancespaidnotsuspendedpaymenterror))), 1.0, $arraytags);
 		} catch (Exception $e) {
+			print 'Failed to send to datadog';
 		}
 	}
 }
@@ -652,6 +709,7 @@ if (! $nboferrors) {
 							)
 						);
 				} catch (Exception $e) {
+					print 'Failed to send event to datadog';
 				}
 			}
 		} else {

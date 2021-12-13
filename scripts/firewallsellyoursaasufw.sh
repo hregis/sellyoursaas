@@ -30,7 +30,6 @@ fi
 case $1 in
   start)
 
-ufw enable
 
 # From local to external target - Out
 #------------------------------------
@@ -57,7 +56,7 @@ ufw allow out 143/tcp
 ufw allow out 993/tcp
 # DCC (anti spam public services)
 #ufw allow out 6277/tcp
-#ufw allow out 6277/udp
+#ufw allow out 6277/udpvi /etc/
 # Rdate
 ufw allow out 37/tcp
 ufw allow out 123/udp
@@ -69,75 +68,139 @@ ufw allow out 53/udp
 # NFS
 ufw allow out 2049/tcp
 ufw allow out 2049/udp
+#Required ?
+#ufw allow out 111/tcp
+#ufw allow out 111/udp
 
 
 # From external source to local - In
 #-----------------------------------
 
+
+# SSH
 export atleastoneipfound=0
 
 if [[ "x$masterserver" == "x2" || "x$instanceserver" == "x2" ]]; then
-	# SSH and MySQL
-	for fic in `ls /etc/sellyoursaas-allowed-ip.d/*.conf`
+	# If value is 2, we want a restriction per user found into a file (Value = 1 means access to everybody)
+	for fic in `ls /etc/sellyoursaas.d/*-allowed-ip.conf /etc/sellyoursaas.d/*-allowed-ip-ssh.conf 2>/dev/null`
+	do
+		for line in `grep -v '^#' "$fic" | sed 's/\s*Require ip\s*//i' | grep '.*[\.:].*[\.:].*[\.:].*'`
+		do
+			export atleastoneipfound=1
+		done
+	done
+
+	if [[ "x$atleastoneipfound" == "x1" ]]; then
+		echo Disallow existing In access for SSH for specific ip
+		for num in `ufw status numbered |(grep ' 22/tcp'|grep -v 'Anywhere'|awk -F"[][]" '{print $2}') | sort -r`
+		do
+			echo delete rule number $num
+			ufw --force delete $num
+		done
+	fi
+
+	for fic in `ls /etc/sellyoursaas.d/*-allowed-ip.conf /etc/sellyoursaas.d/*-allowed-ip-ssh.conf 2>/dev/null`
 	do
 		echo Process file $fic
-		for line in `grep -v '^#' "$fic" | sed 's/\s*Require ip\s*//i' | grep '.*\..*\..*\..*'`
+		for line in `grep -v '^#' "$fic" | sed 's/\s*Require ip\s*//i' | grep '.*[\.:].*[\.:].*[\.:].*'`
 		do
-			# Allow SSH and Mysql to the restricted ip $line
-			echo Allow SSH and Mysql to the restricted ip $line
-			# SSH
+			# Allow SSH to the restricted ip $line
+			echo Allow SSH to the restricted ip $line
 			ufw allow from $line to any port 22 proto tcp
-			# Mysql/Mariadb
-			ufw allow from $line to any port 3306 proto tcp
-	
-			export atleastoneipfound=1
 		done
 	done
 fi
 
 if [[ "x$atleastoneipfound" == "x1" ]]; then
-	echo Disallow In access for SSH and Mysql to everybody
-	# SSH
+	echo Disallow In access for SSH to everybody
 	ufw delete allow in 22/tcp
-	# Mysql/Mariadb
+else 
+	echo Allow In access with SSH to everybody
+	ufw allow in 22/tcp
+fi
+
+# MYSQL
+export atleastoneipfound=0
+
+if [[ "x$masterserver" == "x2" || "x$instanceserver" == "x2" ]]; then
+	# If value is 2, we want a restriction per user found into a file (Value = 1 means access to everybody)
+	for fic in `ls /etc/sellyoursaas.d/*-allowed-ip.conf /etc/sellyoursaas.d/*-allowed-ip-mysql.conf 2>/dev/null`
+	do
+		for line in `grep -v '^#' "$fic" | sed 's/\s*Require ip\s*//i' | grep '.*[\.:].*[\.:].*[\.:].*'`
+		do
+			export atleastoneipfound=1
+		done
+	done
+
+	if [[ "x$atleastoneipfound" == "x1" ]]; then
+		echo Disallow existing In access for Mysql for specific ip
+		for num in `ufw status numbered |(grep ' 3306/tcp'|grep -v 'Anywhere'|awk -F"[][]" '{print $2}') | sort -r`
+		do
+			echo delete rule number $num
+			ufw --force delete $num
+		done
+	fi
+
+	# MySQL
+	for fic in `ls /etc/sellyoursaas.d/*-allowed-ip.conf /etc/sellyoursaas.d/*-allowed-ip-mysql.conf 2>/dev/null`
+	do
+		echo Process file $fic
+		for line in `grep -v '^#' "$fic" | sed 's/\s*Require ip\s*//i' | grep '.*[\.:].*[\.:].*[\.:].*'`
+		do
+			# Allow Mysql to the restricted ip $line
+			echo Allow Mysql to the restricted ip $line
+			ufw allow from $line to any port 3306 proto tcp
+		done
+	done
+fi
+
+if [[ "x$atleastoneipfound" == "x1" ]]; then
+	echo Disallow In access for Mysql to everybody
 	ufw delete allow in 3306/tcp
 else 
-	echo Allow In access with SSH and Mysql to everybody
-	# SSH
-	ufw allow in 22/tcp
-	# Mysql/Mariadb
+	echo Allow In access with Mysql to everybody
 	ufw allow in 3306/tcp
 fi
 
+# Seems not required
+#ufw allow from 127.0.0.0/8 to any port 22 proto tcp
+#ufw allow from 192.168.0.0/16 to any port 22 proto tcp
+#ufw allow from 127.0.0.0/8 to any port 3306 proto tcp
+#ufw allow from 192.168.0.0/16 to any port 3306 proto tcp
 
+echo Allow In access to common port (http and dns) to everybody
 # HTTP
 ufw allow in 80/tcp
 ufw allow in 443/tcp
 # DNS
 ufw allow in 53/tcp
 ufw allow in 53/udp
+ufw allow in 953/tcp
+ufw allow in 953/udp
 
 # To see master NFS server
 if [[ "x$masterserver" != "x0" ]]; then
 	echo Enable NFS entry from instance servers
-	ufw allow in 111/udp
 	ufw allow in 111/tcp
-	ufw allow in 2049/udp
+	ufw allow in 111/udp
 	ufw allow in 2049/tcp
+	ufw allow in 2049/udp
 else
-	ufw delete allow in 111/udp
 	ufw delete allow in 111/tcp
+	ufw delete allow in 111/udp
 	ufw delete allow in 2049/tcp
 	ufw delete allow in 2049/udp
 fi
 
 # To accept remote action on port 8080
 if [[ "x$allowed_hosts" != "x" ]]; then
-	echo Process allowed_host=$allowed_hosts to accept remote call on 8080
+	echo Process allowed_host=$allowed_hosts to accept remote call on 22, 3306 and 8080
 	ufw delete allow in 8080/tcp
 	for ipsrc in `echo $allowed_hosts | tr "," "\n"`
 	do
-		echo Process ip $ipsrc - Allow remote actions requests on port 8080 from this ip
+		echo Process ip $ipsrc - Allow remote actions requests on port 22, 3306 and 8080 from this ip
+		ufw allow from $ipsrc to any port 22 proto tcp
+		ufw allow from $ipsrc to any port 3306 proto tcp
 		ufw allow from $ipsrc to any port 8080 proto tcp
 	done
 else
@@ -148,6 +211,7 @@ fi
 ufw default deny incoming
 ufw default deny outgoing
 
+ufw enable
 ufw reload
 
 $0 status

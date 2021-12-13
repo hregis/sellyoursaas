@@ -359,27 +359,49 @@ llxHeader($head, $title, '', '', 0, 0, $arrayofjs, array(), '', 'register');
 		if (! GETPOST('noheader', 'int')) {
 			?>
 		<header class="invers">
-		  <h1><?php echo $langs->trans("InstanceCreation") ?><br><small><?php echo ($tmpproduct->label?'('.$tmpproduct->label.')':''); ?></small></h1>
+			<div class="customregisterheader">
+				<h1><?php echo $langs->trans("InstanceCreation") ?><br><small><?php echo ($tmpproduct->label?'('.$tmpproduct->label.')':''); ?></small></h1>
+				<div class="paddingtop20">
+					<div class="btn-sm">
+					<span class="opacitymedium hideonsmartphone paddingright valignmiddle"><?php echo $langs->trans("AlreadyHaveAnAccount"); ?></span>
+						<?php if (! empty($partner) || ! empty($partnerkey)) { print '<br class="hideonsmartphone">'; } ?>
+					<a href="/" class="btn blue btn-sm btnalreadyanaccount margintop"><?php echo $langs->trans("LoginAction"); ?></a>
+					</div>
+						<?php if (! empty($homepage)) { ?>
+					<div class="btn-sm home-page-url">
+					<span class="opacitymedium"><a class="blue btn-sm" style="padding-left: 0;" href="<?php echo $homepage ?>"><?php echo $langs->trans("BackToHomePage"); ?></a></span>
+					</div>
+					<?php } ?>
+				</div>
+			</div>
+		  <h1 class="defaultheader"><?php echo $langs->trans("InstanceCreation") ?><br><small><?php echo ($tmpproduct->label?'('.$tmpproduct->label.')':''); ?></small></h1>
 		</header>
 			<?php
 		}
+		print '<div class="signup2 centpercent customregistermain">';
 		?>
-		<div class="signup2 centpercent">
 
 			<?php
 			if (! empty($tmpproduct->array_options['options_register_text'])) {
 				$keytouse = $tmpproduct->array_options['options_register_text'];
 				print '<!-- show custom registration text of service using key '.dol_escape_htmltag($keytouse).' -->'."\n";
-				print '<div class="register_text">'."\n";
-				if ($langs->trans($keytouse) != $keytouse) {
-					print $langs->trans($keytouse);
-				} else {	// We try english version
-					if ($langsen->trans($keytouse) != $keytouse) {
-						print $langsen->trans($keytouse);
+					print '<div class="customregisterinformation">'."\n";
+					print '<div class="register_text">'."\n";
+					if ($langs->trans($keytouse) != $keytouse) {
+						print $langs->trans($keytouse);
+					} else {	// We try english version
+						if ($langsen->trans($keytouse) != $keytouse) {
+							print $langsen->trans($keytouse);
+						}
 					}
+					print '</div>'."\n";
+					?>
+					<div class="valignmiddle customcompanylogo">
+					<a href="<?php echo $homepage ?>"><img style="max-width:100%"src="<?php echo $linklogo; ?>" /></a><br>
+					</div>
+					<?php
+					print '</div>'."\n";
 				}
-				print '</div>'."\n";
-			}
 			?>
 
 		  <form action="register_instance.php" method="post" id="formregister">
@@ -518,9 +540,17 @@ llxHeader($head, $title, '', '', 0, 0, $arrayofjs, array(), '', 'register');
 						foreach ($listofdomain as $val) {
 							$newval = $val;
 							$reg = array();
-							if (preg_match('/:(.*)$/', $newval, $reg)) {      // If this domain must be shown only if domain match
-								$newval = preg_replace('/:.*$/', '', $newval);
-								if ($reg[1] != $domainname && $newval != GETPOST('forcesubdomain', 'alpha')) {
+							if (preg_match('/:(.+)$/', $newval, $reg)) {      // If this domain must be shown only if domain match
+								$newval = preg_replace('/:.*$/', '', $newval);	// the part before the : that we use to compare the forcesubdomain parameter.
+								$domainqualified = false;
+								$tmpdomains = explode('+', $reg[1]);
+								foreach($tmpdomains as $tmpdomain) {
+									if ($tmpdomain == $domainname || $newval == GETPOST('forcesubdomain', 'alpha')) {
+										$domainqualified = true;
+										break;
+									}
+								}
+								if (! $domainqualified) {
 									print '<!-- '.$newval.' disabled. Allowed only if main domain of registration page is '.$reg[1].' -->';
 									continue;
 								}
