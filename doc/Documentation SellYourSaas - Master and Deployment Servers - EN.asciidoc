@@ -1718,9 +1718,9 @@ echo $?
 
 === Test and setup of ClamAV
 
-The processes *freshclam* and *clamd* should be running. Test them.
+The processes *freshclam* and *clamd* should be running. If not, launch them manually (for example */etc/init.d/clamav-freshclam status* or */etc/init.d/clamav-daemon status* to launch them).
 
-To test clamav tool, create a file */tmp/testvirus* with content
+Test them: To test clamav tool, create a file */tmp/testvirus* with content
 
 [source,bash]
 ---------------
@@ -2822,7 +2822,7 @@ chmod +t /dev/shm /var/lib/php/sessions
 
 ==== Define size of upload and session options
 
-Modify the file */etc/php/*.*/apache2/php.ini* (the one for *apache* and the one for *cli*) to allow upload of bigger files:
+Modify the file */etc/php/*.*/*/php.ini* (the one for *apache*, the one for *cli* and for the *fpm*) to allow upload of bigger files:
 
 [source,bash]
 ---------------
@@ -2843,14 +2843,14 @@ session.cookie_samesite = Lax
 
 ==== Disable some functions (optionnal)
 
-Complete also the parameter disable_functions by adding:
+Complete also the parameter *disable_functions* for the *apache* and *fpm* file (not for the *cli*) by adding:
 
 [source,bash]
 ---------------
 passthru,shell_exec,system,proc_open,popen
 ---------------
 
-Do not add "exec".
+Warning: Do not add "exec".
 
 
 ==== Add a wrapper PHP for the mail() function
@@ -3084,7 +3084,7 @@ sudo systemctl status apport.service
 Note: Reports are into */var/crash*
 
 
-=== Install certbot (for SSL certificates)
+=== Install certbot (for LetsEncrypt SSL certificates)
 
 [source,bash]
 ---------------

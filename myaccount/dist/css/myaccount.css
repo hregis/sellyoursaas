@@ -1,5 +1,9 @@
 /* CSS myaccount */
 
+div.block header h1 {
+	margin-bottom: 0;: 
+}
+
 label {
     margin-bottom: .3rem;
 }
@@ -17,6 +21,10 @@ label {
 
 span.pictowarning {
     color: #ff8800;
+}
+
+.start {
+	text-align: start;
 }
 
 .clearboth {
@@ -365,7 +373,8 @@ div.tab-content {
 @media only screen and (max-width: 480px)
 {
 	.home-page-url a.blue.btn-sm {
-	    font-size: 0.9em;
+	    font-size: 0.78em;
+	    padding-right: 0;
 	}
 }
 
@@ -374,7 +383,12 @@ div.tab-content {
     text-transform: unset !important;
 }
 
-body { color: #333333; font-family: "Open Sans", sans-serif; padding:0px !important; margin: 0px !important; direction: ltr; }
+body { 
+	color: #333333; 
+	font-family: "Open Sans", sans-serif; 
+	padding: 0px !important; 
+	margin: 0px !important; 
+}
 
 
 ul.kmlist {
