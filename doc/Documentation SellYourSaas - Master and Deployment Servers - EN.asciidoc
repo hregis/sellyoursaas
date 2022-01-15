@@ -598,6 +598,16 @@ Add a swap on */swap/swap.img* if the disk is not SSD, otherwise on the non SSD 
 https://www.digitalocean.com/community/tutorials/how-to-configure-virtual-memory-swap-file-on-a-vps#4
 
 
+=== Addition of a filesystem for logs (optional)
+
+Add a new disk of 500 Mb and mount it on */mnt/disklog*
+
+Then modify the file */etc/apache2/envvars* to set *export APACHE_LOG_DIR=/mnt/disklog/*
+Delete the dir */home/admin/logs* and replace it with a symbolic link to */mnt/disklog*
+
+Restart Apache. All apache log files of Apache are now stored into */mnt/disklog*.
+
+
 === Creation of working directories
 
 On the *Master* server and the *Deployment* servers, create the directories to store backups and archives.
@@ -1718,7 +1728,7 @@ echo $?
 
 === Test and setup of ClamAV
 
-The processes *freshclam* and *clamd* should be running. If not, launch them manually (for example */etc/init.d/clamav-freshclam status* or */etc/init.d/clamav-daemon status* to launch them).
+The processes *freshclam* and *clamd* should be running. If not, launch them manually (for example */etc/init.d/clamav-freshclam start* or */etc/init.d/clamav-daemon start* to launch them).
 
 Test them: To test clamav tool, create a file */tmp/testvirus* with content
 
@@ -1871,23 +1881,36 @@ cpulimit launched with script  cpulimit --exe=apache2 --limit=20
 See script *cpulimit_daemon* to put into */etc/init.d*.
 
 
+=== Adding disk quotas per users (optionnal)
+
+Note: Some global quotas can be set with the *ulimit* tool in */etc/security/limits.conf* (see next chapter on ulimit)
+
 
 === Setup of /etc/security/limits.conf (optional)
 
-* Edit the file */etc/security/limits.conf* for example to increase the max number of files open by a process
+* Create a file */etc/security/limits.d/sellyoursaas.conf* (or edit file */etc/security/limits.conf* if ot does not work) for example to increase the max number of files open by a process and set the max filesize for users with ID > 1000
 
 [source,conf]
 ---------------
 mysql           soft     nofile           4096
 mysql           hard     nofile           32768
+
+# Set max size of block (4096 B) for files
+1000:           soft     fsize            1000000
+1000:           hard     fsize            1000000
 ---------------
 
-To see limits of OS:
+Note: To get/see the current limits of OS and connected user:
 
 [source,bash]
 ---------------
 ulimit -a
 ---------------
+
+Note:
+On peut vérifier qu'il y a bien la ligne *session required pam_limits.so* dans les fichiers /etc/pam.d/system-auth ou /etc/pam.d/password-auth et/ou /etc/pam.d/sudo afin d’être certain de toujours fixer les seuils définis par l’administrateur lors de chaque connexion d’utilisateur au système. Si les limites définies dans ce fichier ne sont pas prises en compte le premier réflexe consiste à s’assurer que le module pam_limits.so est bien activé dans les fichiers de configuration de PAM.
+REMARQUE : sur certaines distributions les fichiers de configuration de PAM peuvent différer. On peut rencontrer la définition des limites dans les fichiers /etc/pam.d/common-session ou /etc/pam.d/login. Mais, le principe reste le même : s’assurer qu’à chaque connexion utilisateur les seuils des ressources du système sont bien appliqués.
+
 
 
 === Setup of Postfix
@@ -4122,6 +4145,11 @@ apt dist-upgrade
 apt install php-mysql
 a2enmode php7.2
 apt remove php-fpm php7-fpm
+
+# if you move from 16.04 to 18.04, you must also run
+apt install php-mysql
+a2enmode php7.4
+apt remove php-fpm php7-fpm
 ---------------
 
 
@@ -4186,7 +4214,7 @@ kill ...
 
 
 
-=== Follow files modified
+=== Follow files modified (using Afick)
 
 To update the list of modified files since afick run last:
 
@@ -4780,11 +4808,7 @@ Steps realized by the agent and the remote action *recreateauthorizedkeys* are:
 
 To activate Google Analytics statistics, put the tag in the configuration of the sellyoursaas module.
 
-To activate DataDog statistics, fill in the constants:
- 
-  - SELLYOURSAAS_DATADOG_ENABLED à 1
-  - SELLYOURSAAS_DATADOG_APIKEY with the Datadog API key
-  - SELLYOURSAAS_DATADOG_APIKEY with the Datadog APP key
+To activate DataDog statistics, set the option into the module SellYourSaas:
 
 This is a detail of events or URL that can be tracked:
 
@@ -4837,9 +4861,6 @@ You can force different values for some setup parameters to overwrite the defaul
 To define account to use getipintel API for VPN probability.
 * SELLYOURSAAS_GETIPINTEL_EMAIL = contact+checkcustomer@nltechno.com
 
-To enable native Datadog reporting (datadog-agent must just be installed)
-* SELLYOURSAAS_DATADOG_ENABLED = 1
-
 If you use an external db server (same value of "databasehost" and "databaseport" in sellyoursaas.conf)
 * SELLYOURSAAS_FORCE_DATABASE_HOST = ip or host name of your external mysql server
 * SELLYOURSAAS_FORCE_DATABASE_PORT = port of your external mysql server
@@ -4866,6 +4887,12 @@ scw instance server create type=DEV1-S zone=fr-par-1|nl-ams-1 image=ubuntu_focal
     tags.0=build_method=from-qcow2 \
     tags.1=disk_img_url=http://51.15.201.97/focal-server-cloudimg-amd64-disk-kvm.img \
 
+
+=== Command to make a bind filesystem
+
+bindfs /tmp /home/mylogin/mydir
+
+fusermount -u /home/mylogin/mydir
 
 
 === TroubleShooting
