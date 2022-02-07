@@ -370,7 +370,7 @@ if ($reusecontractid) {		// When we use the "Restart deploy" after error from ac
 		exit(-26);
 	}
 	if (! isValidEmail($email)) {
-		setEventMessages($langs->trans("ErrorBadEMail"), null, 'errors');
+		setEventMessages($langs->trans("ErrorBadEMail", $email), null, 'errors');
 		header("Location: ".$newurl);
 		exit(-27);
 	}
@@ -385,7 +385,7 @@ if ($reusecontractid) {		// When we use the "Restart deploy" after error from ac
 		if (! empty($listofbanned)) {
 			foreach ($listofbanned as $banned) {
 				if (preg_match('/'.preg_quote($banned, '/').'/i', $email)) {
-					setEventMessages($langs->trans("ErrorEMailAddressBannedForSecurityReasons"), null, 'errors');
+					setEventMessages($langs->trans("ErrorEMailAddressBannedForSecurityReasons", $email), null, 'errors');
 					header("Location: ".$newurl);
 					exit(-29);
 				}
@@ -1501,9 +1501,8 @@ if (! empty($conf->global->MAIN_FAVICON_URL)) $favicon=$conf->global->MAIN_FAVIC
 
 if ($favicon) $head.='<link rel="icon" href="img/'.$favicon.'">'."\n";
 $head.='<!-- Bootstrap core CSS -->
-<!--<link href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-alpha.6/css/bootstrap.css" rel="stylesheet">-->
-<link href="dist/css/bootstrap.css" rel="stylesheet">
-<link href="dist/css/myaccount.css" rel="stylesheet">';
+<link href="dist/css/bootstrap.css" type="text/css" rel="stylesheet">
+<link href="dist/css/myaccount.css" type="text/css" rel="stylesheet">';
 
 $title = $langs->trans("Registration").($tmpproduct->label?' ('.$tmpproduct->label.')':'');
 

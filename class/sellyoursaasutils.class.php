@@ -724,7 +724,6 @@ class SellYourSaasUtils
 
 		dol_syslog(__METHOD__." maxnbofinvoicetotry=".$maxnbofinvoicetotry." noemailtocustomeriferror=".$noemailtocustomeriferror, LOG_DEBUG);
 
-		$this->db->begin();
 
 		$sql = 'SELECT f.rowid, se.fk_object as socid, sr.rowid as companypaymentmodeid';
 		$sql .= ' FROM '.MAIN_DB_PREFIX.'facture as f, '.MAIN_DB_PREFIX.'societe_extrafields as se, '.MAIN_DB_PREFIX.'societe_rib as sr';
@@ -750,6 +749,10 @@ class SellYourSaasUtils
 						continue;
 					}
 
+					dol_syslog("Loop on invoices, loop cursor no ".$i.", this->transaction_opened = ".$this->transaction_opened);
+
+					$this->db->begin();
+
 					$invoice = new Facture($this->db);
 					$result1 = $invoice->fetch($obj->rowid);
 
@@ -771,6 +774,8 @@ class SellYourSaasUtils
 						}
 					}
 
+					$this->db->commit();
+
 					$invoiceprocessed[$obj->rowid]=$invoice->ref;
 				}
 
@@ -787,8 +792,6 @@ class SellYourSaasUtils
 
 		$this->output = count($invoiceprocessedok).' invoice(s) paid among '.count($invoiceprocessed).' qualified invoice(s) with a valid Stripe default payment mode processed'.(count($invoiceprocessedok)>0 ? ' : '.join(',', $invoiceprocessedok) : '').' (ran in mode '.$servicestatus.') (search done on SellYourSaas customers only)';
 		$this->output .= ' - '.count($invoiceprocessedko).' discarded (missing Stripe customer/card id, payment error or other reason)'.(count($invoiceprocessedko)>0 ? ' : '.join(',', $invoiceprocessedko) : '');
-
-		$this->db->commit();
 
 		$conf->global->SYSLOG_FILE = $savlog;
 
@@ -898,6 +901,10 @@ class SellYourSaasUtils
 		// Loop on each invoice to pay
 		foreach ($invoices as $invoice) {
 			$errorforinvoice = 0;     // We reset the $errorforinvoice at each invoice loop
+
+			// Note: The db->begin and commit has been started into the doTakePaymentStripe() that already contains a loop on each invoice,
+			// so adding a begin / commit here will be useless when called by doTakePaymentStripe().
+			// TODO Add the begin / commit for other cases
 
 			$invoice->fetch_thirdparty();
 
@@ -1081,8 +1088,9 @@ class SellYourSaasUtils
 								} else { // Using new SCA method
 									dol_syslog("* Create payment on card ".$stripecard->id.", amounttopay=".$amounttopay.", amountstripe=".$amountstripe.", FULLTAG=".$FULLTAG, LOG_DEBUG);
 
-									// Create payment intent and charge payment (confirmnow = true)
-									$paymentintent = $stripe->getPaymentIntent($amounttopay, $currency, $FULLTAG, $description, $invoice, $customer->id, $stripeacc, $servicestatus, 0, 'automatic', true, $stripecard->id, 1);
+									// Create payment intent and charge payment (because of confirmnow = true)
+									$confirmnow = true;
+									$paymentintent = $stripe->getPaymentIntent($amounttopay, $currency, $FULLTAG, $description, $invoice, $customer->id, $stripeacc, $servicestatus, 0, 'automatic', $confirmnow, $stripecard->id, 1);
 
 									$charge = new stdClass();
 									if ($paymentintent->status === 'succeeded') {
@@ -1152,7 +1160,7 @@ class SellYourSaasUtils
 									$postactionmessages[]=$errmsg.' ('.$stripearrayofkeys['publishable_key'].')';
 									$this->errors[]=$errmsg;
 								} else {
-									dol_syslog('Successfuly charge card '.$stripecard->id);
+									dol_syslog('Successfuly charge card '.$stripecard->id.' for invoice '.$invoice->id);
 
 									$postactionmessages[]='Success to charge card ('.$charge->id.' with '.$stripearrayofkeys['publishable_key'].')';
 
@@ -1217,6 +1225,7 @@ class SellYourSaasUtils
 										dol_syslog('* Record payment for invoice id '.$invoice->id.'. It includes closing of invoice and regenerating document');
 
 										// This include closing invoices to 'paid' (and trigger including unsuspending) and regenerating document
+										// So this method can be very long if there is an unsuspend with timeout.
 										$paiement_id = $paiement->create($user, 1);
 										if ($paiement_id < 0) {
 											$postactionmessages[] = $paiement->error.($paiement->error?' ':'').join("<br>\n", $paiement->errors);
