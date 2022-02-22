@@ -2,7 +2,7 @@
 # Copy all backups on other locations (on a remote backup server)
 #
 # Put the following entry into your root cron
-#40 4 4 * * /home/admin/wwwroot/dolibarr_sellyoursaas/scripts/backup_backups.sh confirm [m|w] [osu...]
+#40 4 4 * * /home/admin/wwwroot/dolibarr_sellyoursaas/scripts/backup_backups.sh confirm [m|w] [osuX]
 
 #set -e
 
@@ -112,21 +112,21 @@ if [ "$(id -u)" != "0" ]; then
 fi
 
 if [ "x$1" == "x" ]; then
-	echo "Missing parameter 1 - test|confirm" 1>&2
-	echo "Usage: ${0} (test|confirm) [m|w] [osu...]"
-fi
-if [[ "x$1" == "x" ]]; then
+	echo
+	echo "Usage: ${0} (test|confirm) [m|w] [osuX]"
+	echo "Where m (default) is to keep 1 month of backup, and w is to keep 1 week of backup"
+	echo "You can also set a group of 4 first letter on username to backup the backup of a limited number of users."
 	exit 1
 fi
 
 if [ "x$SERVDESTI" == "x" ]; then
 	echo "Can't find name of remote backup server (remotebackupserver=) in /etc/sellyoursaas.conf" 1>&2
-	echo "Usage: ${0} (test|confirm) [osux]"
+	echo "Usage: ${0} (test|confirm) [osuX]"
 fi
 
 if [ "x$DOMAIN" == "x" ]; then
 	echo "Value for domain seems to not be set into /etc/sellyoursaas.conf" 1>&2
-	echo "Usage: ${0} (test|confirm) [osux]"
+	echo "Usage: ${0} (test|confirm) [osuX]"
 fi
 
 
@@ -189,7 +189,7 @@ if [[ "x$instanceserver" != "x0" ]]; then
 	for i in 'a' 'b' 'c' 'd' 'e' 'f' 'g' 'h' 'i' 'j' 'k' 'l' 'm' 'n' 'o' 'p' 'q' 'r' 's' 't' 'u' 'v' 'w' 'x' 'y' 'z' '0' '1' '2' '3' '4' '5' '6' '7' '8' '9' ; do
 		echo
 		echo `date +'%Y-%m-%d %H:%M:%S'`" ----- Process directory $backupdir/osu$i"
-		nbofdir=`ls -d $backupdir/osu$i* | wc -l`
+		nbofdir=`ls -d $backupdir/osu$i* 2>/dev/null | wc -l`
 		if [ "x$nbofdir" != "x0" ]; then
 			# Test if we force backup on a given dir
 			if [ "x$3" != "x" ]; then
@@ -259,8 +259,12 @@ if [ "x$ret" != "x0" ]; then
 	exit $ret
 fi
 
-echo "Send email to $EMAILTO to inform about backup success"
-echo -e "The backup of backup for "`hostname`" to remote backup server $SERVDESTI succeed - End ret1=0 ret2=0\n$errstring" | mail -aFrom:$EMAILFROM -s "[Backup of Backup - "`hostname`"] Backup of backup to remote server succeed" $EMAILTO
+if [ "x$3" != "x" ]; then
+	echo Script was called for only one given instance. No email or supervision event sent in such situation
+else
+	echo "Send email to $EMAILTO to inform about backup success"
+	echo -e "The backup of backup for "`hostname`" to remote backup server $SERVDESTI succeed - End ret1=0 ret2=0\n$errstring" | mail -aFrom:$EMAILFROM -s "[Backup of Backup - "`hostname`"] Backup of backup to remote server succeed" $EMAILTO
+fi
 echo
 
 exit 0
