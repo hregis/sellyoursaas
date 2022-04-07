@@ -374,7 +374,7 @@ Create a file */etc/sudoers.d/myunixlogin* with the content
 [source, conf]
 ---------------
 myunixlogin ALL=(ALL) ALL
-# You can also add this lines to avoid user to re-enter a password when switching to 'admin' or 'osu*'
+# You can also add this lines to avoid users to re-enter a password when switching to 'admin' or 'osu*'
 myunixlogin ALL=(ALL) NOPASSWD:/usr/bin/su - admin
 myunixlogin ALL=(ALL) NOPASSWD:/usr/bin/su - osu*
 ---------------
@@ -1014,7 +1014,7 @@ a2enconf charset localized-error-pages other-vhosts-access-log security
 
 On the *Deployment servers*:
 
-* Creation of the directory of the configuration files of the virtual hosts of the instances.
+* Create the directory of the configuration files of the virtual hosts of the instances.
 
 [source, bash]
 ---------------
@@ -1033,17 +1033,17 @@ systemctl daemon-reload
 /usr/sbin/apachectl start
 ---------------
 
-Note: Reload of apache seems not enough.
+Note: Reload of apache seems not enough so we stop/start it.
 
-* Addition of the directive to take into account the directory for the *virtual hosts* of the user instances in the config */etc/apache2/apache2.conf*
+* Add the directive to take into account the directory for the *virtual hosts* of the user instances in the config */etc/apache2/apache2.conf*
 
 [source, conf]
 ---------------
-	# Include virtual host for sellyoursaas instances:
-	IncludeOptional sellyoursaas-enabled/*.conf
+# Include virtual host for sellyoursaas instances:
+IncludeOptional sellyoursaas-enabled/*.conf
 ---------------
 
-* Added directives to define the default error log in */etc/apache2/conf-enabled/other-vhosts-access-log.conf*
+* Add directives to define the default error log in */etc/apache2/conf-enabled/other-vhosts-access-log.conf*
 
 [source, conf]
 ---------------
@@ -2296,7 +2296,7 @@ Give permission, on the *Master server*, to the account *sellyoursaas* of each d
 
 [source,sql]
 ---------------
-CREATE USER 'sellyoursaas'@'ip.server.deployment' IDENTIFIED BY '...';   (password is the one into /etc/sellyoursaas.conf quitof the deployment server)
+CREATE USER 'sellyoursaas'@'ip.server.deployment' IDENTIFIED BY '...';   (password is the one into /etc/sellyoursaas.conf of the deployment server)
 
 GRANT CREATE TEMPORARY TABLES, DELETE, INSERT, SELECT, UPDATE ON nom_de_base_dolibarr_master.* TO 'sellyoursaas'@'ip.server.deployment';
 
@@ -2884,7 +2884,7 @@ session.cookie_samesite = Lax
 
 ==== Disable some functions (optionnal)
 
-Complete also the parameter *disable_functions* for the *apache* and *fpm* file (not for the *cli*) by adding:
+Complete also the parameter *disable_functions* for the *apache* and *fpm* file (NOT for the *cli*) by adding:
 
 [source,bash]
 ---------------
@@ -3873,12 +3873,12 @@ fdisk -l
 parted /dev/vdX    (X=a, b, etc!!! WITHOUT the digit, we want the full disk)
 print all
 resizepart 
-Y
-999GB    (Don't input the default value but the max value of the disk that was shown by "print all")
+Y		  (the num of the part)
+999GB    (Don't input the default value but the max value in column "End" of the disk that was shown by "print all")
 q
 ---------------
 
-* Remount the disk for acknoledgement and resizing without erasing data.
+* Remount the disk for acknowledgement and resizing without erasing data.
 
 [source,bash]
 ---------------
