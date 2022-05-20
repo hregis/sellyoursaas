@@ -209,7 +209,6 @@ function dolicloud_database_refresh($conf, $db, &$object, &$errors)
 				// If this is a line for a metric
 				if ($producttmp->array_options['options_app_or_option'] == 'system' && $producttmp->array_options['options_resource_formula']
 					&& ($producttmp->array_options['options_resource_label'] == 'User' || preg_match('/user/i', $producttmp->ref))) {
-
 					$dbprefix = ($object->array_options['options_prefix_db'] ? $object->array_options['options_prefix_db'] : 'llx_');
 					$substitarray=array(
 						'__INSTANCEDBPREFIX__' => $dbprefix,
@@ -238,7 +237,7 @@ function dolicloud_database_refresh($conf, $db, &$object, &$errors)
 										$error++;
 										/*$this->error = 'SQL to get resource return nothing';
 										 $this->errors[] = 'SQL to get resource return nothing';*/
-										setEventMessages('SQL to get resource return nothing', null, 'errors');
+										setEventMessages('dolicloud_database_refresh: SQL to get resources returns error for '.$object->ref.' - '.$producttmp->ref.' - '.$sqlformula, null, 'errors');
 									}
 								} else {
 									// If request is a SELECT nb, fieldlogin as comment
@@ -266,7 +265,7 @@ function dolicloud_database_refresh($conf, $db, &$object, &$errors)
 										$error++;
 										/*$this->error = 'SQL to get resource return nothing';
 										 $this->errors[] = 'SQL to get resource return nothing';*/
-										setEventMessages('SQL to get resource return nothing', null, 'errors');
+										setEventMessages('dolicloud_database_refresh: SQL to get resource list returns empty list for '.$object->ref.' - '.$producttmp->ref.' - '.$sqlformula, null, 'errors');
 									}
 								}
 
@@ -382,7 +381,8 @@ function dolicloud_database_refresh($conf, $db, &$object, &$errors)
 
 
 /**
- * Calculate stats ('total', 'totalcommissions', 'totalinstancespaying', 'totalinstancessuspended', 'totalinstancesexpired', 'totalinstances' (nb instances included suspended), 'totalusers')
+ * Calculate stats ('total', 'totalcommissions', 'totalinstancespaying', 'totalinstancessuspended',
+ * 'totalinstancesexpiredfree', 'totalinstancesexpiredpaying', 'totalinstances' (nb instances included suspended), 'totalusers'
  * at date datelim (or realtime if date is empty)
  *
  * Rem: Comptage des users par status
@@ -601,7 +601,7 @@ function sellyoursaas_calculate_stats($db, $datelim)
 		'totalinstancessuspendedfree'=>(int) $totalinstancessuspendedfree,
 		'totalinstancessuspendedpaying'=>(int) $totalinstancessuspendedpaying,
 		'totalinstancesexpiredfree'=>(int) $totalinstancesexpiredfree,
-		'totalinstancesexpired'=>(int) $totalinstancesexpiredpaying,
+		'totalinstancesexpiredpaying'=>(int) $totalinstancesexpiredpaying,
 		'totalinstances'=>(int) $totalinstances,						// Total instances (trial + paid)
 		'totalusers'=>(int) $totalusers,								// Total users (trial + paid)
 		'totalcustomers'=>(int) count($listofcustomers),				// Trial only customers

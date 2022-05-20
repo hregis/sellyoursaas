@@ -529,7 +529,7 @@ if (empty($object->nbofusers)) {
 									$error++;
 									/*$this->error = 'SQL to get resource return nothing';
 									$this->errors[] = 'SQL to get resource return nothing';*/
-									setEventMessages('SQL to get resource return nothing', null, 'errors');
+									setEventMessages('instance_links.php: SQL to get resources returns error for '.$object->ref.' - '.$producttmp->ref.' - '.$sqlformula, null, 'errors');
 								}
 							} else {
 								// If request is a SELECT nb, fieldlogin as comment
@@ -557,7 +557,7 @@ if (empty($object->nbofusers)) {
 									$error++;
 									/*$this->error = 'SQL to get resource return nothing';
 									$this->errors[] = 'SQL to get resource return nothing';*/
-									setEventMessages('SQL to get resource return nothing', null, 'errors');
+									setEventMessages('instance_links.php: SQL to get resource list returns empty list for '.$object->ref.' - '.$producttmp->ref.' - '.$sqlformula, null, 'errors');
 								}
 							}
 
@@ -658,7 +658,7 @@ print getListOfLinks($object, $lastloginadmin, $lastpassadmin);
 	print_barre_liste($langs->trans("ChainOfRegistrations"), '', '', '', '', '', '', '', 0);
 
 	print '<div class="div-table-responsive-no-min">';
-	print '<table class="noborder" width="100%">';
+	print '<table class="noborder entpercent">';
 
 	print '<tr>';
 	print '<td>'.$langs->trans("Instance").'</td>';

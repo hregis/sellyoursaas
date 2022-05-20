@@ -457,7 +457,7 @@ class SellYourSaasUtils
 		include_once DOL_DOCUMENT_ROOT.'/core/class/html.formmail.class.php';
 		include_once DOL_DOCUMENT_ROOT.'/core/class/CMailFile.class.php';
 		include_once DOL_DOCUMENT_ROOT.'/compta/facture/class/facture-rec.class.php';
-		$formmail=new FormMail($db);
+		$formmail=new FormMail($this->db);
 
 		$nextyear = $currentyear;
 		$nextmonth = $currentmonth + 1;
@@ -604,7 +604,7 @@ class SellYourSaasUtils
 		// Get warning email template
 		include_once DOL_DOCUMENT_ROOT.'/core/class/html.formmail.class.php';
 		include_once DOL_DOCUMENT_ROOT.'/core/class/CMailFile.class.php';
-		$formmail=new FormMail($db);
+		$formmail=new FormMail($this->db);
 
 		$nextyear = $currentyear;
 		$nextmonth = $currentmonth + 1;
@@ -1112,7 +1112,7 @@ class SellYourSaasUtils
 										$charge->customer = $customer->id;
 									} elseif ($paymentintent->status === 'requires_action') {
 										//paymentintent->status may be => 'requires_action' (no error in such a case)
-										dol_syslog(var_export($paymentintent, true), LOG_DEBUG);
+										dol_syslog("paymentintent = ".var_export($paymentintent, true), LOG_DEBUG);
 
 										$charge->status = 'failed';
 										$charge->customer = $customer->id;
@@ -1123,7 +1123,7 @@ class SellYourSaasUtils
 										$stripefailuremessage = 'Action required. Contact the support at '.$conf->global->SELLYOURSAAS_MAIN_EMAIL;
 										$stripefailuredeclinecode = $stripe->declinecode;
 									} else {
-										dol_syslog(var_export($paymentintent, true), LOG_DEBUG);
+										dol_syslog("paymentintent = ".var_export($paymentintent, true), LOG_DEBUG);
 
 										$charge->status = 'failed';
 										$charge->customer = $customer->id;
@@ -1150,6 +1150,8 @@ class SellYourSaasUtils
 									$errorforinvoice++;
 									$errmsg=$langs->trans("FailedToChargeCard");
 									if (! empty($charge)) {
+										// Note: Sometimes $stripefailuredeclinecode is empty and we have text 'This transaction requires authentication' into $stripefailuremessage. It may be a case of
+										// SCA error not managed ?
 										if ($stripefailuredeclinecode == 'authentication_required') {
 											$errauthenticationmessage=$langs->trans("ErrSCAAuthentication");
 											$errmsg=$errauthenticationmessage;
@@ -1173,7 +1175,7 @@ class SellYourSaasUtils
 									$postactionmessages[]=$errmsg.' ('.$stripearrayofkeys['publishable_key'].')';
 									$this->errors[]=$errmsg;
 								} else {
-									dol_syslog('Successfuly charge card '.$stripecard->id.' for invoice '.$invoice->id);
+									dol_syslog('Successfuly charge card or payment mode '.$stripecard->id.' for invoice '.$invoice->id);
 
 									$postactionmessages[]='Success to charge card ('.$charge->id.' with '.$stripearrayofkeys['publishable_key'].')';
 
@@ -1238,7 +1240,9 @@ class SellYourSaasUtils
 										dol_syslog('* Record payment for invoice id '.$invoice->id.'. It includes closing of invoice and regenerating document');
 
 										// This include closing invoices to 'paid' (and trigger including unsuspending) and regenerating document
-										// So this method can be very long if there is an unsuspend with timeout.
+										// So this method can be very long if there is an unsuspend action ending with timeout.
+										// Note: If there is an error during generation of PDF, we received a payment error. A solution may be to set $conf->global->MAIN_DISABLE_PDF_AUTOUPDATE and
+										// force regeneration of PDF outside of method create
 										$paiement_id = $paiement->create($user, 1);
 										if ($paiement_id < 0) {
 											$postactionmessages[] = $paiement->error.($paiement->error?' ':'').join("<br>\n", $paiement->errors);
@@ -1757,7 +1761,8 @@ class SellYourSaasUtils
 	/**
 	 * Action executed by scheduler
 	 * CAN BE A CRON TASK
-	 * Loop on each contract. If it is a paid contract, and there is no unpaid invoice for contract, and lines are not suspended and end date < today + 2 days (so expired or soon expired),
+	 * Loop on each contract.
+	 * If it is a paid contract, and there is no unpaid invoice for contract, and lines are not suspended and end date < today + 2 days (so expired or soon expired),
 	 * we make a refresh (update qty of contract + qty of linked template invoice) + we set the running contract service end date to end at next period.
 	 *
 	 * @param	int		$thirdparty_id			Thirdparty id
@@ -1774,7 +1779,7 @@ class SellYourSaasUtils
 
 		$now = dol_now();
 
-		$mode = 'paid';
+		$mode = 'paid';			// 'paid' is to renew 'paid' or 'redirect' contracts. 'test' instances are never renewed.
 		$delayindaysshort = 1;	// So we renew the resources 1 day after the invoice is generated and paid or in error (this means we have 2 chances to build invoice before renewal)
 		$enddatetoscan = dol_time_plus_duree($now, -1 * abs($delayindaysshort), 'd');		// $enddatetoscan = yesterday
 
@@ -1798,7 +1803,7 @@ class SellYourSaasUtils
 		$sql.= " AND date_format(cd.date_fin_validite, '%Y-%m-%d') <= date_format('".$this->db->idate($enddatetoscan)."', '%Y-%m-%d')";
 		$sql.= " AND cd.statut = 4";
 		$sql.= " AND c.fk_soc = se.fk_object AND se.dolicloud = 'yesv2'";
-		if ($thirdparty_id > 0) $sql.=" AND c.fk_soc = ".$thirdparty_id;
+		if ($thirdparty_id > 0) $sql.=" AND c.fk_soc = ".((int) $thirdparty_id);
 		//print $sql;
 
 		$resql = $this->db->query($sql);
@@ -1835,9 +1840,9 @@ class SellYourSaasUtils
 						$contractignored[$object->id]=$object->ref;
 						continue;											// Discard if this is a paid instance when we are in test mode
 					}
-					if ($mode == 'paid' && ! $isAPayingContract) {
+					if ($mode == 'paid' && ! $isAPayingContract && !preg_match('/^http/i', $object->array_options['options_suspendmaintenance_message'])) {
 						$contractignored[$object->id]=$object->ref;
-						continue;											// Discard if this is a test instance when we are in paid mode
+						continue;											// Discard if this is a test instance and not a redirect instance when we are in paid mode
 					}
 
 					// Update expiration date of instance
@@ -1882,7 +1887,7 @@ class SellYourSaasUtils
 
 						if ($protecti < 1000) {	// If not, there is a pb
 							// We will update the end of date of contrat, so first we refresh contract data
-							dol_syslog("We will update the end of date of contract with newdate=".dol_print_date($newdate, 'dayhourrfc')." but first, we update qty of resources by a remote action refresh.");
+							dol_syslog("We will update the end of date of contract with newdate = ".dol_print_date($newdate, 'dayhourrfc')." but first, we update qty of resources by a remote action refresh.");
 
 							$this->db->begin();
 
@@ -1957,7 +1962,7 @@ class SellYourSaasUtils
 			$this->error = $this->db->lasterror();
 		}
 
-		$this->output .= count($contractprocessed).' paying contract(s) with end date before '.dol_print_date($enddatetoscan, 'day').' were renewed'.(count($contractprocessed)>0 ? ' : '.join(',', $contractprocessed) : '').' (search done on contracts of SellYourSaas customers only, including redirect contracts)';
+		$this->output .= count($contractprocessed).' contract(s) with end date before '.dol_print_date($enddatetoscan, 'day').' were renewed'.(count($contractprocessed)>0 ? ' : '.join(',', $contractprocessed) : '').' (search done on contracts of SellYourSaas customers only, including redirect contracts)';
 
 		$conf->global->SYSLOG_FILE = $savlog;
 
@@ -2614,7 +2619,7 @@ class SellYourSaasUtils
 		$now = dol_now();
 		$datetotest = dol_time_plus_duree($now, -1 * abs($delayindays), 'd');
 
-		$sql = 'SELECT c.rowid, c.ref_customer, s.client, cd.rowid as lid';
+		$sql = 'SELECT c.rowid, c.ref_customer, ce.suspendmaintenance_message, s.client, cd.rowid as lid';
 		$sql.= ' FROM '.MAIN_DB_PREFIX.'contrat as c, '.MAIN_DB_PREFIX.'contratdet as cd, '.MAIN_DB_PREFIX.'contrat_extrafields as ce, ';
 		$sql.= ' '.MAIN_DB_PREFIX.'societe as s, '.MAIN_DB_PREFIX.'societe_extrafields as se';
 		$sql.= ' WHERE cd.fk_contrat = c.rowid AND ce.fk_object = c.rowid';
@@ -2656,8 +2661,12 @@ class SellYourSaasUtils
 					}
 
 					$isAPayingContract = sellyoursaasIsPaidInstance($object);       // This make fetchObjectLinked and scan link on invoices or template invoices
-					if ($mode == 'test' && $isAPayingContract) continue;			// Discard if this is a paid instance when we are in test mode
-					if ($mode == 'paid' && ! $isAPayingContract) continue;			// Discard if this is a test instance when we are in paid mode
+					if ($mode == 'test' && $isAPayingContract) {
+						continue;			// Discard if this is a paid instance when we are in test mode
+					}
+					if ($mode == 'paid' && ! $isAPayingContract) {
+						continue;			// Discard if this is a test instance when we are in paid mode
+					}
 
 					// Undeploy now
 					$this->db->begin();
@@ -2844,6 +2853,7 @@ class SellYourSaasUtils
 	 * 													'refresh'=update status of install.lock+authorized key + loop on each line and read remote data and update qty of metrics
 	 * 													'refreshmetrics'=loop on each line and read remote data and update qty of metrics
 	 * 													'recreateauthorizedkeys', 'deletelock', 'recreatelock'
+	 * 													'migrate',
 	 * @param 	Contrat|ContratLigne	$object			Object contract or contract line
 	 * @param	string					$appusername	App login. Used for replacement of __APPUSERNAME__
 	 * @param	string					$email			Initial email. Used for replacement of __APPEMAIL__
@@ -3087,7 +3097,7 @@ class SellYourSaasUtils
 			// Note remote action 'undeployall' is used to undeploy test instances
 			// Note remote action 'undeploy' is used to undeploy paying instances
 			$doremoteaction = 0;
-			if (in_array($remoteaction, array('backup', 'deploy', 'deployall', 'rename', 'suspend', 'suspendmaintenance','unsuspend', 'undeploy', 'undeployall')) &&
+			if (in_array($remoteaction, array('backup', 'deploy', 'deployall', 'rename', 'suspend', 'suspendmaintenance','unsuspend', 'undeploy', 'undeployall', 'migrate')) &&
 				($producttmp->array_options['options_app_or_option'] == 'app')) $doremoteaction = 1;
 			if (in_array($remoteaction, array('deploy','deployall','deployoption')) &&
 				($producttmp->array_options['options_app_or_option'] == 'option')) $doremoteaction = 1;
@@ -3282,39 +3292,41 @@ class SellYourSaasUtils
 				$tmppackage->targetsrcfile2 = make_substitutions($tmppackage->targetsrcfile2, $substitarray);
 				$tmppackage->targetsrcfile3 = make_substitutions($tmppackage->targetsrcfile3, $substitarray);
 
+				$automigrationtmpdir = $dirfortmpfiles."/automigration_".$object->socid.".tmp";
+				$automigrationdocumentarchivename = $object->array_options["automigrationdocumentarchivename"];
 				// get direct access value
 				$directaccess=0;
 				if ($producttmp->array_options['options_app_or_option'] == 'app') {
 					$directaccess=$producttmp->array_options['options_directaccess'];
 				}
+				if ($remoteaction != "migrate") {
+					dol_syslog("Create conf file ".$tmppackage->srcconffile1);
+					if ($tmppackage->srcconffile1 && $conffile) {
+						dol_delete_file($tmppackage->srcconffile1, 0, 1, 0, null, false, 0);
+						$result = file_put_contents($tmppackage->srcconffile1, str_replace("\r", '', $conffile));
+						@chmod($tmppackage->srcconffile1, 0664);  // so user/group has "rw" ('admin' can delete if owner/group is 'admin' or 'www-data', 'root' can also read using nfs)
+					} else {
+						dol_syslog("No conf file to create or no content");
+					}
 
-				dol_syslog("Create conf file ".$tmppackage->srcconffile1);
-				if ($tmppackage->srcconffile1 && $conffile) {
-					dol_delete_file($tmppackage->srcconffile1, 0, 1, 0, null, false, 0);
-					$result = file_put_contents($tmppackage->srcconffile1, str_replace("\r", '', $conffile));
-					@chmod($tmppackage->srcconffile1, 0664);  // so user/group has "rw" ('admin' can delete if owner/group is 'admin' or 'www-data', 'root' can also read using nfs)
-				} else {
-					dol_syslog("No conf file to create or no content");
+					dol_syslog("Create cron file ".$tmppackage->srccronfile);
+					if ($tmppackage->srccronfile && $cronfile) {
+						dol_delete_file($tmppackage->srccronfile, 0, 1, 0, null, false, 0);
+						$result = file_put_contents($tmppackage->srccronfile, str_replace("\r", '', $cronfile)."\n");  // A cron file must have at least one new line before end of file
+						@chmod($tmppackage->srccronfile, 0664);  // so user/group has "rw" ('admin' can delete if owner/group is 'admin' or 'www-data', 'root' can also read using nfs)
+					} else {
+						dol_syslog("No cron file to create or no content");
+					}
+
+					if ($tmppackage->srccliafter && $cliafter) {
+						dol_syslog("Create cli file ".$tmppackage->srccliafter);
+						dol_delete_file($tmppackage->srccliafter, 0, 1, 0, null, false, 0);
+						$result = file_put_contents($tmppackage->srccliafter, str_replace("\r", '', $cliafter));
+						@chmod($tmppackage->srccliafter, 0664);  // so user/group has "rw" ('admin' can delete if owner/group is 'admin' or 'www-data', 'root' can also read using nfs)
+					} else {
+						dol_syslog("No cli file to create or no content");
+					}
 				}
-
-				dol_syslog("Create cron file ".$tmppackage->srccronfile);
-				if ($tmppackage->srccronfile && $cronfile) {
-					dol_delete_file($tmppackage->srccronfile, 0, 1, 0, null, false, 0);
-					$result = file_put_contents($tmppackage->srccronfile, str_replace("\r", '', $cronfile)."\n");  // A cron file must have at least one new line before end of file
-					@chmod($tmppackage->srccronfile, 0664);  // so user/group has "rw" ('admin' can delete if owner/group is 'admin' or 'www-data', 'root' can also read using nfs)
-				} else {
-					dol_syslog("No cron file to create or no content");
-				}
-
-				if ($tmppackage->srccliafter && $cliafter) {
-					dol_syslog("Create cli file ".$tmppackage->srccliafter);
-					dol_delete_file($tmppackage->srccliafter, 0, 1, 0, null, false, 0);
-					$result = file_put_contents($tmppackage->srccliafter, str_replace("\r", '', $cliafter));
-					@chmod($tmppackage->srccliafter, 0664);  // so user/group has "rw" ('admin' can delete if owner/group is 'admin' or 'www-data', 'root' can also read using nfs)
-				} else {
-					dol_syslog("No cli file to create or no content");
-				}
-
 				// Parameters for remote action
 				$commandurl = $generatedunixlogin.'&'.$generatedunixpassword.'&'.$sldAndSubdomain.'&'.$domainname;
 				$commandurl.= '&'.$generateddbname.'&'.$generateddbport.'&'.$generateddbusername.'&'.$generateddbpassword;
@@ -3342,6 +3354,9 @@ class SellYourSaasUtils
 				$commandurl.= '&'.$directaccess;        // Param 38 in .sh
 				$commandurl.= '&'.$sshaccesstype;       // Param 39 in .sh
 				$commandurl.= '&'.str_replace(' ', '£', $customvirtualhostdir);       	// Param 40 in .sh: Will replace __IncludeFromContract__ in virtual host
+        $commandurl.= '&'.$automigrationtmpdir;  //Param 41 in .sh
+				$commandurl.= '&'.$automigrationdocumentarchivename; //Param 42 in .sh
+
 				//$outputfile = $conf->sellyoursaas->dir_temp.'/action-'.$remoteaction.'-'.dol_getmypid().'.out';
 
 
@@ -3578,8 +3593,8 @@ class SellYourSaasUtils
 										$newcommentonqty .= '';
 									} else {
 										$error++;
-										$this->error = 'SQL to get resource return nothing';
-										$this->errors[] = 'SQL to get resource return nothing';
+										$this->error = 'sellyoursaasRemoteAction: SQL to get resources returns error for '.$object->ref.' - '.$producttmp->ref.' - '.$sqlformula;
+										$this->errors[] = $this->error;
 									}
 								} else {
 									// If request is a SELECT nb, fieldlogin as comment
@@ -3605,8 +3620,8 @@ class SellYourSaasUtils
 										$newcommentonqty .= 'User Accounts ('.$newqty.') : '.join(', ', $arrayofcomment)."\n";
 									} else {
 										$error++;
-										$this->error = 'SQL to get resource return nothing';
-										$this->errors[] = 'SQL to get resource return nothing';
+										$this->error = 'sellyoursaasRemoteAction: SQL to get resource list returns empty list for '.$object->ref.' - '.$producttmp->ref.' - '.$sqlformula;
+										$this->errors[] = $this->error;
 									}
 								}
 
