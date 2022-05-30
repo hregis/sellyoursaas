@@ -3354,7 +3354,7 @@ class SellYourSaasUtils
 				$commandurl.= '&'.$directaccess;        // Param 38 in .sh
 				$commandurl.= '&'.$sshaccesstype;       // Param 39 in .sh
 				$commandurl.= '&'.str_replace(' ', '£', $customvirtualhostdir);       	// Param 40 in .sh: Will replace __IncludeFromContract__ in virtual host
-        $commandurl.= '&'.$automigrationtmpdir;  //Param 41 in .sh
+				$commandurl.= '&'.$automigrationtmpdir;  //Param 41 in .sh
 				$commandurl.= '&'.$automigrationdocumentarchivename; //Param 42 in .sh
 
 				//$outputfile = $conf->sellyoursaas->dir_temp.'/action-'.$remoteaction.'-'.dol_getmypid().'.out';
