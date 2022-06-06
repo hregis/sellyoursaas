@@ -283,7 +283,7 @@ SELLYOURSAAS_NBDAYS_AFTER_EXPIRATION_BEFORE_TRIAL_SUSPEND=Nb of days after expir
 SELLYOURSAAS_NBDAYS_AFTER_EXPIRATION_BEFORE_PAID_SUSPEND=Nb of days after expiration date to suspend automatically paid instances
 SELLYOURSAAS_NBDAYS_AFTER_EXPIRATION_BEFORE_TRIAL_UNDEPLOYMENT=Nb of days after expiration date to undeploy automatically test instances
 SELLYOURSAAS_NBDAYS_AFTER_EXPIRATION_BEFORE_PAID_UNDEPLOYMENT=Nb of days after expiration date to undeploy automatically paid instances
-SELLYOURSAAS_MAXDEPLOYMENTPARALLEL=Nb maximum of instance we accept in parallel for each deployment server (n deployement server means x * n may be accepted)
+SELLYOURSAAS_MAXDEPLOYMENTPARALLEL=Nb maximum of instance creation we accept in parallel for each deployment server (n deployement servers means x * n instances can be created at the same time)
 SELLYOURSAAS_MAX_INSTANCE_PER_ACCOUNT=Maximum number of instances by default for new prospect or customer
 SELLYOURSAAS_VPN_PROBA_REFUSED=Minimum probability of using a VPN to deny registration
 DaysForFreePeriod=Days for free period
@@ -648,5 +648,7 @@ SELLYOURSAAS_DATADOG_APIKEY=Datadog API key (only if you want to use a different
 AverageBasket=Average basket
 SELLYOURSAAS_AUTOMIGRATION_CODE=Ticket group to enable auto-migration
 SELLYOURSAAS_SUPPORT_SHOW_MESSAGE=Show a message in the support page
-ConfirmNonProfiitOrga=I confirm that I am not a non-profit institution. For commercial companies, an identical paying service is available on <a href="https://www.dolicloud.com">https://www.dolicloud.com</a>
-SELLYOURSAAS_ONLY_NON_PROFIT_ORGA=Enable hosting of non profit organisations
+ConfirmNonProfiitOrga=I confirm that I am a non-profit organization (Note: If you are a commercial company, the same service is available for you on <a href="https://www.dolicloud.com" target="_blank" rel="noopener">https://www.dolicloud.com</a>)
+SELLYOURSAAS_ONLY_NON_PROFIT_ORGA=Add a checkbox on registration form to validate non-profit organisation status
+SupportChannel=Support channel
+AskForSupport=Ask for support
