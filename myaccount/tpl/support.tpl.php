@@ -77,11 +77,13 @@ if ($urlfaq || $urlstatus) {
 	<!-- END PAGE HEAD -->
 	<!-- END PAGE HEADER-->';
 
-	$sellyoursaassupporturl = $conf->global->SELLYOURSAAS_SUPPORT_URL;
+	$sellyoursaassupporturl = getDolGlobalString('SELLYOURSAAS_SUPPORT_URL');
 if (! empty($mythirdpartyaccount->array_options['options_domain_registration_page'])
 		&& $mythirdpartyaccount->array_options['options_domain_registration_page'] != $conf->global->SELLYOURSAAS_MAIN_DOMAIN_NAME) {
 	$newnamekey = 'SELLYOURSAAS_SUPPORT_URL-'.$mythirdpartyaccount->array_options['options_domain_registration_page'];
-	if (! empty($conf->global->$newnamekey)) $sellyoursaassupporturl = $conf->global->$newnamekey;
+	if (! empty($conf->global->$newnamekey)) {
+		$sellyoursaassupporturl = $conf->global->$newnamekey;
+	}
 }
 
 if ($sellyoursaassupporturl) {
@@ -124,25 +126,25 @@ if ($sellyoursaassupporturl) {
 		$atleastonefound=0;
 
 		foreach ($listofcontractid as $id => $contract) {
-							$planref = $contract->array_options['options_plan'];
-							$statuslabel = $contract->array_options['options_deployment_status'];
-							$instancename = preg_replace('/\..*$/', '', $contract->ref_customer);
+			$planref = $contract->array_options['options_plan'];
+			$statuslabel = $contract->array_options['options_deployment_status'];
+			$instancename = preg_replace('/\..*$/', '', $contract->ref_customer);
 
-							$dbprefix = $contract->array_options['options_db_prefix'];
-							if (empty($dbprefix)) $dbprefix = 'llx_';
+			$dbprefix = empty($contract->array_options['options_db_prefix']) ? '' : $contract->array_options['options_db_prefix'];
+			if (empty($dbprefix)) $dbprefix = 'llx_';
 
 			if ($statuslabel == 'undeployed') {
 				continue;
 			}
 
-							// Get info about PLAN of Contract
-							$planlabel = $planref;		// By default but we will take ref and label of service of type 'app' later
+			// Get info about PLAN of Contract
+			$planlabel = $planref;		// By default but we will take ref and label of service of type 'app' later
 
-							$planid = 0;
-							$freeperioddays = 0;
-							$directaccess = 0;
+			$planid = 0;
+			$freeperioddays = 0;
+			$directaccess = 0;
 
-							$tmpproduct = new Product($db);
+			$tmpproduct = new Product($db);
 			foreach ($contract->lines as $keyline => $line) {
 				if ($line->statut == 5 && $contract->array_options['options_deployment_status'] != 'undeployed') {
 									$statuslabel = 'suspended';
@@ -229,7 +231,6 @@ if ($sellyoursaassupporturl) {
 
 
 	if (($action == 'presend' && GETPOST('supportchannel', 'alpha')) || getDolGlobalInt('SELLYOURSAAS_ONLY_NON_PROFIT_ORGA')) {
-		print getDolGlobalInt('SELLYOURSAAS_ONLY_NON_PROFIT_ORGA') ? '<br>' : '<br><br>';
 		$trackid = '';
 		dol_init_file_process($upload_dir, $trackid);
 
@@ -241,6 +242,7 @@ if ($sellyoursaassupporturl) {
 		// List of files
 		$listofpaths = dol_dir_list($upload_dir, 'files', 0, '', '', 'name', SORT_ASC, 0);
 
+		$out = '';
 		$out .= '<input type="hidden" class="removedfilehidden" name="removedfile" value="">'."\n";
 		$out .= '<script type="text/javascript" language="javascript">';
 		$out .= 'jQuery(document).ready(function () {';
@@ -318,7 +320,10 @@ if ($sellyoursaassupporturl) {
 		//$atleastonepublicgroup = 0;
 
 		//$atleastonepublicgroup = 0;
-		if ($atleastonepublicgroup && GETPOST('supportchannel', 'alpha')) {
+		print getDolGlobalInt('SELLYOURSAAS_ONLY_NON_PROFIT_ORGA') ? '<br>' : ($atleastonepublicgroup > 1 ? '<br>' : "");
+
+		$stringtoprint = '';
+		if ($atleastonepublicgroup > 1 && GETPOST('supportchannel', 'alpha')) {
 			//$stringtoprint = '<br>';
 			$stringtoprint .= $formticket->selectGroupTickets(GETPOST('ticketcategory', 'int'), 'ticketcategory', 'public=1', 0, 0, 1, 0, '', 1, $langs);
 			$stringtoprint .= '<br>';
@@ -429,7 +434,7 @@ if ($sellyoursaassupporturl) {
 			/* If we have something selected */
 			console.log('supportchannel = ".GETPOST('supportchannel', 'alpha')."');
 			console.log('ticketcategory = ".GETPOST('ticketcategory', 'alpha')."');
-			if (('".GETPOST('supportchannel', 'alpha')."' == '' || ('".GETPOST('ticketcategory')."' == '')) && (".$atleastonepublicgroup." > 0) && (preselectedticketcategory == '' || preselectedticketcategory == automigrationcode)) {
+			if (('".GETPOST('supportchannel', 'alpha')."' == '' || ('".GETPOST('ticketcategory')."' == '')) && (".$atleastonepublicgroup." > 1) && (preselectedticketcategory == '' || preselectedticketcategory == automigrationcode)) {
 				$('.hideforautomigration').hide();
 			}
 		});

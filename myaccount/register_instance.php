@@ -96,14 +96,14 @@ $conf->global->SYSLOG_FILE_ONEPERSESSION=1;
 
 //$langs=new Translate('', $conf);
 //$langs->setDefaultLang(GETPOST('lang', 'aZ09')?GETPOST('lang', 'aZ09'):'auto');
-$langs->loadLangs(array("main","companies","sellyoursaas@sellyoursaas","errors"));
+$langs->loadLangs(array("main", "companies", "sellyoursaas@sellyoursaas", "errors"));
 
 if ($langs->defaultlang == 'en_US') {
 	$langsen = $langs;
 } else {
 	$langsen=new Translate('', $conf);
 	$langsen->setDefaultLang('en_US');
-	$langsen->loadLangs(array("main","companies","sellyoursaas@sellyoursaas","errors"));
+	$langsen->loadLangs(array("main", "companies", "sellyoursaas@sellyoursaas", "errors"));
 }
 
 
@@ -653,10 +653,13 @@ if ($reusecontractid) {
 	$select = 'SELECT COUNT(*) as nb FROM '.MAIN_DB_PREFIX."contrat_extrafields";
 	$select .= " WHERE deployment_host = '".$db->escape($serverdeployement)."'";
 	$select .= " AND deployment_status IN ('processing')";
+	$select .= " AND deployment_date_start < DATE_SUB(NOW(), INTERVAL 1 DAY)";	// We ignore deployment started more that 24h before. They are finished even if not correctly.
 	$resselect = $db->query($select);
 	if ($resselect) {
 		$objselect = $db->fetch_object($resselect);
 		if ($objselect) $nbofinstanceindeployment = $objselect->nb;
+	} else {
+		dol_print_error($db, 'Bad sql request');
 	}
 	dol_syslog("nbofinstanceindeployment = ".$nbofinstanceindeployment." for ip ".$remoteip." (must be lower or equal than ".$MAXDEPLOYMENTPARALLEL." except if ip is 127.0.0.1)");
 	if ($remoteip != '127.0.0.1' && (($nbofinstanceindeployment < 0) || ($nbofinstanceindeployment > $MAXDEPLOYMENTPARALLEL))) {
@@ -844,7 +847,7 @@ if ($reusecontractid) {
 	$tmpthirdparty->array_options['options_source_utm'] = $_COOKIE['utm_source_cookie'];
 	$tmpthirdparty->array_options['options_password'] = $password;
 	$tmpthirdparty->array_options['options_optinmessages'] = $optinmessages;
-	$tmpthirdparty->array_options['options_checkbosnonprofitorga'] = $checkbosnonprofitorga;
+	//$tmpthirdparty->array_options['options_checkbosnonprofitorga'] = $checkbosnonprofitorga;		// For the moment we don't save this info
 
 	if ($productref == 'none') {	// If reseller
 		$tmpthirdparty->fournisseur = 1;
@@ -1028,12 +1031,13 @@ if ($reusecontractid) {
 			If you exceed the number of allowed queries, you'll receive a HTTP 429 error.
 		 */
 		if (is_array($result) && $result['http_code'] == 200 && isset($result['content'])) {
-			$vpnproba = price2num($result['content'], 2, 1);
+			$vpnproba = (float) price2num($result['content'], 2, 1);
 			$contract->array_options['options_deployment_ipquality'] .= 'geti-vpn='.round($vpnproba, 2).';';
+			$contract->array_options['options_deployment_vpn_proba'] = round($vpnproba, 2);
 		} else {
 			$contract->array_options['options_deployment_ipquality'] .= 'geti-check failed. http_code = '.dol_trunc($result['http_code'], 100).';';
+			$contract->array_options['options_deployment_vpn_proba'] = '';
 		}
-		$contract->array_options['options_deployment_vpn_proba'] = round($vpnproba, 2);
 
 		$prefix=dol_getprefix('');
 		$cookieregistrationa='DOLREGISTERA_'.$prefix;
@@ -1051,7 +1055,7 @@ if ($reusecontractid) {
 
 		// Refused if VPN probability is too high
 		if (empty($abusetest) && !empty($conf->global->SELLYOURSAAS_VPN_PROBA_REFUSED)) {
-			if ($vpnproba >= $conf->global->SELLYOURSAAS_VPN_PROBA_REFUSED) {
+			if (is_numeric($vpnproba) && $vpnproba >= (float) $conf->global->SELLYOURSAAS_VPN_PROBA_REFUSED) {
 				dol_syslog("Instance creation blocked for ".$remoteip." - VPN probability ".$vpnproba." is higher or equal than ".$conf->global->SELLYOURSAAS_VPN_PROBA_REFUSED);
 				$abusetest = 1;
 			}
@@ -1154,7 +1158,7 @@ if ($reusecontractid) {
 
 		// Block for some IPs if VPN proba is higher that an threshold
 		if (empty($abusetest) && !empty($conf->global->SELLYOURSAAS_BLACKLIST_IP_MASKS_FOR_VPN)) {
-			if ($vpnproba >= (empty($conf->global->SELLYOURSAAS_VPN_PROBA_FOR_BLACKLIST) ? 1 : $conf->global->SELLYOURSAAS_VPN_PROBA_FOR_BLACKLIST)) {
+			if (is_numeric($vpnproba) && $vpnproba >= (empty($conf->global->SELLYOURSAAS_VPN_PROBA_FOR_BLACKLIST) ? 1 : (float) $conf->global->SELLYOURSAAS_VPN_PROBA_FOR_BLACKLIST)) {
 				$arrayofblacklistips = explode(',', $conf->global->SELLYOURSAAS_BLACKLIST_IP_MASKS_FOR_VPN);
 				foreach ($arrayofblacklistips as $blacklistip) {
 					if ($remoteip == $blacklistip) {
@@ -1511,6 +1515,7 @@ $favicon=getDomainFromURL($_SERVER['SERVER_NAME'], 0);
 if (! preg_match('/\.(png|jpg)$/', $favicon)) $favicon.='.png';
 if (! empty($conf->global->MAIN_FAVICON_URL)) $favicon=$conf->global->MAIN_FAVICON_URL;
 
+$head = '';
 if ($favicon) $head.='<link rel="icon" href="img/'.$favicon.'">'."\n";
 $head.='<!-- Bootstrap core CSS -->
 <link href="dist/css/bootstrap.css" type="text/css" rel="stylesheet">
@@ -1542,7 +1547,7 @@ llxHeader($head, $title, '', '', 0, 0, array(), array('../dist/css/myaccount.css
 		$constlogoalt = 'SELLYOURSAAS_LOGO_'.str_replace('.', '_', strtoupper($sellyoursaasdomain));
 		$constlogosmallalt = 'SELLYOURSAAS_LOGO_SMALL_'.str_replace('.', '_', strtoupper($sellyoursaasdomain));
 
-		if (! empty($conf->global->$constlogoalt)) {
+		if (getDolGlobalString($constlogoalt)) {
 			$constlogo=$constlogoalt;
 			$constlogosmall=$constlogosmallalt;
 		}
@@ -1556,7 +1561,7 @@ llxHeader($head, $title, '', '', 0, 0, array(), array('../dist/css/myaccount.css
 				$linklogo=DOL_URL_ROOT.'/viewimage.php?cache=1&modulepart=mycompany&file='.urlencode('logos/'.$conf->global->$constlogo);
 			}
 		} else {
-			$linklogo = DOL_URL_ROOT.'/viewimage.php?modulepart=mycompany&file='.urlencode('logos/thumbs/'.$conf->global->SELLYOURSAAS_LOGO_SMALL);
+			$linklogo = DOL_URL_ROOT.'/viewimage.php?modulepart=mycompany&file='.urlencode('logos/thumbs/'.getDolGlobalString('SELLYOURSAAS_LOGO_SMALL', 'notdefined.png'));
 		}
 
 		if (GETPOST('partner', 'alpha')) {

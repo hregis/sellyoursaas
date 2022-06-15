@@ -92,12 +92,13 @@ $domainname = getDomainFromURL($_SERVER["SERVER_NAME"], 1);
 
 $productid=GETPOST('service', 'int');
 $productref=(GETPOST('productref', 'alpha')?GETPOST('productref', 'alpha'):'');
+$defaultproduct = '';
 if (empty($productid) && empty($productref)) {
 	$productref = $plan;
 	if (empty($productref)) {
 		$suffix='_'.strtoupper(str_replace('.', '_', $domainname));
 		$constname="SELLYOURSAAS_DEFAULT_PRODUCT".$suffix;
-		$defaultproduct=(! empty($conf->global->$constname) ? $conf->global->$constname : $conf->global->SELLYOURSAAS_DEFAULT_PRODUCT);
+		$defaultproduct=(empty($conf->global->$constname) ? $conf->global->SELLYOURSAAS_DEFAULT_PRODUCT : $conf->global->$constname);
 
 		// Take first plan found
 		$sqlproducts = 'SELECT p.rowid, p.ref, p.label, p.price, p.price_ttc, p.duration, pa.restrict_domains';
@@ -114,7 +115,9 @@ if (empty($productid) && empty($productref)) {
 		$sqlproducts.= " OR pa.restrict_domains LIKE '%,".$db->escape($domainname).",%'"; // can be the middle domain of [mydomain1.com,mydomain2.com,mydomain3.com]
 		$sqlproducts.= " OR pa.restrict_domains LIKE '%,".$db->escape($domainname)."'"; // can be the last domain of [mydomain1.com,mydomain2.com]
 		$sqlproducts.= ")";
-		if (! empty($defaultproduct)) $sqlproducts.= " AND p.rowid = ".((int) $defaultproduct);
+		if (! empty($defaultproduct)) {
+			$sqlproducts.= " AND p.rowid = ".((int) $defaultproduct);
+		}
 		$sqlproducts.= " ORDER BY p.datec";
 		//print $_SERVER["SERVER_NAME"].' - '.$sqlproducts;
 		$resqlproducts = $db->query($sqlproducts);
@@ -229,6 +232,7 @@ $favicon=getDomainFromURL($_SERVER['SERVER_NAME'], 0);
 if (! preg_match('/\.(png|jpg)$/', $favicon)) $favicon.='.png';
 if (! empty($conf->global->MAIN_FAVICON_URL)) $favicon=$conf->global->MAIN_FAVICON_URL;
 
+$head = '';
 if ($favicon) {
 	$href = 'img/'.$favicon;
 	if (preg_match('/^http/i', $favicon)) $href = $favicon;
@@ -279,7 +283,7 @@ llxHeader($head, $title, '', '', 0, 0, $arrayofjs, array(), '', 'register');
 
 		$linklogo = '';
 		$homepage = 'https://'.(empty($conf->global->SELLYOURSAAS_FORCE_MAIN_DOMAIN_NAME) ? $sellyoursaasdomain : $conf->global->SELLYOURSAAS_MAIN_DOMAIN_NAME);
-		if ($partnerthirdparty->id > 0) {     // Show logo of partner
+		if (isset($partnerthirdparty) && $partnerthirdparty->id > 0) {     // Show logo of partner
 			require_once DOL_DOCUMENT_ROOT.'/ecm/class/ecmfiles.class.php';
 			$ecmfile=new EcmFiles($db);
 			$relativepath = $conf->societe->multidir_output[$conf->entity]."/".$partnerthirdparty->id."/logos/".$partnerthirdparty->logo;
@@ -430,7 +434,7 @@ llxHeader($head, $title, '', '', 0, 0, $arrayofjs, array(), '', 'register');
 			  <input type="hidden" name="fromsocid" value="<?php echo dol_escape_htmltag($fromsocid); ?>" />
 			  <input type="hidden" name="origin" value="<?php echo dol_escape_htmltag($origin); ?>" />
 			  <input type="hidden" name="disablecustomeremail" value="<?php echo dol_escape_htmltag($disablecustomeremail); ?>" />
-			  <!-- thirdpartyidinsession = <?php echo $_SESSION['dol_loginsellyoursaas']; ?> -->
+			  <!-- _SESSION['dol_loginsellyoursaas'] = <?php echo empty($_SESSION['dol_loginsellyoursaas']) ? '' : $_SESSION['dol_loginsellyoursaas']; ?> -->
 
 			  <section id="enterUserAccountDetails">
 
