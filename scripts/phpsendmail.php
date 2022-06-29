@@ -25,7 +25,34 @@ $toline = ''; $ccline = ''; $bccline = '';
 $nbto = 0; $nbcc = 0; $nbbcc = 0;
 $fromline = '';
 $referenceline = '';
+$messageidline = '';
 $emailfrom = '';
+
+
+// Rules
+$MAXOK = 10;
+$MAXPERDAY = 500;
+
+file_put_contents($logfile, date('Y-m-d H:i:s') . " ----- start phpsendmail.php\n", FILE_APPEND);
+
+$fp = @fopen('/etc/sellyoursaas-public.conf', 'r');
+// Get $maxemailperday
+$maxemailperday = 0;
+if ($fp) {
+	$array = explode("\n", fread($fp, filesize('/etc/sellyoursaas-public.conf')));
+	foreach ($array as $val) {
+		$tmpline=explode("=", $val);
+		if ($tmpline[0] == 'maxemailperday') {
+			$maxemailperday = $tmpline[1];
+		}
+	}
+} else {
+	file_put_contents($logfile, date('Y-m-d H:i:s') . " Failed to open /etc/sellyoursaas-public.conf file\n", FILE_APPEND);
+	//exit(-1);
+}
+if (is_numeric($maxemailperday) && $maxemailperday > 0) {
+	$MAXPERDAY = (int) $maxemailperday;
+}
 
 
 // Main
@@ -83,6 +110,10 @@ while ($line = fgets($pointer)) {
 			$emailfrom = trim($reg[1]);
 		}
 
+		if (preg_match('/^message-id:\s/i', $line)) {
+			$messageidline .= trim($line)."\n";
+		}
+
 		if (preg_match('/^references:\s/i', $line)) {
 			$referenceline .= trim($line)."\n";
 		}
@@ -121,10 +152,6 @@ if (empty($ip)) {
 	// exit(7);		// We do not exit, this can occurs sometime
 }
 
-// Rules
-$MAXOK = 10;
-$MAXPERDAY = 500;
-
 // Count other existing file starting with '/tmp/phpsendmail-'.posix_getuid()
 // and return error if nb is higher than 500
 $commandcheck = 'find /tmp/phpsendmail-'.posix_getuid().'-* -mtime -1 | wc -l';
@@ -134,7 +161,7 @@ $commandcheck = 'find /tmp/phpsendmail-'.posix_getuid().'-* -mtime -1 | wc -l';
 $resexec =  shell_exec($commandcheck);
 file_put_contents($logfile, date('Y-m-d H:i:s')." nb of process found with ".$commandcheck." = ".$resexec, FILE_APPEND);
 if ($resexec > $MAXPERDAY) {
-	file_put_contents($logfile, date('Y-m-d H:i:s') . ' ' . $ip . ' sellyoursaas rules ko daily quota reached - exit 6. User has reached its daily quota of of '.$MAXPERDAY.".\n", FILE_APPEND);
+	file_put_contents($logfile, date('Y-m-d H:i:s') . ' ' . $ip . ' sellyoursaas rules ko daily quota reached - exit 6. User has reached its daily quota of '.$MAXPERDAY.".\n", FILE_APPEND);
 	exit(6);
 }
 
@@ -146,6 +173,7 @@ if ($ccline)  file_put_contents($logfile, date('Y-m-d H:i:s') . ' ' . $ccline, F
 if ($bccline) file_put_contents($logfile, date('Y-m-d H:i:s') . ' ' . $bccline, FILE_APPEND);
 file_put_contents($logfile, date('Y-m-d H:i:s') . ' ' . $fromline, FILE_APPEND);
 file_put_contents($logfile, date('Y-m-d H:i:s') . ' Email detected into From: '. $emailfrom."\n", FILE_APPEND);
+file_put_contents($logfile, date('Y-m-d H:i:s') . ' ' . $messageidline, FILE_APPEND);
 file_put_contents($logfile, date('Y-m-d H:i:s') . ' ' . $referenceline, FILE_APPEND);
 file_put_contents($logfile, date('Y-m-d H:i:s') . ' ' . (empty($_ENV['PWD'])?(empty($_SERVER["PWD"])?'':$_SERVER["PWD"]):$_ENV['PWD'])." - ".(empty($_SERVER["REQUEST_URI"])?'':$_SERVER["REQUEST_URI"])."\n", FILE_APPEND);
 

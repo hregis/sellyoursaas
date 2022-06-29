@@ -2070,7 +2070,7 @@ class SellYourSaasUtils
 		$now = dol_now();
 		$datetotest = dol_time_plus_duree($now, -1 * abs($gracedelay), 'd');
 
-		$this->db->begin();
+		//$this->db->begin();
 
 		$sql = 'SELECT c.rowid, c.ref_customer, ce.suspendmaintenance_message, cd.rowid as lid';
 		$sql.= ' FROM '.MAIN_DB_PREFIX.'contrat as c, '.MAIN_DB_PREFIX.'contratdet as cd, '.MAIN_DB_PREFIX.'contrat_extrafields as ce,';
@@ -2141,13 +2141,15 @@ class SellYourSaasUtils
 					$expirationdate = $tmparray['expirationdate'];
 
 					if ($expirationdate && $expirationdate < $now) {	// If contract expired (we already had a test into main select, this is a security)
+						$this->db->begin();
+
 						$somethingdoneoncontract++;
 
 						$wemustsuspendinstance = false;
 
 						// If thirdparty has a default payment mode,
 						//   if no template invoice yet (for example a second instance for existing customer), we will create the template invoice (= test instance will move in a paid mode instead of being suspended).
-						//   if already a template invoice exists, we will suspend instance
+						//   if a template invoice already exists, we will suspend instance
 						$customerHasAPaymentMode = sellyoursaasThirdpartyHasPaymentMode($object->thirdparty->id);
 
 						if ($customerHasAPaymentMode) {
@@ -2368,6 +2370,7 @@ class SellYourSaasUtils
 									//$invoice_rec->note_public  = dol_concatdesc($contract->note_public, '__(Period)__ : __INVOICE_DATE_NEXT_INVOICE_BEFORE_GEN__ - __INVOICE_DATE_NEXT_INVOICE_AFTER_GEN__');
 									$invoice_rec->note_public  = $contract->note_public;
 									$invoice_rec->mode_reglement_id = $invoice_draft->mode_reglement_id;
+									$invoice_rec->cond_reglement_id = $invoice_draft->cond_reglement_id;
 
 									$invoice_rec->usenewprice = 0;
 
@@ -2425,7 +2428,8 @@ class SellYourSaasUtils
 									}
 								}
 							}
-						} else {// Third party has no payment mode defined, we suspend it.
+						} else {
+							// Third party has no payment mode defined, we suspend it.
 							$wemustsuspendinstance = true;
 						}
 
@@ -2503,6 +2507,12 @@ class SellYourSaasUtils
 								}
 							}
 						}
+
+						if (! $error) {
+							$this->db->commit();
+						} else {
+							$this->db->rollback();
+						}
 					}
 				}
 			}
@@ -2514,14 +2524,14 @@ class SellYourSaasUtils
 		if (! $error) {
 			// TODO Disable the apache reload after each closing of actions and do it once here.
 
-			$this->db->commit();
+			//$this->db->commit();
 			$this->output = $numofexpiredcontractlines.' expired contract lines found'."\n";
 			$this->output.= 'Launch with noapachereload = '.$noapachereload.", maxnbofinstances = ".$maxnbofinstances."\n";
 			$this->output.= count($contractprocessed).' '.$mode.' running contract(s) with service end date before '.dol_print_date($datetotest, 'dayhourrfc').' suspended'.(count($contractprocessed)>0 ? ' : '.join(',', $contractprocessed) : '').' (search done on contracts of SellYourSaas customers only).'."\n";
 			$this->output.= count($contractconvertedintemplateinvoice).' '.$mode.' running contract(s) with service end date before '.dol_print_date($datetotest, 'dayhourrfc').' converted into template invoice'.(count($contractconvertedintemplateinvoice)>0 ? ' : '.join(',', $contractconvertedintemplateinvoice) : '');
 			if ($erroremail) $this->output.='. Got errors when sending some email : '.$erroremail;
 		} else {
-			$this->db->rollback();
+			//$this->db->rollback();
 			$this->output = "Rollback after error\n";
 			$this->output.= 'Launch with noapachereload = '.$noapachereload.", maxnbofinstances = ".$maxnbofinstances."\n";
 			$this->output.= $numofexpiredcontractlines.' expired contract lines found'."\n";
@@ -2607,8 +2617,8 @@ class SellYourSaasUtils
 		$this->error='';
 
 		$delayindays = 9999999;
-		if ($mode == 'test') $delayindays = $conf->global->SELLYOURSAAS_NBDAYS_AFTER_EXPIRATION_BEFORE_TRIAL_UNDEPLOYMENT;
-		if ($mode == 'paid') $delayindays = $conf->global->SELLYOURSAAS_NBDAYS_AFTER_EXPIRATION_BEFORE_PAID_UNDEPLOYMENT;
+		if ($mode == 'test') $delayindays = getDolGlobalString('SELLYOURSAAS_NBDAYS_AFTER_EXPIRATION_BEFORE_TRIAL_UNDEPLOYMENT');
+		if ($mode == 'paid') $delayindays = getDolGlobalString('SELLYOURSAAS_NBDAYS_AFTER_EXPIRATION_BEFORE_PAID_UNDEPLOYMENT');
 		if ($delayindays <= 1) {
 			$this->error='BadValueForDelayBeforeUndeploymentCheckSetup';
 			return -1;
@@ -3129,7 +3139,7 @@ class SellYourSaasUtils
 				if (! empty($contract->array_options['options_deployment_host'])) {
 					$serverdeployment = $contract->array_options['options_deployment_host'];
 				} else {
-					$serverdeployment = $this->getRemoveServerDeploymentIp($domainname);
+					$serverdeployment = $this->getRemoteServerDeploymentIp($domainname);
 				}
 				if (empty($serverdeployment)) {	// Failed to get remote ip
 					if (empty($this->error)) {
@@ -3545,7 +3555,7 @@ class SellYourSaasUtils
 					if ($tmparray[0] === 'SQL') {
 						$sqlformula = make_substitutions($tmparray[1], $substitarray);
 
-						//$serverdeployment = $this->getRemoveServerDeploymentIp($domainname);
+						//$serverdeployment = $this->getRemoteServerDeploymentIp($domainname);
 						$serverdeployment = $contract->array_options['options_deployment_host'];
 
 						dol_syslog("Try to connect to remote instance database (at ".$generateddbhostname.") to execute formula calculation");
@@ -3958,12 +3968,15 @@ class SellYourSaasUtils
 
 
 	/**
-	 * Return IP of server to deploy to
+	 * Return IP of server to deploy to, from its short host name
+	 * Note: SELLYOURSAAS_SUB_DOMAIN_NAMES has format  'withX.mysellyoursaasdomain.com,withY.mysellyoursaasdomain.com:closed,...'
+	 * Note: SELLYOURSAAS_SUB_DOMAIN_IP has format    '1.2.3.4,5.6.7.8,...'
 	 *
-	 * @param	string		$domainname		Domain name to select remote ip to deploy to (example: 'home.lan', 'dolicloud.com', ...)
+	 * @param	string		$domainname		Domain name to select remote ip to deploy to (example: 'home.lan', 'withX.mysellyoursaasdomain.com', ...)
+	 * @param	int			$onlyifopen		0
 	 * @return	string						'' if KO, IP if OK
 	 */
-	public function getRemoveServerDeploymentIp($domainname)
+	public function getRemoteServerDeploymentIp($domainname, $onlyifopen = 0)
 	{
 		global $conf;
 
@@ -3977,21 +3990,27 @@ class SellYourSaasUtils
 		foreach ($tmparray as $key => $val) {
 			$newval = preg_replace('/:.*$/', '', $val);
 			if ($newval == $domainname) {
+				if ($onlyifopen && preg_match('/:closed/', $val)) {		// Can be 'withX.adomain.com:closed' or 'withX.adomain.com:closed:adomain.com'
+					// This entry is closed.
+					continue;
+				}
 				$found = $key+1;
 				break;
 			}
 		}
 		//print 'Found domain at position '.$found;
 		if (! $found) {
-			$this->error="Failed to found position of server domain '".$domainname."' into SELLYOURSAAS_SUB_DOMAIN_NAMES=".$conf->global->SELLYOURSAAS_SUB_DOMAIN_NAMES;
-			$this->errors[]="Failed to found position of server domain '".$domainname."' into SELLYOURSAAS_SUB_DOMAIN_NAMES=".$conf->global->SELLYOURSAAS_SUB_DOMAIN_NAMES;
+			dol_syslog("Failed to found position of server domain '".$domainname."' into SELLYOURSAAS_SUB_DOMAIN_NAMES=".$conf->global->SELLYOURSAAS_SUB_DOMAIN_NAMES, LOG_WARNING);
+			$this->error="Failed to found position of server domain '".$domainname."' into SELLYOURSAAS_SUB_DOMAIN_NAMES";
+			$this->errors[]="Failed to found position of server domain '".$domainname."' into SELLYOURSAAS_SUB_DOMAIN_NAMES";
 			$error++;
 		} else {
 			$tmparray=explode(',', $conf->global->SELLYOURSAAS_SUB_DOMAIN_IP);
 			$REMOTEIPTODEPLOYTO=$tmparray[($found-1)];
 			if (! $REMOTEIPTODEPLOYTO) {
-				$this->error="Failed to found ip of server domain '".$domainname."' at position '".$found."' into SELLYOURSAAS_SUB_DOMAIN_IPS=".$conf->global->SELLYOURSAAS_SUB_DOMAIN_IP;
-				$this->errors[]="Failed to found ip of server domain '".$domainname."' at position '".$found."' into SELLYOURSAAS_SUB_DOMAIN_IPS=".$conf->global->SELLYOURSAAS_SUB_DOMAIN_IP;
+				dol_syslog("Failed to found ip of server domain '".$domainname."' at position '".$found."' into SELLYOURSAAS_SUB_DOMAIN_IP".$conf->global->SELLYOURSAAS_SUB_DOMAIN_IP, LOG_WARNING);
+				$this->error="Failed to found ip of server domain '".$domainname."' at position '".$found."' into SELLYOURSAAS_SUB_DOMAIN_IP";
+				$this->errors[]="Failed to found ip of server domain '".$domainname."' at position '".$found."' into SELLYOURSAAS_SUB_DOMAIN_IP";
 				$error++;
 			}
 		}

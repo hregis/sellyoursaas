@@ -57,6 +57,11 @@ class ActionsSellyoursaas
 	 */
 	public $resprints;
 
+	/**
+	 * @var int		Priority of hook (50 is used if value is not defined)
+	 */
+	public $priority;
+
 
 	/**
 	 *	Constructor
@@ -736,11 +741,11 @@ class ActionsSellyoursaas
 						$ret .= '<span class="badge badge-status5 badge-status valignmiddle inline-block" style="font-size: 1em">'.$langs->trans("TrialMode").'</span>';
 						// nbofserviceswait, nbofservicesopened, nbofservicesexpired and nbofservicesclosed
 						if (! $object->nbofservicesclosed) {
-							$daysafterexpiration = $conf->global->SELLYOURSAAS_NBDAYS_AFTER_EXPIRATION_BEFORE_TRIAL_SUSPEND;
+							$daysafterexpiration = getDolGlobalString('SELLYOURSAAS_NBDAYS_AFTER_EXPIRATION_BEFORE_TRIAL_SUSPEND');
 							$ret.='<span class="badge2 small marginleftonly valignmiddle inline-block" title="Expiration = Date planed for end of service">Test services will be suspended<br>'.$daysafterexpiration.' days after expiration.</span>';
 						}
 						if ($object->nbofservicesclosed) {
-							$daysafterexpiration = $conf->global->SELLYOURSAAS_NBDAYS_AFTER_EXPIRATION_BEFORE_TRIAL_UNDEPLOYMENT;
+							$daysafterexpiration = getDolGlobalString('SELLYOURSAAS_NBDAYS_AFTER_EXPIRATION_BEFORE_TRIAL_UNDEPLOYMENT');
 							$ret.='<span class="badge2 small marginleftonly valignmiddle inline-block" title="Expiration = Date planed for end of service">Test instance will be undeployed<br>'.$daysafterexpiration.' days after expiration.</span>';
 						}
 					}
@@ -766,7 +771,7 @@ class ActionsSellyoursaas
 		global $conf, $langs, $user;
 		global $object, $action;
 
-		if (in_array($parameters['currentcontext'], array('thirdpartycard','thirdpartycontact','thirdpartycomm','thirdpartyticket','thirdpartynote','thirdpartydocument','contactthirdparty','thirdpartypartnership','projectthirdparty','consumptionthirdparty','thirdpartybancard','thirdpartymargins','ticketlist','thirdpartynotification','agendathirdparty'))) {
+		if (in_array($parameters['currentcontext'], array('thirdpartycard','thirdpartycontact','thirdpartycomm','thirdpartysupplier','thirdpartyticket','thirdpartynote','thirdpartydocument','contactthirdparty','thirdpartypartnership','projectthirdparty','consumptionthirdparty','thirdpartybancard','thirdpartymargins','ticketlist','thirdpartynotification','agendathirdparty'))) {
 			$parameters['notiret']=1;
 			$this->getNomUrl($parameters, $object, $action);        // This is hook. It fills ->resprints
 			unset($parameters['notiret']);

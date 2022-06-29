@@ -400,7 +400,7 @@ if (count($listofcontractid) == 0) {				// Should not happen
 					$labelprod = $langs->trans("Users");
 				}
 
-				print '<span class="opacitymedium small">'.$labelprod.'</span><br>';
+				print '<span class="opacitymedium small labelprod">'.$labelprod.'</span><br>';
 
 				// Qty
 				$resourceformula = $tmpproduct->array_options['options_resource_formula'];
@@ -802,10 +802,16 @@ if (count($listofcontractid) == 0) {				// Should not happen
 										<input type="text" required="required" class="urlofinstancetodestroy" name="urlofinstancetodestroy" value="'.GETPOST('urlofinstancetodestroy', 'alpha').'" placeholder="'.$langs->trans("NameOfInstanceToDestroy").'" autofocus>
 									</p>';
 		}
+
+		$actiontoundeploy = 'undeploy';
+		if (getDolGlobalInt('SELLYOURSAAS_ASK_DESTROY_REASON')) {
+			$actiontoundeploy = 'confirmundeploy';
+		}
+
 		print '
 								<p class="center">
 									<input type="hidden" name="mode" value="instances"/>
-									<input type="hidden" name="action" value="undeploy" />
+									<input type="hidden" name="action" value="'.$actiontoundeploy.'" />
 									<input type="hidden" name="contractid" value="'.$contract->id.'" />
 									<input type="hidden" name="tab" value="danger_'.$contract->id.'" />
 									<input type="submit" '.($hasopeninvoices?' disabled="disabled"':'').' class="btn btn-danger'.($hasopeninvoices?' disabled':'').'" name="undeploy" value="'.$langs->trans("UndeployInstance").'">
@@ -829,7 +835,98 @@ if (count($listofcontractid) == 0) {				// Should not happen
 			    </div> <!-- END ROW -->';
 	}		// End loop contract
 }
+if ($action == "confirmundeploy") {
+	$formquestion = array(
+		array(
+			"type"=>"other",
+			"value"=>$langs->trans('FillUndeployFormDestruction')
+		),
+		array(
+			"type"=>"hidden",
+			"name"=>"contractid",
+			"value"=>GETPOST('contractid', 'int')
+		),
+		array(
+			"type"=>"hidden",
+			"name"=>"urlofinstancetodestroy",
+			"value"=>GETPOST('urlofinstancetodestroy')
+		),
+		array(
+			"type"=>"hidden",
+			"name"=>"tab",
+			"value"=>GETPOST('tab')
+		)
+	);
 
+	// Radio part can be changed by a list of labels and a foreach
+	$formquestion[] = array(
+		"type"=>"radio",
+		"values"=>array(
+			"TechnicalIssue"=>$langs->trans("TechnicalIssue"),
+		),
+		"name"=>"reasonundeploy",
+		"morecss"=>"hideothertag",
+		"moreattr"=>"required"
+	);
+	$formquestion[] = array(
+		"type"=>"radio",
+		"values"=>array(
+			"FonctionalProblem"=>$langs->trans("FonctionalProblem"),
+		),
+		"name"=>"reasonundeploy",
+		"morecss"=>"hideothertag"
+	);
+	$formquestion[] = array(
+		"type"=>"radio",
+		"values"=>array(
+			"PriceProblem"=>$langs->trans("PriceProblem")
+		),
+		"name"=>"reasonundeploy",
+		"morecss"=>"hideothertag"
+	);
+	$formquestion[] = array(
+		"type"=>"radio",
+		"values"=>array(
+			"ChangeSoftware"=>$langs->trans("ChangeSoftware")
+		),
+		"name"=>"reasonundeploy",
+		"morecss"=>"hideothertag"
+	);
+	$formquestion[] = array(
+		"type"=>"radio",
+		"values"=>array(
+			"SwitchToOnPremise"=>$langs->trans("SwitchHosting"),
+		),
+		"name"=>"reasonundeploy",
+		"morecss"=>"hideothertag"
+	);
+
+	$formquestion[] = array(
+		"type"=>"radio",
+		"values"=>array(
+			"other"=>$langs->trans("Other"),
+		),
+		"name"=>"reasonundeploy",
+		"morecss"=>"hideothertag"
+	);
+	$formquestion[] = array(
+		"type"=>"onecolumn",
+		"value"=>"<br>"
+	);
+	$formquestion[] = array(
+		"type"=>"textarea",
+		"label"=>$langs->trans("AddACommentDestruction"),
+		"name"=>"commentundeploy",
+		"moreattr"=>'style="width:100%;border:solid 1px grey;" autofocus',
+	);
+
+	print $form->formconfirm($_SERVER["PHP_SELF"]."?mode=instances", $langs->trans('UndeployInstance'), "", "undeploy", $formquestion, '', 1, "510", "700", 0, 'ConfirmDestruction', 'Cancel');
+	print '<style>
+	.margintoponly{
+		margin-top:0px
+	}
+	</style>';
+}
 
 	// Section to add/create a new instance
 	print '

@@ -350,7 +350,7 @@ if ($id > 0 && $action != 'edit' && $action != 'create') {
 	// Thirdparty
 	$morehtmlref.='<br>'.$langs->trans('ThirdParty') . ' : ' . $object->thirdparty->getNomUrl(1);
 	// Project
-	if (! empty($conf->projet->enabled)) {
+	if (! empty($conf->project->enabled)) {
 		$langs->load("projects");
 		$morehtmlref.='<br>'.$langs->trans('Project') . ' : ';
 		if (0) {
@@ -493,7 +493,7 @@ if (empty($object->nbofusers)) {
 				if ($tmparray[0] == 'SQL') {
 					$sqlformula = make_substitutions($tmparray[1], $substitarray);
 
-					//$serverdeployment = $this->getRemoveServerDeploymentIp($domainname);
+					//$serverdeployment = $this->getRemoteServerDeploymentIp($domainname);
 					$serverdeployment = $contract->array_options['options_deployment_host'];
 
 					dol_syslog("Try to connect to remote instance database (at ".$generateddbhostname.") to execute formula calculation (from tools link page)");
@@ -649,29 +649,27 @@ print '<br>';
 print getListOfLinks($object, $lastloginadmin, $lastpassadmin);
 
 
-//if (! empty($object->array_options['options_cookieregister_previous_instance']))
-//{
-	// Get all instances in chain
-	$arraylistofinstances = getListOfInstancesInChain($object);
+// Get all instances in chain
+$arraylistofinstances = getListOfInstancesInChain($object);
 
-	print '<br>';
-	print_barre_liste($langs->trans("ChainOfRegistrations"), '', '', '', '', '', '', '', 0);
+print '<br>';
+print_barre_liste($langs->trans("ChainOfRegistrations"), '', '', '', '', '', '', '', 0);
 
-	print '<div class="div-table-responsive-no-min">';
-	print '<table class="noborder entpercent">';
+print '<div class="div-table-responsive-no-min">';
+print '<table class="noborder entpercent">';
 
-	print '<tr>';
-	print '<td>'.$langs->trans("Instance").'</td>';
-	print '<td>'.$langs->trans("RefCustomer").'</td>';
-	print '<td>'.$langs->trans("RegistrationCounter").'</td>';
-	print '<td>'.$langs->trans("IP").'</td>';
-	print '<td>'.$langs->trans("DeploymentIPVPNProba").'</td>';
-	print '<td>'.$langs->trans("Date").'</td>';
-	print '<td>'.$langs->trans("Status").'</td>';
-	print '<td></td>';
-	print '</tr>';
+print '<tr>';
+print '<td>'.$langs->trans("Instance").'</td>';
+print '<td>'.$langs->trans("RefCustomer").'</td>';
+print '<td>'.$langs->trans("RegistrationCounter").'</td>';
+print '<td>'.$langs->trans("IP").'</td>';
+print '<td>'.$langs->trans("DeploymentIPVPNProba").'</td>';
+print '<td>'.$langs->trans("Date").'</td>';
+print '<td>'.$langs->trans("Status").'</td>';
+print '<td></td>';
+print '</tr>';
 
-	$arrayofips=array();
+$arrayofips=array();
 
 foreach ($arraylistofinstances as $instance) {
 	$arrayofips[] = $instance->array_options['options_deployment_ip'];
@@ -699,22 +697,21 @@ foreach ($arraylistofinstances as $instance) {
 	print '</tr>';
 }
 
-	print '<tr class="liste_total">';
-	print '<td></td>';
-	print '<td></td>';
-	print '<td></td>';
-	print '<td>';
-	print '<a class="reposition" href="'.$_SERVER["PHP_SELF"].'?id='.$object->id.'&action=getiplist&token='.newToken().'">'.$langs->trans("GetFileOfIps").'</a>';
-	print '</td>';
-	print '<td></td>';
-	print '<td></td>';
-	print '<td></td>';
-	print '<td></td>';
-	print '</tr>';
+print '<tr class="liste_total">';
+print '<td></td>';
+print '<td></td>';
+print '<td></td>';
+print '<td>';
+print '<a class="reposition" href="'.$_SERVER["PHP_SELF"].'?id='.$object->id.'&action=getiplist&token='.newToken().'">'.$langs->trans("GetFileOfIps").'</a>';
+print '</td>';
+print '<td></td>';
+print '<td></td>';
+print '<td></td>';
+print '<td></td>';
+print '</tr>';
 
-	print '</table>';
-	print '</div>';
-//}
+print '</table>';
+print '</div>';
 
 
 llxFooter();
