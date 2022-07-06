@@ -219,12 +219,14 @@ $documentstatic=new Contrat($db);
 $documentstaticline=new ContratLigne($db);
 
 $listofcontractid = array();
-$sql = 'SELECT c.rowid as rowid';
+$listofcontractidopen = array();
+$sql = 'SELECT c.rowid as rowid, ce.deployment_status';
 $sql .= ' FROM '.MAIN_DB_PREFIX.'contrat as c';
 $sql .= ' LEFT JOIN '.MAIN_DB_PREFIX.'contrat_extrafields as ce ON ce.fk_object = c.rowid,';
-$sql .= ' '.MAIN_DB_PREFIX.'contratdet as d, '.MAIN_DB_PREFIX.'societe as s';
+//$sql .= ' '.MAIN_DB_PREFIX.'contratdet as d,';
+$sql .= ' '.MAIN_DB_PREFIX.'societe as s';
 $sql .= ' WHERE c.fk_soc = s.rowid AND s.rowid = '.((int) $mythirdpartyaccount->id);
-$sql .= ' AND d.fk_contrat = c.rowid';
+//$sql .= ' AND d.fk_contrat = c.rowid';
 $sql .= ' AND c.entity = '.((int) $conf->entity);
 $sql .= " AND ce.deployment_status IN ('processing', 'done', 'undeployed')";
 $resql=$db->query($sql);
@@ -237,9 +239,14 @@ if ($resql) {
 			$contract=new Contrat($db);
 			$contract->fetch($obj->rowid);					// This load also lines
 			$listofcontractid[$obj->rowid] = $contract;
+			if (in_array($obj->deployment_status, array('processing', 'done'))) {
+				$listofcontractidopen[$obj->rowid] = $contract;
+			}
 		}
 		$i++;
 	}
+} else {
+	dol_print_error($db);
 }
 
 $mythirdpartyaccount->isareseller = 0;
@@ -2325,6 +2332,14 @@ if ($action == 'updateurl') {
 		if ($action == 'undeploy') {
 			$object = $contract;
 
+			if (getDolGlobalInt('SELLYOURSAAS_ASK_DESTROY_REASON') && empty($reasonundeploy)) {
+				// If reason was not provided
+				//setEventMessages($langs->trans("AReasonForUndeploymentIsRequired"), null, 'errors');
+				$errortoshowinconfirm = $langs->trans('AReasonForUndeploymentIsRequired');
+				$error++;
+				$action = 'confirmundeploy';
+			}
+
 			// SAME CODE THAN INTO ACTION_SELLYOURSAAS.CLASS.PHP
 
 			// Disable template invoice
@@ -2842,13 +2857,13 @@ if ($welcomecid > 0) {
 		'.$langs->trans("YouCanAccessYourInstance", $productlabel).'&nbsp:
 		</p>
 		<p class="well">
-		'.$langs->trans("URL").' : <a href="https://'.$contract->ref_customer.'" target="_blank">'.$contract->ref_customer.'</a>';
+		'.$langs->trans("URL").' : <a href="https://'.$contract->ref_customer.'" target="_blank" rel="noopener">'.$contract->ref_customer.'</a>';
 
 		print '<br> '.$langs->trans("Username").' : '.($_SESSION['initialapplogin']?'<strong>'.$_SESSION['initialapplogin'].'</strong>':'NA').'
 		<br> '.$langs->trans("Password").' : '.($_SESSION['initialapppassword']?'<strong>'.$_SESSION['initialapppassword'].'</strong>':'NA').'
 		</p>
 		<p>
-		<a class="btn btn-primary wordbreak" target="_blank" href="https://'.$contract->ref_customer.'?username='.urlencode($_SESSION['initialapplogin']).'">'.$langs->trans("TakeMeTo", $productlabel).'</a>
+		<a class="btn btn-primary wordbreak" target="_blank" rel="noopener" href="https://'.$contract->ref_customer.'?username='.urlencode($_SESSION['initialapplogin']).'">'.$langs->trans("TakeMeTo", $productlabel).' <span class="fa fa-external-link-alt"></span></a>
 		</p>
 
 		</div>';
@@ -2997,7 +3012,7 @@ if ($mythirdpartyaccount->isareseller) {
 	$sellyoursaasaccounturl = preg_replace('/'.preg_quote(getDomainFromURL($conf->global->SELLYOURSAAS_ACCOUNT_URL, 1), '/').'/', getDomainFromURL($_SERVER["SERVER_NAME"], 1), $sellyoursaasaccounturl);
 
 	$urlforpartner = $sellyoursaasaccounturl.'/register.php?partner='.$mythirdpartyaccount->id.'&partnerkey='.md5($mythirdpartyaccount->name_alias);
-	//print '<a class="wordbreak" href="'.$urlforpartner.'" target="_blankinstance">';
+	//print '<a class="wordbreak" href="'.$urlforpartner.'" target="_blankinstance" rel="noopener">';
 	print '<input type="text" class="quatrevingtpercent" id="urlforpartner" name="urlforpartner" value="'.$urlforpartner.'">';
 	print ajax_autoselect("urlforpartner");
 	//print $urlforpartner;
@@ -3265,8 +3280,11 @@ if (empty($welcomecid)) {
 							print '<p>
 								<a href="'.$_SERVER["PHP_SELF"].'?mode=registerpaymentmode&backtourl='.urlencode($_SERVER["PHP_SELF"].'?mode='.$mode).'" class="btn btn-warning wordbreak">';
 							print $langs->trans("AddAPaymentMode");
-							print '</a>
-								</p>';
+							print '</a>';
+
+							print ' &nbsp; <a class="btn btn-primary wordbreak" target="_blank" rel="noopener" href="https://'.$contract->ref_customer.'">'.$langs->trans("TakeMeToApp").' <span class="fa fa-external-link-alt"></span></a>';
+
+							print '</p>';
 						}
 						print '
 							</div>

@@ -89,6 +89,7 @@ require_once DOL_DOCUMENT_ROOT.'/product/class/product.class.php';
 dol_include_once('/sellyoursaas/lib/sellyoursaas.lib.php');
 dol_include_once('/sellyoursaas/class/packages.class.php');
 dol_include_once('/sellyoursaas/class/sellyoursaasutils.class.php');
+dol_include_once('/sellyoursaas/class/blacklistip.class.php');
 
 // Re set variables specific to new environment
 $conf->global->SYSLOG_FILE_ONEPERSESSION=1;
@@ -522,9 +523,30 @@ if (empty($remoteip)) {
 	exit(-60);
 }
 
+$tmpblacklistip = new Blacklistip($db);
+$tmparray = $tmpblacklistip->fetchAll('', '', 1000, 0, array('status'=>1));
+if (is_numeric($tmparray) && $tmparray < 0) {
+	echo "Erreur: failed to get blacklistip elements.\n";
+	exit(-61);
+}
+
+if (!empty($tmparray)) {
+	foreach ($tmparray as $val) {
+		if ($val->content == $remoteip) {
+			dol_syslog("InstanceCreationBlockedForSecurityPurpose: remoteip is in blacklistip", LOG_WARNING);	// Should not happen, ip should always be defined.
+			$emailtowarn = $conf->global->MAIN_INFO_SOCIETE_MAIL;
+			if (substr($sapi_type, 0, 3) != 'cli') {
+				setEventMessages($langs->trans("InstanceCreationBlockedForSecurityPurpose", $emailtowarn, 'Evil usage detected'), null, 'errors');
+				header("Location: ".$newurl);
+			} else {
+				print $langs->trans("InstanceCreationBlockedForSecurityPurpose", $emailtowarn, 'Evil usage detected')."\n";
+			}
+			exit(-62);
+		}
+	}
+}
+
 // TODO Move other check on abuse here
-
-
 
 
 
@@ -606,7 +628,9 @@ if ($reusecontractid) {
 	$resselect = $db->query($select);
 	if ($resselect) {
 		$objselect = $db->fetch_object($resselect);
-		if ($objselect) $nbofinstancewithsameip = $objselect->nb;
+		if ($objselect) {
+			$nbofinstancewithsameip = $objselect->nb;
+		}
 	}
 	dol_syslog("nbofinstancewithsameip = ".$nbofinstancewithsameip." for ip ".$remoteip." (must be lower or equal than ".$MAXDEPLOYMENTPERIP." except if ip is 127.0.0.1)");
 	if ($remoteip != '127.0.0.1' && (($nbofinstancewithsameip < 0) || ($nbofinstancewithsameip > $MAXDEPLOYMENTPERIP))) {
@@ -625,7 +649,9 @@ if ($reusecontractid) {
 	$resselect = $db->query($select);
 	if ($resselect) {
 		$objselect = $db->fetch_object($resselect);
-		if ($objselect) $nbofinstancewithsameipvpn = $objselect->nb;
+		if ($objselect) {
+			$nbofinstancewithsameipvpn = $objselect->nb;
+		}
 	}
 	dol_syslog("nbofinstancewithsameipvpn = ".$nbofinstancewithsameipvpn." for ip ".$remoteip." (must be lower or equal than ".$MAXDEPLOYMENTPERIPVPN." except if ip is 127.0.0.1)");
 	if ($remoteip != '127.0.0.1' && (($nbofinstancewithsameipvpn < 0) || ($nbofinstancewithsameipvpn > $MAXDEPLOYMENTPERIPVPN))) {
@@ -744,12 +770,16 @@ if ($reusecontractid) {
 		$MAXINSTANCESPERACCOUNT = ((empty($tmpthirdparty->array_options['options_maxnbofinstances']) && $tmpthirdparty->array_options['options_maxnbofinstances'] != '0') ? (empty($conf->global->SELLYOURSAAS_MAX_INSTANCE_PER_ACCOUNT) ? 4 : $conf->global->SELLYOURSAAS_MAX_INSTANCE_PER_ACCOUNT) : $tmpthirdparty->array_options['options_maxnbofinstances']);
 
 		$listofcontractid = array();
-		$sql = 'SELECT c.rowid as rowid';
-		$sql.= ' FROM '.MAIN_DB_PREFIX.'contrat as c LEFT JOIN '.MAIN_DB_PREFIX.'contrat_extrafields as ce ON ce.fk_object = c.rowid, '.MAIN_DB_PREFIX.'contratdet as d, '.MAIN_DB_PREFIX.'societe as s';
-		$sql.= " WHERE c.fk_soc = s.rowid AND s.rowid = ".((int) $tmpthirdparty->id);
-		$sql.= " AND d.fk_contrat = c.rowid";
-		$sql.= " AND c.entity = ".((int) $conf->entity);
-		$sql.= " AND ce.deployment_status IN ('processing', 'done', 'undeployed')";
+		$listofcontractidopen = array();
+		$sql = 'SELECT c.rowid as rowid, ce.deployment_status';
+		$sql .= ' FROM '.MAIN_DB_PREFIX.'contrat as c';
+		$sql .= ' LEFT JOIN '.MAIN_DB_PREFIX.'contrat_extrafields as ce ON ce.fk_object = c.rowid,';
+		//$sql .= ' '.MAIN_DB_PREFIX.'contratdet as d,';
+		$sql .= ' '.MAIN_DB_PREFIX.'societe as s';
+		$sql .= " WHERE c.fk_soc = s.rowid AND s.rowid = ".((int) $tmpthirdparty->id);
+		//$sql .= " AND d.fk_contrat = c.rowid";
+		$sql .= " AND c.entity = ".((int) $conf->entity);
+		$sql .= " AND ce.deployment_status IN ('processing', 'done', 'undeployed')";
 		$resql=$db->query($sql);
 		if ($resql) {
 			$num_rows = $db->num_rows($resql);
@@ -758,12 +788,15 @@ if ($reusecontractid) {
 				$obj = $db->fetch_object($resql);
 				if ($obj) {
 					$listofcontractid[$obj->rowid]=$obj->rowid;
+					if (in_array($obj->deployment_status, array('processing', 'done'))) {
+						$listofcontractidopen[$obj->rowid] = $obj->rowid;
+					}
 				}
 				$i++;
 			}
 		}
 
-		if (count($listofcontractid) >= $MAXINSTANCESPERACCOUNT) {
+		if (count($listofcontractidopen) >= $MAXINSTANCESPERACCOUNT) {
 			$sellyoursaasemail = $conf->global->SELLYOURSAAS_MAIN_EMAIL;
 			if (! empty($tmpthirdparty->array_options['options_domain_registration_page'])
 				&& $tmpthirdparty->array_options['options_domain_registration_page'] != $conf->global->SELLYOURSAAS_MAIN_DOMAIN_NAME) {
@@ -1175,6 +1208,7 @@ if ($reusecontractid) {
 						if ($vpnproba === '') {
 							// If vpn proba was not found with getip, we use the one found from ipqualityscore
 							$vpnproba = (($jsonreponse['vpn'] || $jsonreponse['active_vpn']) ? 1 : 0);
+							$contract->array_options['options_deployment_vpn_proba'] = round($vpnproba, 2);
 						}
 					} else {
 						$contract->array_options['options_deployment_ipquality'] .= 'ipq-check failed. Success property not found. '.dol_trunc($result['content'], 100).';';

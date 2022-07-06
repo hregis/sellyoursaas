@@ -18,7 +18,7 @@
  */
 
 /**
- *      \file       sellyoursaas/scripts/batch_scan.php
+ *      \file       sellyoursaas/scripts/batch_detect_evil_instances.php
  *		\ingroup    sellyoursaas
  *      \brief      Script to detect evils instances by scanning inside its data for blacklist content
  */
@@ -69,6 +69,8 @@ if (! $res) {
 include_once DOL_DOCUMENT_ROOT.'/core/lib/geturl.lib.php';
 include_once DOL_DOCUMENT_ROOT.'/core/class/utils.class.php';
 include_once dol_buildpath("/sellyoursaas/backoffice/lib/refresh.lib.php");		// This set $serverprice
+include_once dol_buildpath("/sellyoursaas/class/blacklistcontent.class.php");
+include_once dol_buildpath("/sellyoursaas/class/blacklistdir.class.php");
 
 
 // Read /etc/sellyoursaas.conf file
@@ -137,12 +139,15 @@ $langs->load("main");				// To load language file for default language
 print "***** ".$script_file." (".$version.") - ".strftime("%Y%m%d-%H%M%S")." *****\n";
 if (! isset($argv[1])) {	// Check parameters
 	print "Script to detect evils instances by scanning inside its data for blacklist content.\n";
-	print "Usage on deployment servers: ".$script_file." (test) [instancefilter]\n";
+	print "Usage on deployment servers: ".$script_file." (test|testemail|remove) [instancefilter]\n";
 	print "\n";
+	print "Options are:\n";
 	print "- test          test scan\n";
+	print "- testemail     test scan and send email\n";
+	print "- remove        not yet available\n";
 	exit(-1);
 }
-print '--- start script with mode '.$argv[1]."\n";
+print '--- Start script with mode '.$argv[1]."\n";
 //print 'Argument 1='.$argv[1]."\n";
 //print 'Argument 2='.$argv[2]."\n";
 
@@ -174,26 +179,118 @@ if (! empty($instancefiltercomplete) && ! preg_match('/\./', $instancefiltercomp
 	$instancefiltercomplete = $instancefiltercomplete.".".$tmpstring;   // Automatically concat first domain name
 }
 
+$return_var = 0;
 
-//print "----- Start loop for backup_instance\n";
+print "----- Go into dir /home/jail/home\n";
+chdir('/home/jail/home/');
 
-$fp = @fopen("/tmp/spam/blacklistcontent", "r");
-if ($fp) {
-	// Example of search with simple CLI
-	// IFS=$(echo -en "\n\b")
-	// for fic in `ls /home/jail/home/osu*/dbn*/htdocs/index.php`; do grep -l spamtext $fic; done
-	while (($buffer = fgets($fp, 4096)) !== false) {
-		echo 'Scan if we found the string '.$buffer.' into /home/jails/home/osu*/dbn*/htdocs/index.php'."\n";
+print "----- Loop for spam keys into index.php using blacklistcontent\n";
 
-		// TODO
+$tmpblacklistcontent = new Blacklistcontent($db);
+$tmparray = $tmpblacklistcontent->fetchAll('', '', 1000, 0, array('status'=>1));
+if (is_numeric($tmparray) && $tmparray < 0) {
+	echo "Erreur: failed to get blacklistcontent elements.\n";
+}
+
+if (!empty($tmparray)) {
+	foreach ($tmparray as $val) {
+		$buffer = dol_sanitizePathName(trim($val->content));
+		if ($buffer) {
+			echo 'Scan if we found the string '.$buffer.' into osu*/dbn*/htdocs/index.php ';
+			$command = "grep -l '".str_replace("'", ".", $buffer)."' osu*/dbn*/htdocs/index.php";
+			$fullcommand=$command;
+			$output=array();
+			//echo $command."\n";
+			exec($fullcommand, $output, $return_var);
+			if ($return_var == 0) {		// grep -l returns 0 if something was found
+				// We found an evil string
+				print "- ALERT: the evil string '".$buffer."' was found into a file using the command: ".$command."\n";
+			} else {
+				print "- OK\n";
+			}
+		}
 	}
-	if (!feof($fp)) {
-		echo "Erreur: fgets() a échoué\n";
-	}
-	fclose($fp);
 }
 
 
+print "----- Loop for spam dir using blacklistdir\n";
+
+$tmpblacklistdir = new Blacklistdir($db);
+$tmparray = $tmpblacklistdir->fetchAll('', '', 1000, 0, array('status'=>1));
+if (is_numeric($tmparray) && $tmparray < 0) {
+	echo "Erreur: failed to get blacklistdir elements.\n";
+}
+
+if (!empty($tmparray)) {
+	foreach ($tmparray as $val) {
+		$buffer = dol_sanitizePathName(trim($val->content));
+		if ($buffer) {
+			echo 'Scan if we found the blacklist dir '.$buffer.' in osu*/dbn*/htdocs/ ';
+			$command = "find osu*/dbn*/htdocs/ -maxdepth 2 -type d | grep '".str_replace("'", ".", $buffer)."'";
+			$fullcommand=$command;
+			$output=array();
+			//echo $command."\n";
+			exec($fullcommand, $output, $return_var);
+			if ($return_var == 0) {		// command returns 0 if something was found
+				// We found an evil string
+				print "- ALERT: the evil dir '".$buffer."' was found using the command: ".$command."\n";
+			} else {
+				print "- OK\n";
+			}
+		}
+	}
+}
+
+/*
+print "----- Loop for spam dir using whitelistdir\n";
+
+$tmpblacklistdir = new Blacklistdir($db);
+$tmparray = $tmpblacklistdir->fetchAll('', '', 1000, 0, array('status'=>1));
+if (is_numeric($tmparray) && $tmparray < 0) {
+	echo "Erreur: failed to get whitelistdir elements.\n";
+}
+
+if (!empty($tmparray)) {
+	$buffer = '';
+	foreach ($tmparray as $val) {
+		$buffertmp = dol_sanitizePathName(trim($val->content));
+		if ($buffertmp) {
+			$buffer .= ($buffer ? '|' : '').$buffertmp;
+		}
+	}
+
+	echo 'Scan if we found a non whitelistdir dir '.$buffer.' in osuSTAR/dbnSTAR/htdocs/ ';
+	$command = "find osuSTAR/dbnSTAR/htdocs/ -maxdepth 1 -type d | grep -v '".str_replace("'", ".", $buffer)."'";
+	$fullcommand=$command;
+	$output=array();
+	//echo $command."\n";
+	exec($fullcommand, $output, $return_var);
+	if ($return_var == 0) {		// command returns 0 if something was found
+		// We found an evil string
+		print "- ALERT: evil dirs '".(join(', ', $output))."' was/were found using the command: ".$command."\n";
+	} else {
+		print "- OK\n";
+	}
+}
+*/
+
 $dbmaster->close();	// Close database opened handler
+
+print '--- end ERROR nb='.$nboferrors.' - '.strftime("%Y%m%d-%H%M%S")."\n";
+
+if ($nboferrors) {
+	if ($action == 'testemail') {
+		$from = $conf->global->SELLYOURSAAS_NOREPLY_EMAIL;
+		$to = $conf->global->SELLYOURSAAS_SUPERVISION_EMAIL;
+		// Supervision tools are generic for all domain. No way to target a specific supervision email.
+
+		$msg = 'Error in '.$script_file." ".$argv[1]." ".$argv[2]." (finished at ".strftime("%Y%m%d-%H%M%S").")\n\n".$out;
+
+		include_once DOL_DOCUMENT_ROOT.'/core/class/CMailFile.class.php';
+		print 'Send email MAIN_MAIL_SENDMODE='.$conf->global->MAIN_MAIL_SENDMODE.' MAIN_MAIL_SMTP_SERVER='.$conf->global->MAIN_MAIL_SMTP_SERVER.' from='.$from.' to='.$to.' title=[Warning] Alert(s) in batch_detect_evil_instances - '.gethostname().' - '.dol_print_date(dol_now(), 'dayrfc')."\n";
+		$cmail = new CMailFile('[Warning] Alert(s) in batch_detect_evil_instances - '.gethostname().' - '.dol_print_date(dol_now(), 'dayrfc'), $to, $from, $msg, array(), array(), array(), '', '', 0, 0, '', '', '', '', 'emailing');
+		$result = $cmail->sendfile();
+	}
+}
 
 exit($nboferrors);
