@@ -11,8 +11,9 @@ export DOMAIN=`grep '^domain=' /etc/sellyoursaas.conf | cut -d '=' -f 2`
 
 export MAXPERDAY=`grep '^maxemailperday=' /etc/sellyoursaas-public.conf | cut -d '=' -f 2`
 if [ "x$MAXPERDAY" == "x" ]; then
-	export MAXPERDAY=500
+	export MAXPERDAY=1000
 fi
+
 
 
 echo >> /var/log/smtp_watchdog1.log
@@ -41,7 +42,7 @@ if [ "x$EMAILTO" == "x" ]; then
 	export EMAILTO=supervision@$DOMAIN
 fi
 
-export pathtospamdir=`grep '^pathtospamdir=' /etc/sellyoursaas.conf | cut -d '=' -f 2`
+export pathtospamdir=`grep '^pathtospamdir=' /etc/sellyoursaas-public.conf | cut -d '=' -f 2`
 if [ "x$pathtospamdir" == "x" ]; then
 	export pathtospamdir="/tmp/spam"
 fi
@@ -94,7 +95,7 @@ while read -r line ; do
 				
 				if [ "x$processid" != "x" ]; then
 					if [[ $processownerid =~ $re ]] ; then
-						echo "$now We got the processownerid from the ss command, surely a web access" >> /var/log/phpsendmail.log 2>&1
+						echo "$now We got the processownerid from the ss command, surely an email sent from a web page" >> /var/log/phpsendmail.log 2>&1
 					else
 						echo "$now We did not get the processownerid from the ss command. We try to get the processownerid using the processid from ps" >> /var/log/phpsendmail.log 2>&1
 
@@ -104,9 +105,13 @@ while read -r line ; do
 										
 					if [[ $processownerid =~ $re ]] ; then
 						echo "$now We try to get the usernamestring from processownerid" >> /var/log/phpsendmail.log 2>&1
-				
+
 						export usernamestring=`grep "x:$processownerid:" /etc/passwd | cut -f1 -d:`
 						echo "$now usernamestring=$usernamestring" >> "/var/log/phpsendmail.log"
+						
+						#TODO Get quota of emails MAXPERDAY for the UID $processownerid / $usernamestring
+						
+						
 					else
 						echo "$now processownerid not valid, we can't find $usernamestring" >> "/var/log/phpsendmail.log"
 					fi
