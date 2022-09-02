@@ -1,6 +1,6 @@
 #!/usr/bin/php
 <?php
-/* Copyright (C) 2007-2018 Laurent Destailleur  <eldy@users.sourceforge.net>
+/* Copyright (C) 2007-2022 Laurent Destailleur  <eldy@users.sourceforge.net>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -114,6 +114,8 @@ if ($fp) {
 }
 
 // Read /etc/sellyoursaas-public.conf file
+$maxemailperday = 0;
+$maxemailperdaypaid = 0;
 $pathtospamdir = '/tmp/spam';
 $fp = @fopen('/etc/sellyoursaas-public.conf', 'r');
 // Add each line to an array
@@ -121,11 +123,33 @@ if ($fp) {
 	$array = explode("\n", fread($fp, filesize('/etc/sellyoursaas-public.conf')));
 	foreach ($array as $val) {
 		$tmpline=explode("=", $val);
+		if ($tmpline[0] == 'maxemailperday') {
+			$maxemailperday = $tmpline[1];
+		}
+		if ($tmpline[0] == 'maxemailperdaypaid') {
+			$maxemailperdaypaid = $tmpline[1];
+		}
 		if ($tmpline[0] == 'pathtospamdir') {
 			$pathtospamdir = $tmpline[1];
 		}
 	}
+} else {
+	print "ERROR Failed to open /etc/sellyoursaas-public.conf file\n";
+	//exit(-1);
 }
+if (is_numeric($maxemailperday) && $maxemailperday > 0) {
+	$MAXPERDAY = (int) $maxemailperday;
+}
+if (is_numeric($maxemailperdaypaid) && $maxemailperdaypaid > 0) {
+	$MAXPERDAYPAID = (int) $maxemailperdaypaid;
+}
+if (empty($MAXPERDAY)) {
+	$MAXPERDAY=1000;
+}
+if (empty($MAXPERDAYPAID)) {
+	$MAXPERDAYPAID=1000;
+}
+
 
 
 /*
@@ -361,7 +385,7 @@ $object=new Contrat($dbmaster);
 
 // Get list of instance
 $sql = "SELECT c.rowid as id, c.ref, c.ref_customer as instance,";
-$sql.= " ce.deployment_status as instance_status, ce.latestbackup_date_ok";
+$sql.= " ce.deployment_status as instance_status, ce.latestbackup_date_ok, ce.username_os as osu";
 $sql.= " FROM ".MAIN_DB_PREFIX."contrat as c LEFT JOIN ".MAIN_DB_PREFIX."contrat_extrafields as ce ON c.rowid = ce.fk_object";
 $sql.= " WHERE c.ref_customer <> '' AND c.ref_customer IS NOT NULL";
 if ($instancefiltercomplete) {
@@ -464,13 +488,13 @@ if ($resql) {
 						}
 					}
 
-					$instances[$obj->id] = array('id'=>$obj->id, 'ref'=>$obj->ref, 'instance'=>$instance, 'latestbackup_date_ok'=>$dbtousetosearch->jdate($obj->latestbackup_date_ok));
+					$instances[$obj->id] = array('id'=>$obj->id, 'ref'=>$obj->ref, 'instance'=>$instance, 'osu'=>$obj->osu, 'latestbackup_date_ok'=>$dbtousetosearch->jdate($obj->latestbackup_date_ok));
 					print "Qualify instance ".$instance." with instance_status=".$instance_status." payment_status=".$payment_status."\n";
 				} elseif ($instancefiltercomplete) {
-					$instances[$obj->id] = array('id'=>$obj->id, 'ref'=>$obj->ref, 'instance'=>$instance, 'latestbackup_date_ok'=>$dbtousetosearch->jdate($obj->latestbackup_date_ok));
+					$instances[$obj->id] = array('id'=>$obj->id, 'ref'=>$obj->ref, 'instance'=>$instance, 'osu'=>$obj->osu, 'latestbackup_date_ok'=>$dbtousetosearch->jdate($obj->latestbackup_date_ok));
 					print "Qualify instance ".$instance." with instance_status=".$instance_status." payment_status=".$payment_status."\n";
 				} else {
-					$instancestrial[$obj->id] = array('id'=>$obj->id, 'ref'=>$obj->ref, 'instance'=>$instance, 'latestbackup_date_ok'=>$dbtousetosearch->jdate($obj->latestbackup_date_ok));
+					$instancestrial[$obj->id] = array('id'=>$obj->id, 'ref'=>$obj->ref, 'instance'=>$instance, 'osu'=>$obj->osu, 'latestbackup_date_ok'=>$dbtousetosearch->jdate($obj->latestbackup_date_ok));
 					//print "Found instance ".$instance." with instance_status=".$instance_status." instance_status_bis=".$instance_status_bis." payment_status=".$payment_status."\n";
 				}
 			}
@@ -486,35 +510,46 @@ print "We found ".count($instancestrial)." deployed trial + ".count($instances).
 
 
 
-print "----- Generate file mailquota\n";
+print "----- Generate file mailquota for paid instances\n";
+
+file_put_contents($pathtospamdir.'/mailquota', "# File of paid instance with their quota\n");
+
+$i = 0;
+foreach ($instances as $instanceid => $instancearray) {
+	$i++;
+	// We complete the file $filetobuild = $pathtospamdir.'/mailquota';
+	echo 'Process paid instance id='.$instancearray['id'].' ref='.$instancearray['ref'].' osu='.$instancearray['osu']." mailquota=".$MAXPERDAYPAID."\n";
+	file_put_contents($pathtospamdir.'/mailquota', 'Paid instance '.$i.' id='.$instancearray['id'].' ref='.$instancearray['ref'].' osu='.$instancearray['osu']." mailquota=".$MAXPERDAYPAID."\n", FILE_APPEND);
+}
 
 
-
-// TODO Loop on each instance of server (or only $instancefiltercomplete if defined)
-// Use same code than batch_customers.php
-
-// If paid instance, we complete the file $filetobuild = $pathtospamdir.'/mailquota';
-
-// If free instance; we do...
-
-print "----- Loop for spam keys into index.php using blacklistcontent\n";
+print "----- Loop for spam keys into index.php using blacklistcontent (for spam and phishing detection)\n";
 
 if (!empty($tmparrayblacklistcontent)) {
 	foreach ($tmparrayblacklistcontent as $val) {
 		$buffer = dol_sanitizePathName(trim($val->content));
 		if ($buffer) {
-			$command = "grep -l '".escapeshellcmd(str_replace("'", ".", $buffer))."' osu*/dbn*/htdocs/index.php";
-			echo 'Scan if we found the string '.$buffer.' with '.$command.' ';
-			$fullcommand=$command;
-			$output=array();
-			//echo $command."\n";
-			exec($fullcommand, $output, $return_var);
-			if ($return_var == 0) {		// grep -l returns 0 if something was found
-				// We found an evil string
-				print "- ALERT: the evil string '".$buffer."' was found in content of index.php\n";
-				$nboferrors = 1;
+			$ok=1;
+			$commandexample = "grep -l '".escapeshellcmd(str_replace("'", ".", $buffer))."' osu*/dbn*/htdocs/index.php";
+			echo 'Scan if we found the string '.$buffer.' with '.$commandexample;
+			foreach ($instancestrial as $instanceid => $instancearray) {
+				$command = "grep -l '".escapeshellcmd(str_replace("'", ".", $buffer))."' ".$instancearray['osu']."/dbn*/htdocs/index.php";
+				$fullcommand=$command;
+				$output=array();
+				//echo $command."\n";
+
+				exec($fullcommand, $output, $return_var);
+				if ($return_var == 0) {		// grep -l returns 0 if something was found
+					// We found an evil string
+					print "\nALERT: Evil string '".$buffer."' was found in content of index.php with command ".$command;
+					$nboferrors = 1;
+					$ok = 0;
+				}
+			}
+			if ($ok) {
+				print " - OK\n";
 			} else {
-				print "- OK\n";
+				print "\n";
 			}
 		}
 	}
@@ -527,36 +562,44 @@ if (!empty($tmparrayblacklistdir)) {
 	foreach ($tmparrayblacklistdir as $val) {
 		$buffer = dol_sanitizePathName(trim($val->content));
 		if ($buffer) {
-			$command = "find osu*/dbn*/htdocs/ -maxdepth 2";
+			// Define the string to exclude some patterns
+			$exclude = "";
 			if (!empty($val->noblacklistif)) {
 				$tmpdirarray = explode('|', $val->noblacklistif);
 				foreach ($tmpdirarray as $tmpdir) {
 					if ($tmpdir) {
-						$command .= " ! -path '*".escapeshellcmd(preg_replace('/[^a-z0-9\.\-]/', '', $tmpdir))."*'";
+						$exclude .= " ! -path '*".escapeshellcmd(preg_replace('/[^a-z0-9\.\-]/', '', $tmpdir))."*'";
 					}
 				}
 			}
-			$command .= " | grep '".escapeshellcmd($buffer)."'";
-			/*if (!empty($val->noblacklistif)) {
-				$command .= " | grep -v '".str_replace("'", ".", $val->noblacklistif)."'";
-			}*/
-			echo 'Scan if we found the blacklist dir '.$buffer.' with '.$command.' ';
-			$fullcommand=$command;
-			$output=array();
-			//echo $command."\n";
 
-			exec($fullcommand, $output, $return_var);
-			if ($return_var == 0) {		// command returns 0 if something was found
-				// We found an evil string
-				print "- ALERT: the evil dir/file '".$buffer."' was found\n";
-				$nboferrors = 2;
+			$ok=1;
+			$commandexample = "find osu*/dbn*/htdocs/ -maxdepth 2".$exclude;
+			echo 'Scan if we found the blacklist dir '.$buffer.' with '.$commandexample;
+			foreach ($instancestrial as $instanceid => $instancearray) {
+				$command = "find ".$instancearray['osu']."/dbn*/htdocs/ -maxdepth 2";
+				$command .= $exclude;
+				$command .= " | grep '".escapeshellcmd($buffer)."'";
+				$fullcommand=$command;
+				$output=array();
+				//echo $command."\n";
+
+				exec($fullcommand, $output, $return_var);
+				if ($return_var == 0) {		// command returns 0 if something was found
+					// We found an evil string
+					print "\nALERT: the evil dir/file '".$buffer."' was found with command ".$command;
+					$nboferrors = 2;
+					$ok = 0;
+				}
+			}
+			if ($ok) {
+				print " - OK\n";
 			} else {
-				print "- OK\n";
+				print "\n";
 			}
 		}
 	}
 }
-
 
 
 $dbmaster->close();	// Close database opened handler
@@ -566,6 +609,9 @@ if ($nboferrors) {
 } else {
 	print '--- end OK with no error - '.strftime("%Y%m%d-%H%M%S")."\n";
 }
+
+$sendcontext = 'emailing';
+//$sendcontext = 'standard';
 
 if ($nboferrors) {
 	if ($action == 'testemail') {
@@ -577,7 +623,7 @@ if ($nboferrors) {
 
 		include_once DOL_DOCUMENT_ROOT.'/core/class/CMailFile.class.php';
 		print 'Send email MAIN_MAIL_SENDMODE='.$conf->global->MAIN_MAIL_SENDMODE.' MAIN_MAIL_SMTP_SERVER='.$conf->global->MAIN_MAIL_SMTP_SERVER.' from='.$from.' to='.$to.' title=[Warning] Alert(s) in batch_detect_evil_instances - '.gethostname().' - '.dol_print_date(dol_now(), 'dayrfc')."\n";
-		$cmail = new CMailFile('[Warning] Alert(s) in batch_detect_evil_instances - '.gethostname().' - '.dol_print_date(dol_now(), 'dayrfc'), $to, $from, $msg, array(), array(), array(), '', '', 0, 0, '', '', '', '', 'emailing');
+		$cmail = new CMailFile('[Warning] Alert(s) in batch_detect_evil_instances - '.gethostname().' - '.dol_print_date(dol_now(), 'dayrfc'), $to, $from, $msg, array(), array(), array(), '', '', 0, 0, '', '', '', '', $sendcontext);
 		$result = $cmail->sendfile();
 	}
 }

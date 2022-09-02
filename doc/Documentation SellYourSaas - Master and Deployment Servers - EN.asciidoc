@@ -1,12 +1,12 @@
 = Sell-Your-Saas installation and operation document
-This document describes the technical and functional implementation of Sell-Your-Saas - automated deployment and sales system in SaaS of a WAMP application (like Dolibarr ERP CRM, GLPI, ...) - Laurent Destailleur - www.sellyoursaas.org
+This document describes the technical and functional implementation of Sell-Your-Saas - automated deployment and sales system in SaaS of a WAMP application (like Dolibarr ERP CRM, WordPress, GLPI, MediaWiki, PrestaShop, ...) - Laurent Destailleur - www.sellyoursaas.org
 :source-highlighter: rouge
 :companyname: Teclib
 :corpname: Teclib
 :orgname: Teclib
 :creator: Laurent Destailleur
 :title: Document installation and operation of SellYourSaas
-:subject: This document describes the technical and functional implementation of SellYourSaas (automated deployment and sale system in SaaS of a WAMP application (like Dolibarr ERP CRM, GLPI, ...).
+:subject: This document describes the technical and functional implementation of SellYourSaas (automated deployment and sale system in SaaS of a WAMP application (like Dolibarr ERP CRM, WordPress, GLPI, MediaWiki, PrestaShop, ...).
 :keywords: sellyoursaas, saas, dolibarr, wamp, glpi
 :imagesdir: ./img
 :city: Bordeaux
@@ -1001,7 +1001,7 @@ sudo apt install -y ntp git gzip zip zstd memcached ncdu acl
 sudo apt install -y mariadb-server mariadb-client
 sudo apt install -y apache2 apache2-bin lynx
 sudo apt install -y php php-cli libapache2-mod-php php-fpm php-gd php-imap php-json php-ldap php-mysqlnd php-curl php-memcached php-imagick php-geoip php-mcrypt php-intl php-xml php-zip php-bz2 php-ssh2 php-mbstring
-sudo apt-install -y php-readline php-xmlrpc
+sudo apt install -y php-readline php-xmlrpc
 sudo apt install -y php-pear
 sudo apt install -y watchdog cpulimit libapache2-mpm-itk libapache2-mod-apparmor apparmor apparmor-profiles apparmor-utils rkhunter chkrootkit
 sudo apt install -y bind9
@@ -1020,7 +1020,7 @@ sudo apt install -y systemd-timesyncd git gzip zip zstd memcached ncdu acl
 sudo apt install -y mariadb-server mariadb-client
 sudo apt install -y apache2 apache2-bin lynx
 sudo apt install -y php php-cli libapache2-mod-php php-fpm php-gd php-imap php-json php-ldap php-mysql php-curl php-memcached php-imagick php-geoip php-intl php-xml php-zip php-bz2 php-ssh2 php-mbstring php-dev libmcrypt-dev
-sudo apt-install -y php-readline php-xmlrpc
+sudo apt install -y php-readline php-xmlrpc
 sudo apt install -y php-pear
 sudo apt install -y watchdog cpulimit libapache2-mpm-itk libapache2-mod-apparmor apparmor apparmor-profiles apparmor-utils rkhunter chkrootkit
 sudo apt install -y bind9
@@ -1665,6 +1665,18 @@ maxretry = 5
 
 
 
+[email-dol-perday]
+
+; rule against out of limit emails (max 500 emails per day)
+enabled = true
+port    = http,https
+filter  = email-dolibarr-rulesall
+logpath = /var/log/phpsendmail.log
+action  = %(action_mw)s
+bantime  = 86400     ; 1 day
+findtime = 86400     ; 1 day
+maxretry = 500
+
 [email-dol-blacklist]
 
 ; rule against email ko - blacklist ip, email or content
@@ -1677,17 +1689,17 @@ bantime  = 4320000   ; 50 days
 findtime = 86400     ; 1 day
 maxretry = 1
 
-[email-dol-perday]
+[email-dol-quota]
 
-; rule against out of limit emails (max 500 emails per day)
+; rule against email ko - quota reached
 enabled = true
 port    = http,https
-filter  = email-dolibarr-rulesall
+filter  = email-dolibarr-ruleskoquota
 logpath = /var/log/phpsendmail.log
-action  = %(action_mw)s
+action = %(action_mw)s
 bantime  = 86400     ; 1 day
 findtime = 86400     ; 1 day
-maxretry = 500
+maxretry = 1
 
 [email-dol-perhour]
 
@@ -1758,6 +1770,7 @@ Then place the filter files supplied with the project in *etc/fail2ban/filter.d*
 ---------------
 cd /etc/fail2ban/filter.d
 ln -fs /home/admin/wwwroot/dolibarr_sellyoursaas/etc/fail2ban/filter.d/email-dolibarr-ruleskoblacklist.conf
+ln -fs /home/admin/wwwroot/dolibarr_sellyoursaas/etc/fail2ban/filter.d/email-dolibarr-ruleskoquota.conf
 ln -fs /home/admin/wwwroot/dolibarr_sellyoursaas/etc/fail2ban/filter.d/email-dolibarr-rulesko.conf
 ln -fs /home/admin/wwwroot/dolibarr_sellyoursaas/etc/fail2ban/filter.d/email-dolibarr-rulesall.conf
 ln -fs /home/admin/wwwroot/dolibarr_sellyoursaas/etc/fail2ban/filter.d/email-dolibarr-rulesadmin.conf
@@ -3221,7 +3234,7 @@ rotate 365
         create 666 syslog adm
 }
 
-/var/log/remote_server.log /var/log/backup_backups.log {
+/var/log/remote_server.log {
         su root root
         weekly
         rotate 4
@@ -3633,7 +3646,9 @@ cd / && run-parts --report /etc/cron.daily
 
 
 
-== Installation of Dolibarr
+== Installation of Dolibarr framework
+
+We need to install the program files of Dolibarr ERP CRM as we use it for a lot of utiliy tools.
 
 On all servers (*Master and Deployment*):
 
@@ -3700,6 +3715,8 @@ and add the following content:
 <?php
 $dolibarr_main_document_root='/home/admin/wwwroot/dolibarr/htdocs';
 $dolibarr_main_data_root='/home/admin/wwwroot/dolibarr_documents';
+
+$dolibarr_main_instance_unique_id='...';	// Use the same ID than the master server.
 ---------------
 
 
@@ -3984,6 +4001,20 @@ vi /var/log/datadog/agent.log
 
 == Exploitation - Supervision
 
+=== Test an installation
+
+This is some steps to do to test an installation:
+
+- You can run the script desktop_install_check.sh. It will run an ansible script to check your instance (and may fix some trouble). This
+script is regularly completed but still check only few part of your installation only.
+
+- Try to send an email from a deployed application.
+
+- Try to make a backup from the internal backup tool of the deployed application (if the deployed application has such a tool).
+
+- If the deployed application is Dolibarr, you can check a call of page https://myinstances/public/test/test_exec.php
+
+
 === Backup / Restore
 
 ==== Backup system
@@ -4030,7 +4061,7 @@ pip install awscli --upgrade --user
 ---------------
 
 
-=== Update deployment images
+=== Update images of application to deploy
 
 - A cron script on the *Master* does the git pull to update the images of the packages to deploy.
 */home/admin/wwwroot/dolibarr/htdocs/custom/sellyoursaas/scripts/git_update_sources.sh /home/admin/wwwroot/dolibarr_documents/sellyoursaas/git*
@@ -5449,8 +5480,9 @@ max_allowed_packet=100000000
 
 ==== Web request are slow due to maximum number of child reached
 
-You may experience a too high number of child processed (reaching the maximum). You can see this on pahe https://withX.mysaasdomain.com/server-status
-If this child are in state R, then you can try to reduce this by enabling the module ReqTimeout and set
+You may experience a too high number of child processed (reaching the maximum). You can see this on the
+page https://supervision.mysaasdomain.com/server-status
+If most child are in state R, then you can try to reduce this by enabling the module ReqTimeout and set
 
 [source,bash]
 ---------------
@@ -5476,10 +5508,17 @@ To flush the queur for one message
 postqueue -i IDINQUEUE
 
 
+==== Error apparmor "unconfined can not change_hat"
 
+If you have such an error:
 
+[source,bash]
+---------------
+Aug 27 10:50:00 xxxxx kernel: [9800813.155984] audit: type=1400 audit(1661597400.360:473920): apparmor="DENIED" operation="change_hat" info="unconfined can not change_hat" error=-1 profile="unconfined" pid=620020 comm="apache2"
+---------------
 
-
+You may have updated the apparmor profile of apache but apache was not restarted completely.
+Try to stop and kill all apache process not stopped. Restart apache.
 
 
 

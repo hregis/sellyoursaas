@@ -86,8 +86,8 @@ while read -r line ; do
 				export now=`date '+%Y-%m-%d %H:%M:%S'`
 				echo "$now Extract processid from line" >> /var/log/phpsendmail.log 2>&1
 				echo "$now $result" >> /var/log/phpsendmail.log 2>&1
-				export processownerid=`echo "$result" | grep -m 1 'ESTAB\|SYN-SENT' | sed 's/.*uid://' | sed 's/\s.*//'`
-				export processid=`echo "$result" | grep -m 1 'ESTAB\|SYN-SENT' | sed 's/.*pid=//' | sed 's/,.*//'`
+				export processownerid=`echo "$result" | grep -m 1 'ESTAB\|SYN-SENT' | grep 'uid:' | sed 's/.*uid://' | sed 's/\s.*//'`
+				export processid=`echo "$result" | grep -m 1 'ESTAB\|SYN-SENT' | grep 'pid=' | sed 's/.*pid=//' | sed 's/,.*//'`
 
 				export now=`date '+%Y-%m-%d %H:%M:%S'`
 				echo "$now We got processid=${processid}, processownerid=${processownerid}" >> /var/log/phpsendmail.log 2>&1
@@ -103,19 +103,6 @@ while read -r line ; do
 						echo "$now processownerid=$processownerid" >> "/var/log/phpsendmail.log"
 					fi
 										
-					if [[ $processownerid =~ $re ]] ; then
-						echo "$now We try to get the usernamestring from processownerid" >> /var/log/phpsendmail.log 2>&1
-
-						export usernamestring=`grep "x:$processownerid:" /etc/passwd | cut -f1 -d:`
-						echo "$now usernamestring=$usernamestring" >> "/var/log/phpsendmail.log"
-						
-						#TODO Get quota of emails MAXPERDAY for the UID $processownerid / $usernamestring
-						
-						
-					else
-						echo "$now processownerid not valid, we can't find $usernamestring" >> "/var/log/phpsendmail.log"
-					fi
-						
 					if [[ $processid =~ $re ]] ; then
 						echo "$now We try to get the apache process info" >> /var/log/phpsendmail.log 2>&1
 						#echo "/usr/bin/lynx -dump -width 500 http://127.0.0.1/server-status | grep \" $processid \"" >> /var/log/phpsendmail.log 2>&1
@@ -133,38 +120,58 @@ while read -r line ; do
                         if [[ "x$apachestring" != "x" ]] ; then
                         	export remoteip=`echo $apachestring | awk '{print $2}'`
                             echo "$now remoteip=$remoteip" >> "/var/log/phpsendmail.log"
+                            
+                            # Test IP
+                            # If ipquality shows it is tor ip (has tor or active_tor on), we refuse and we add ip into blacklistip
+                            # If ipquality shows it is a vpn (vpn or active_vpn on), if fraud_score > SELLYOURSAAS_VPN_FRAUDSCORE_REFUSED, we refuse and we add into blacklist
+                            #echo "$new $remoteip sellyoursaas rules ko blacklist - IP found into blacklistip of IPQualityScore" >> /var/log/phpsendmail.log
+                            #
                         fi
                     else 
                     	echo "$now processid not valid, we can't find apache and remoteip data" >> "/var/log/phpsendmail.log"
 					fi
 				fi
+				
+				if [[ $processownerid =~ $re ]] ; then
+					echo "$now We try to get the usernamestring from processownerid" >> /var/log/phpsendmail.log 2>&1
+
+					export usernamestring=`grep "x:$processownerid:" /etc/passwd | cut -f1 -d:`
+					echo "$now usernamestring=$usernamestring" >> "/var/log/phpsendmail.log"
+					
+					#TODO Get quota of emails MAXPERDAY for the UID $processownerid / $usernamestring
+					
+					
+				else
+					echo "$now processownerid not valid, we can't find $usernamestring" >> "/var/log/phpsendmail.log"
+				fi
 			fi
 		fi
 	fi
 
-	# Build file for this email
+	# Build file /tmp/phpsendmail-... for this email
 	if [ "x$processid" == "x" ]; then
-		rm "/tmp/phpsendmail-$processownerid-$processid-smtpsocket.tmp" >/dev/null 2>&1
-		> "/tmp/phpsendmail-$processownerid-$processid-smtpsocket.tmp"
-		chmod ug+rw "/tmp/phpsendmail-$processownerid-$processid-smtpsocket.tmp"
+		rm "/tmp/phpsendmail-$processownerid-$processid-$smtpportcaller-smtpsocket.tmp" >/dev/null 2>&1
+		> "/tmp/phpsendmail-$processownerid-$processid-$smtpportcaller-smtpsocket.tmp"
+		chmod ug+rw "/tmp/phpsendmail-$processownerid-$processid-$smtpportcaller-smtpsocket.tmp"
 	else
-		rm "/tmp/phpsendmail-$processownerid-$processid-smtpsocket.tmp" >/dev/null 2>&1
-		> "/tmp/phpsendmail-$processownerid-$processid-smtpsocket.tmp"
+		rm "/tmp/phpsendmail-$processownerid-$processid-$smtpportcaller-smtpsocket.tmp" >/dev/null 2>&1
+		> "/tmp/phpsendmail-$processownerid-$processid-$smtpportcaller-smtpsocket.tmp"
 	fi
 
-	echo "Emails were sent using SMTP by processid=$processid processownerid=$processownerid" >> "/tmp/phpsendmail-$processownerid-$processid-smtpsocket.tmp"
-	echo "SMTP connection from $smtpipcaller:$smtpportcaller -> $smtpipcalled:$smtpportcalled" >> "/tmp/phpsendmail-$processownerid-$processid-smtpsocket.tmp"
-	echo "$result" >> "/tmp/phpsendmail-$processownerid-$processid-smtpsocket.tmp"
-	echo "usernamestring=$usernamestring" >> "/tmp/phpsendmail-$processownerid-$processid-smtpsocket.tmp"
-	echo "apachestring=$apachestring" >> "/tmp/phpsendmail-$processownerid-$processid-smtpsocket.tmp"
-	echo "remoteip=$remoteip" >> "/tmp/phpsendmail-$processownerid-$processid-smtpsocket.tmp"
+	echo "Emails were sent using SMTP by processid=$processid processownerid=$processownerid smtpportcaller=$smtpportcaller" >> "/tmp/phpsendmail-$processownerid-$processid-$smtpportcaller-smtpsocket.tmp"
+	echo "SMTP connection from $smtpipcaller:$smtpportcaller -> $smtpipcalled:$smtpportcalled" >> "/tmp/phpsendmail-$processownerid-$processid-$smtpportcaller-smtpsocket.tmp"
+	echo "$result" >> "/tmp/phpsendmail-$processownerid-$processid-$smtpportcaller-smtpsocket.tmp"
+	echo "usernamestring=$usernamestring" >> "/tmp/phpsendmail-$processownerid-$processid-$smtpportcaller-smtpsocket.tmp"
+	echo "apachestring=$apachestring" >> "/tmp/phpsendmail-$processownerid-$processid-$smtpportcaller-smtpsocket.tmp"
+	echo "remoteip=$remoteip" >> "/tmp/phpsendmail-$processownerid-$processid-$smtpportcaller-smtpsocket.tmp"
 	
 	export now=`date '+%Y-%m-%d %H:%M:%S'`
-	echo "$now The file /tmp/phpsendmail-$processownerid-$processid-smtpsocket.tmp has been generated" >> "/var/log/phpsendmail.log"
 	
 	if [[ "x$usernamestring" =~ ^xosu.* ]]; then
-		chown $usernamestring.$usernamestring "/tmp/phpsendmail-$processownerid-$processid-smtpsocket.tmp" 2>&1
+		chown $usernamestring.$usernamestring "/tmp/phpsendmail-$processownerid-$processid-$smtpportcaller-smtpsocket.tmp" 2>&1
 	fi
+
+	echo "$now The file /tmp/phpsendmail-$processownerid-$processid-$smtpportcaller-smtpsocket.tmp has been generated" >> "/var/log/phpsendmail.log"
 	
 	# Complete log /var/log/phpsendmail.log for this smtp email
 	if [[ $processownerid =~ $re ]] ; then
