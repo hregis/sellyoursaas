@@ -126,6 +126,9 @@ if ($dbmaster) {
 }
 if (empty($db)) $db=$dbmaster;
 
+// Set serverprice with the param from $conf of the $dbmaster server.
+$serverprice = empty($conf->global->SELLYOURSAAS_INFRA_COST)?'100':$conf->global->SELLYOURSAAS_INFRA_COST;
+
 //$langs->setDefaultLang('en_US'); 	// To change default language of $langs
 $langs->load("main");				// To load language file for default language
 @set_time_limit(0);					// No timeout for this script
@@ -142,7 +145,7 @@ if (! isset($argv[1])) {	// Check parameters
 	print "Usage on deployment servers: ".$script_file." backup... [instancefilter]\n";
 	print "\n";
 	print "- updatecountsonly    updates metrics of instances only (list and nb of users for each instance)\n";
-	print "- updatestatsonly     updates stats only (only table dolicloud_stats) and send data to Datagog if enabled ***** Used by cron on master server *****\n";
+	print "- updatestatsonly     updates stats only (only table sellyoursaas_stats) and send data to Datagog if enabled ***** Used by cron on master server *****\n";
 	print "- updatedatabase      (=updatecountsonly+updatestatsonly) updates list and nb of users, modules and version and stats table.\n";
 	print "- backuptest          test rsync+database backup\n";
 	print "- backuptestrsync     test rsync backup\n";
@@ -465,8 +468,9 @@ if ($action == 'updatedatabase' || $action == 'updatestatsonly' || $action == 'u
 		$stats=array();
 
 		// Load list of existing stats into $stats
-		$sql ="SELECT name, x, y";                        // name is 'total', 'totalcommissions', 'totalinstancepaying', 'totalinstances', 'totalusers', 'benefit', 'totalcustomers', 'totalcustomerspaying'
-		$sql.=" FROM ".MAIN_DB_PREFIX."dolicloud_stats";
+		// name can be 'total', 'totalcommissions', 'totalinstancepaying', 'totalinstances', 'totalusers', 'benefit', 'totalcustomers', 'totalcustomerspaying'...
+		$sql ="SELECT name, x, y";
+		$sql.=" FROM ".MAIN_DB_PREFIX."sellyoursaas_stats";
 		$sql.=" WHERE service = '".$dbmaster->escape($servicetouse)."'";
 		$sql.=" ORDER BY x, name";
 
@@ -510,7 +514,13 @@ if ($action == 'updatedatabase' || $action == 'updatestatsonly' || $action == 'u
 					continue;
 				}
 
-				$statkeylist=array('total','totalcommissions','totalinstancespaying','totalinstancespayingall','totalinstances','totalusers','totalcustomers','totalcustomerspaying','benefit','serverprice');
+				//$statkeylist=array('total','totalcommissions','totalinstancespaying','totalinstancespayingall','totalinstances','totalusers','totalcustomers','totalcustomerspaying','benefit','serverprice');
+				$statkeylist=array(
+					'total', 'totalcommissions', 'totalnewinstances', 'totallostinstances',
+					'totalinstancespaying','totalinstancespayingall','totalinstances','totalusers','totalcustomers','totalcustomerspaying',
+					'benefit','serverprice',
+					'newinstances', 'lostinstances'
+				);
 
 				$x=sprintf("%04d%02d", $year, $m);
 
@@ -525,7 +535,9 @@ if ($action == 'updatedatabase' || $action == 'updatestatsonly' || $action == 'u
 				if ($dowehavetomakeupdatefordate) {
 					// Update stats for the metric
 					print 'Calculate statistics for x='.$x."\n";
-					$rep = sellyoursaas_calculate_stats($dbmaster, $datelastday);	// Get qty and amount into template invoices linked to active contracts
+
+					$rep = sellyoursaas_calculate_stats($dbmaster, $datelastday, $datefirstday);	// Get qty and amount into all template invoices linked to active contracts deployed before the $datelastday
+
 					$part = (empty($conf->global->SELLYOURSAAS_PERCENTAGE_FEE) ? 0 : $conf->global->SELLYOURSAAS_PERCENTAGE_FEE);
 
 					foreach ($statkeylist as $statkey) {
@@ -534,32 +546,40 @@ if ($action == 'updatedatabase' || $action == 'updatestatsonly' || $action == 'u
 							print "Update stats for ".$statkey." x=".$x.' datelastday='.dol_print_date($datelastday, 'dayhour', 'gmt');
 
 							if ($rep) {
-								$total=$rep['total'];
-								$totalcommissions=$rep['totalcommissions'];
-								$totalinstancespaying=$rep['totalinstancespaying'];
-								$totalinstancespayingall=$rep['totalinstancespayingall'];
-								$totalinstances=$rep['totalinstances'];
-								$totalusers=$rep['totalusers'];
-								$totalcustomerspaying=$rep['totalcustomerspaying'];
-								$totalcustomers=$rep['totalcustomers'];
-								$benefit=($total * (1 - $part) - $serverprice - $totalcommissions);
+								$total = $rep['total'];
+								$totalcommissions = $rep['totalcommissions'];
+								$totalnewinstances = $rep['totalnewinstances'];
+								$totallostinstances = $rep['totallostinstances'];
+								$totalinstancespaying = $rep['totalinstancespaying'];
+								$totalinstancespayingall = $rep['totalinstancespayingall'];
+								$totalinstances = $rep['totalinstances'];		// total trial only instances
+								$totalusers = $rep['totalusers'];
+								$totalcustomerspaying = $rep['totalcustomerspaying'];
+								$totalcustomers = $rep['totalcustomers'];
+								$newinstances = count($rep['listofnewinstances']);
+								$lostinstances = count($rep['listoflostinstances']);
+								$benefit = ($total * (1 - $part) - $serverprice - $totalcommissions);
 
 								$y=0;
 								if ($statkey == 'total') $y=$total;
 								if ($statkey == 'totalcommissions') $y=$totalcommissions;
+								if ($statkey == 'totalnewinstances') $y=$totalnewinstances;
+								if ($statkey == 'totallostinstances') $y=$totallostinstances;
 								if ($statkey == 'totalinstancespaying') $y=$totalinstancespaying;
 								if ($statkey == 'totalinstancespayingall') $y=$totalinstancespayingall;
 								if ($statkey == 'totalinstances') $y=$totalinstances;
 								if ($statkey == 'totalusers') $y=$totalusers;
 								if ($statkey == 'totalcustomerspaying') $y=$totalcustomerspaying;
 								if ($statkey == 'totalcustomers') $y=$totalcustomers;
+								if ($statkey == 'newinstances') $y=$newinstances;
+								if ($statkey == 'lostinstances') $y=$lostinstances;
 								if ($statkey == 'serverprice') $y=$serverprice;
 								if ($statkey == 'benefit') $y=$benefit;
 
 								print " -> ".$y."\n";
 
 								if ($today <= $datelastday) {	// Remove existing entry if current month
-									$sql ="DELETE FROM ".MAIN_DB_PREFIX."dolicloud_stats";
+									$sql ="DELETE FROM ".MAIN_DB_PREFIX."sellyoursaas_stats";
 									$sql.=" WHERE name = '".$dbmaster->escape($statkey)."' AND x='".$dbmaster->escape($x)."'";
 									$sql.=" AND service = '".$dbmaster->escape($servicetouse)."'";
 									dol_syslog("sql=".$sql);
@@ -569,7 +589,7 @@ if ($action == 'updatedatabase' || $action == 'updatestatsonly' || $action == 'u
 									}
 								}
 
-								$sql = "INSERT INTO ".MAIN_DB_PREFIX."dolicloud_stats(service, name, x, y)";
+								$sql = "INSERT INTO ".MAIN_DB_PREFIX."sellyoursaas_stats(service, name, x, y)";
 								$sql .= " VALUES('".$dbmaster->escape($servicetouse)."', '".$dbmaster->escape($statkey)."', '".$dbmaster->escape($x)."', ".((float) $y).")";
 
 								$resql = $dbmaster->query($sql);

@@ -161,16 +161,22 @@ file_put_contents($logfile, date('Y-m-d H:i:s') . " EMAILTO=$EMAILTO\n", FILE_AP
 file_put_contents($logfile, date('Y-m-d H:i:s') . " PID=$PID\n", FILE_APPEND);
 file_put_contents($logfile, date('Y-m-d H:i:s') . " Now event captured will be logged into ".$logphpsendmail."\n", FILE_APPEND);
 
-
 // Load $instanceofuser
 $instanceofuser = getInstancesOfUser($pathtospamdir);
 
 // Load $blacklistips
 $blacklistips = getBlackListIps($pathtospamdir);
 
+$datelastload = dol_now();
 
 
-$handle = popen("tail -F ".$WDLOGFILE." | grep --line-buffered 'UFW ALLOW'", 'r');
+//$LOGPREFIX='UFW ALLOW';
+// Note: to enable including --log-uid, we must insert rule directly in iptables
+//iptables -I OUTPUT 1 -p tcp -m multiport --dports 25,2525,465,587 -m state --state NEW -j LOG --log-uid --log-prefix  "[UFW ALLOW SELLYOURSAAS] "
+//ip6tables -I OUTPUT 1 -p tcp -m multiport --dports 25,2525,465,587 -m state --state NEW -j LOG --log-uid --log-prefix  "[UFW ALLOW SELLYOURSAAS] "
+$LOGPREFIX='UFW ALLOW SELLYOURSAAS';
+
+$handle = popen("tail -F ".$WDLOGFILE." | grep --line-buffered '".$LOGPREFIX."'", 'r');
 while (!feof($handle)) {
 	$line = fgets($handle);
 	flush();
@@ -186,127 +192,176 @@ while (!feof($handle)) {
 
 	// Write into smtp_watchdog1.log
 	file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " ----- start smtp_watchdog_daemon1.php\n", FILE_APPEND);
-	file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " Found a UFW ALLOW, in $WDLOGFILE, now try to find the process IPs and ports...\n", FILE_APPEND);
-	file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " ".$line."\n", FILE_APPEND);
+	file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " Found log prefix ".$LOGPREFIX.", in $WDLOGFILE, now try to find the process IPs and ports...\n", FILE_APPEND);
+	file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " ".trim($line)."\n", FILE_APPEND);
 
-	$smtpipcaller=preg_replace('/\s.*/', '', preg_replace('/.*SRC=/', '', $line));
-	$smtpipcalled=preg_replace('/\s.*/', '', preg_replace('/.*DST=/', '', $line));
-	$smtpportcaller=preg_replace('/\s.*/', '', preg_replace('/.*SPT=/', '', $line));
-	$smtpportcalled=preg_replace('/\s.*/', '', preg_replace('/.*DPT=/', '', $line));
+	$smtpipcaller=preg_replace('/\s.*/', '', preg_replace('/.*\sSRC=/', '', $line));
+	$smtpipcalled=preg_replace('/\s.*/', '', preg_replace('/.*\sDST=/', '', $line));
+	$smtpportcaller=preg_replace('/\s.*/', '', preg_replace('/.*\sSPT=/', '', $line));
+	$smtpportcalled=preg_replace('/\s.*/', '', preg_replace('/.*\sDPT=/', '', $line));
+
+	if (preg_match('/\sUID=/', $line)) {
+		$processownerid=preg_replace('/\s.*/', '', preg_replace('/.*\sUID=/', '', $line));
+		file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " We got processownerid=${processownerid} from iptable log ".$WDLOGFILE."\n", FILE_APPEND);
+	}
+
 
 	$result = '';
 
 
-	// TODO Call this sometimes to refresh list of paid instances
-	//$instanceofuser = getInstancesOfUser();
+	if ($datelastload < (dol_now() - 3600)) {
+		file_put_contents($logfile, date('Y-m-d H:i:s') . " reload cached files\n", FILE_APPEND);
+
+		// Call this sometimes to refresh list of paid instances
+		$instanceofuser = getInstancesOfUser($pathtospamdir);
+
+		// Call this sometimes to refresh list of black listed IPs
+		$blacklistips = getBlackListIps($pathtospamdir);
+
+		$datelastload = dol_now();
+	}
 
 
-	// TODO Call this sometimes to refresh list of black listed IPs
-	//$blacklistips = getBlackListIps();
+	if (!empty($smtpportcalled) && !empty($smtpipcalled)) {
+		$command = "ss --oneline -e -H -p -t state all dport $smtpportcalled dst [$smtpipcalled]";
+		if (!empty($smtpportcaller)) {
+			$command = "ss --oneline -e -H -p -t state all sport $smtpportcaller dport $smtpportcalled dst [$smtpipcalled]";
+		}
+		file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " Execute command $command\n", FILE_APPEND);
 
+		include_once DOL_DOCUMENT_ROOT.'/core/class/utils.class.php';
+		$utils = new Utils($db);
+		$result = $utils->executeCli($command, $outputfile);
 
-	if (!empty($smtpportcalled)) {
-		if (!empty($smtpipcalled)) {
-			$command = "ss --oneline -e -H -p -t state all dport $smtpportcalled dst [$smtpipcalled]";
-			file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " Execute command $command\n", FILE_APPEND);
+		if (empty($result['result'])) {
+			file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " Extract processid from line...\n", FILE_APPEND);
+			file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " ".trim($result['output'])."\n", FILE_APPEND);
 
-			include_once DOL_DOCUMENT_ROOT.'/core/class/utils.class.php';
-			$utils = new Utils($db);
-			$result = $utils->executeCli($command, $outputfile);
+			$reg = array();
+			if (preg_match('/(ESTAB|SYN-SENT).*uid:(\d+)/', $result['output'], $reg)) {	// Often
+				$processownerid = $reg[2];
+			}
+			if (preg_match('/(ESTAB|SYN-SENT).*pid=(\d+)/', $result['output'], $reg)) {	// Not always
+				$processid = $reg[2];
+			}
 
-			if (empty($result['result'])) {
-				file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " Extract processid from line...\n", FILE_APPEND);
-				file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " ".$result['output']."\n", FILE_APPEND);
+			file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " We got processid=${processid}, processownerid=${processownerid} from log or ss command\n", FILE_APPEND);
+		} else {
+			file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " ERROR ".$result['error']." ".$result['output']."\n", FILE_APPEND);
+		}
 
-				$processownerid = '';
-				$processid = '';
+		/*
+		if (empty($processid)) {
+			// Try another method with server-status
+			$commandlynx = '/usr/bin/lynx -dump -width 500 http://127.0.0.1/server-status';
+			// echo "/usr/bin/lynx -dump -width 500 http://127.0.0.1/server-status | grep \" $processid \"" >> /var/log/phpsendmail.log 2>&1
+			file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " commandlynx=".$commandlynx."\n", FILE_APPEND);
+
+			$resultlynx = $utils->executeCli($commandlynx, $outputfile, 0, null, 1);
+			if (empty($resultlynx['result'])) {
+				$xxx = trim($resultlynx['output']);
+				file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " ".$xxx."\n", FILE_APPEND);
+			} else {
+				file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " ERROR ".$resultlynx['error']." ".$resultlynx['output']."\n", FILE_APPEND);
+			}
+		}
+		*/
+
+		if (empty($processid)) {
+			file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " The processid is still unknown, we try with netstat\n", FILE_APPEND);
+
+			// Try another method with netstat
+			$commandns = 'netstat -npt | grep \':25\s\|:2525\s\|:465\s\|:587\s\'';	// -napt show also the LISTEN processes
+			file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " commandns=".$commandns."\n", FILE_APPEND);
+
+			$resultns = $utils->executeCli($commandns, $outputfile, 0, null, 1);
+			if (empty($resultns['result'])) {
+				$xxx = trim($resultns['output']);
+				file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " ".$xxx."\n", FILE_APPEND);
+
 				$reg = array();
-				if (preg_match('/(ESTAB|SYN-SENT).*uid:(\d+)/', $result['output'], $reg)) {
-					$processownerid = $reg[2];
-				}
-				if (preg_match('/(ESTAB|SYN-SENT).*pid=(\d+)/', $result['output'], $reg)) {
+				if (preg_match('/:(25|2525|465|587)\sESTABLISHED\s(\d+)/', $result['output'], $reg)) {
 					$processid = $reg[2];
 				}
+			} else {
+				file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " ERROR ".$resultns['error']." ".$resultns['result']." ".$resultns['output']."\n", FILE_APPEND);
+			}
+		}
 
-				file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " We got processid=${processid}, processownerid=${processownerid}\n", FILE_APPEND);
+		if (!empty($processid)) {
+			if (preg_match('/^[0-9]+$/', $processownerid)) {
+				file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " We got the processownerid from the log or the ss command, surely an email sent from a web page\n", FILE_APPEND);
+			} else {
+				file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " We did not get the processownerid from the log neither ss command. We try to find the processownerid using the processid and ps\n", FILE_APPEND);
 
-				if (!empty($processid)) {
-					if (preg_match('/^[0-9]+$/', $processownerid)) {
-						file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " We got the processownerid from the ss command, surely an email sent from a web page\n", FILE_APPEND);
-					} else {
-						file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " We did not get the processownerid from the ss command. We try to get the processownerid using the processid from ps\n", FILE_APPEND);
+				$commandps = 'ps -f -a -x -o "uid,pid,cpu,start,time,cmd" | grep --color=never " '.$processid.' " | grep -v "color=never" | awk \'{ print $1 }\'';
 
-						$commandps = 'ps -f -a -x -o "uid,pid,cpu,start,time,cmd" | grep --color=never " '.$processid.' " | grep -v "color=never" | awk \'{ print $1 }\'';
+				file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " commandps=".$commandps."\n", FILE_APPEND);
 
-						file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " commandps=".$commandps."\n", FILE_APPEND);
-
-						$resultps = $utils->executeCli($commandps, $outputfile, 0, null, 1);
-						if (empty($resultps['result'])) {
-							$processownerid = trim($resultps['output']);
-						} else {
-							file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " ERROR ".$resultps['error']." ".$resultps['output']."\n", FILE_APPEND);
-						}
-						file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " processownerid=$processownerid\n", FILE_APPEND);
-					}
-
-					// We try to get the apache process info
-					if (preg_match('/^[0-9]+$/', $processid)) {
-						file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " We try to get the apache process info\n", FILE_APPEND);
-						// echo "/usr/bin/lynx -dump -width 500 http://127.0.0.1/server-status | grep \" $processid \"" >> /var/log/phpsendmail.log 2>&1
-
-						// Add a sleep to increase hope to have line "... client ip - pid ..." written into other_vhosts_pid.log file
-						sleep(1);
-
-						// export apachestring=`/usr/bin/lynx -dump -width 500 http://127.0.0.1/server-status | grep -m 1 " $processid "`
-						$commandapachestring = 'tail -n 200 /var/log/apache2/other_vhosts_pid.log | grep -m 1 " '.$processid.' "';
-
-						file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " commandapachestring = ".$commandapachestring."\n", FILE_APPEND);
-
-						$resultapachestring = $utils->executeCLI($commandapachestring, $outputfile, 0, null, 1);
-						$apachestring = '';
-						if (empty($resultapachestring['result'])) {
-							$apachestring = trim($resultapachestring['output']);
-							file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " apachestring=".$apachestring."\n", FILE_APPEND);
-
-							// Try to guess remoteip
-							if (!empty($apachestring)) {
-								$arrayapachestring = preg_split('/\s+/', $apachestring);
-								$remoteip = $arrayapachestring[1];
-								file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " remoteip=".$remoteip."\n", FILE_APPEND);
-							}
-						} else {
-							// If not found, result may be 1. Not an error to report.
-							//file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " ERROR ".$resultapachestring['error']." ".$resultapachestring['output']."\n", FILE_APPEND);
-							file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " no entry found into other_vhosts_pid.log so apachestring=".$apachestring." remoteip=".$remoteip."\n", FILE_APPEND);
-						}
-					} else {
-						file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " processid not valid, we can't find apache and remoteip data\n", FILE_APPEND);
-					}
-				}
-
-				// We try to get the usernamestring from processownerid
-				if (preg_match('/^[0-9]+$/', $processownerid)) {
-					file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " We try to get the usernamestring from processownerid\n", FILE_APPEND);
-
-					$commandpasswd = 'grep "x:'.$processownerid.':" /etc/passwd | cut -f1 -d:';
-
-					file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " commandpasswd = ".$commandpasswd."\n", FILE_APPEND);
-
-					$resultcommandpasswd = $utils->executeCLI($commandpasswd, $outputfile, 0, null, 1);
-					$usernamestring = '';
-					if (empty($resultcommandpasswd['result'])) {
-						$usernamestring = trim($resultcommandpasswd['output']);
-					} else {
-						file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " ERROR ".$resultcommandpasswd['error']." ".$resultcommandpasswd['output']."\n", FILE_APPEND);
-					}
-
-					file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " usernamestring=".$usernamestring."\n", FILE_APPEND);
+				$resultps = $utils->executeCli($commandps, $outputfile, 0, null, 1);
+				if (empty($resultps['result'])) {
+					$processownerid = trim($resultps['output']);
 				} else {
-					file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " processownerid not valid, we can't find usernamestring\n", FILE_APPEND);
+					file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " ERROR ".$resultps['error']." ".$resultps['output']."\n", FILE_APPEND);
+				}
+				file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " processownerid=$processownerid\n", FILE_APPEND);
+			}
+
+			// We try to get the apache process info
+			if (preg_match('/^[0-9]+$/', $processid)) {
+				file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " We got the processid, now we try to get the apache process info to get remoteip\n", FILE_APPEND);
+				// echo "/usr/bin/lynx -dump -width 500 http://127.0.0.1/server-status | grep \" $processid \"" >> /var/log/phpsendmail.log 2>&1
+				// wget http://127.0.0.1/server-status -O -
+
+				// Add a sleep to increase hope to have line "... client ip - pid ..." written into other_vhosts_pid.log file
+				sleep(1);
+
+				// export apachestring=`/usr/bin/lynx -dump -width 500 http://127.0.0.1/server-status | grep -m 1 " $processid "`
+				$commandapachestring = 'tail -n 200 /var/log/apache2/other_vhosts_pid.log | grep -m 1 " '.$processid.' "';
+
+				file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " commandapachestring = ".$commandapachestring."\n", FILE_APPEND);
+
+				$resultapachestring = $utils->executeCLI($commandapachestring, $outputfile, 0, null, 1);
+				$apachestring = '';
+				if (empty($resultapachestring['result'])) {
+					$apachestring = trim($resultapachestring['output']);
+					file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " apachestring=".$apachestring."\n", FILE_APPEND);
+
+					// Try to guess remoteip
+					if (!empty($apachestring)) {
+						$arrayapachestring = preg_split('/\s+/', $apachestring);
+						$remoteip = $arrayapachestring[1];
+						file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " remoteip=".$remoteip."\n", FILE_APPEND);
+					}
+				} else {
+					// If not found, result may be 1. Not an error to report.
+					//file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " ERROR ".$resultapachestring['error']." ".$resultapachestring['output']."\n", FILE_APPEND);
+					file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " no entry found into other_vhosts_pid.log so apachestring=".$apachestring." remoteip=".$remoteip."\n", FILE_APPEND);
 				}
 			} else {
-				file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " ERROR ".$result['error']." ".$result['output']."\n", FILE_APPEND);
+				file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " processid not valid, we can't find apache and remoteip data\n", FILE_APPEND);
 			}
+		}
+
+		// We try to get the usernamestring from processownerid
+		if (preg_match('/^[0-9]+$/', $processownerid)) {
+			file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " We try to get the usernamestring from processownerid\n", FILE_APPEND);
+
+			$commandpasswd = 'grep "x:'.$processownerid.':" /etc/passwd | cut -f1 -d:';
+
+			file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " commandpasswd = ".$commandpasswd."\n", FILE_APPEND);
+
+			$resultcommandpasswd = $utils->executeCLI($commandpasswd, $outputfile, 0, null, 1);
+			$usernamestring = '';
+			if (empty($resultcommandpasswd['result'])) {
+				$usernamestring = trim($resultcommandpasswd['output']);
+			} else {
+				file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " ERROR ".$resultcommandpasswd['error']." ".$resultcommandpasswd['output']."\n", FILE_APPEND);
+			}
+
+			file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " usernamestring=".$usernamestring."\n", FILE_APPEND);
+		} else {
+			file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " processownerid not valid, we can't find usernamestring\n", FILE_APPEND);
 		}
 	}
 
@@ -356,63 +411,71 @@ while (!feof($handle)) {
 	}
 
 	// Check quota
-	if ($ok && is_numeric($processownerid) && $processownerid >= 65535) {
-		file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " We try to check the quota for processownerid=".$processownerid."\n", FILE_APPEND);
+	if ($ok) {
+		if (is_numeric($processownerid) && $processownerid >= 65535) {
+			file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " We try to check the quota for processownerid=".$processownerid."\n", FILE_APPEND);
 
-		// Test if we reached quota, if yes, discard the email and log it for fail2ban
-		//dol_dir_list('/tmp', 'files', 0, '^phpsendmail\-'.$processownerid.'\-');
-		$commandresexec="find /tmp/phpsendmail-$processownerid-* -mtime -1 | wc -l";
+			// Test if we reached quota, if yes, discard the email and log it for fail2ban
+			//dol_dir_list('/tmp', 'files', 0, '^phpsendmail\-'.$processownerid.'\-');
+			$commandresexec="find /tmp/phpsendmail-$processownerid-* -mtime -1 | wc -l";
 
-		file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " commandresexec = ".$commandresexec."\n", FILE_APPEND);
+			file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " commandresexec = ".$commandresexec."\n", FILE_APPEND);
 
-		$resultresexec = $utils->executeCLI($commandresexec, $outputfile, 0, null, 1);
-		$resexec = -1;
-		if (empty($resultresexec['result'])) {
-			$resexec = trim($resultresexec['output']);
+			$resultresexec = $utils->executeCLI($commandresexec, $outputfile, 0, null, 1);
+			$resexec = -1;
+			if (empty($resultresexec['result'])) {
+				$resexec = trim($resultresexec['output']);
 
-			$MAXALLOWED = $MAXPERDAYPAID;
-			if ($usernamestring) {
-				if (in_array($usernamestring, array_keys($instanceofuser))) {
-					$MAXALLOWED = $instanceofuser[$usernamestring]['mailquota'];
-				} else {
-					$MAXALLOWED = $MAXPERDAY;
+				$MAXALLOWED = $MAXPERDAYPAID;
+				if ($usernamestring) {
+					if (in_array($usernamestring, array_keys($instanceofuser))) {
+						$MAXALLOWED = $instanceofuser[$usernamestring]['mailquota'];
+					} else {
+						$MAXALLOWED = $MAXPERDAY;
+					}
 				}
-			}
 
-			file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " Nb of processes found with ".$commandresexec." = ".$resexec." (we accept ".$MAXALLOWED.")\n", FILE_APPEND);
+				file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " Nb of processes found with ".$commandresexec." = ".$resexec." (we accept ".$MAXALLOWED.")\n", FILE_APPEND);
 
-			if ($resexec > $MAXALLOWED) {
-				file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " $remoteip sellyoursaas rules ko quota reached. User has reached its quota of ".$MAXALLOWED."\n", FILE_APPEND);
-				$ok = 0;
-				//echo "smtp_watchdog_daemon1 has found an abusive smtp usage of over quota." | mail -aFrom:$EMAILFROM -s "[Warning] smtp_watchdog_daemon1 has found an abusive smtp usage on "`hostname`"." $EMAILTO
+				if ($resexec > $MAXALLOWED) {
+					file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " $remoteip sellyoursaas rules ko quota reached. User has reached its quota of ".$MAXALLOWED."\n", FILE_APPEND);
+					$ok = 0;
+					//echo "smtp_watchdog_daemon1 has found an abusive smtp usage of over quota." | mail -aFrom:$EMAILFROM -s "[Warning] smtp_watchdog_daemon1 has found an abusive smtp usage on "`hostname`"." $EMAILTO
+				}
+			} else {
+				file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " ERROR ".$resultresexec['error']." ".$resultresexec['output']."\n", FILE_APPEND);
 			}
 		} else {
-			file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " ERROR ".$resultresexec['error']." ".$resultresexec['output']."\n", FILE_APPEND);
+			file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " processownerid ".$processownerid." is undefined or lower than 65535 so we do not check quota.\n", FILE_APPEND);
 		}
 	}
 
 	// Check IP quality
-	if ($ok && $remoteip != "unknown" && (!is_numeric($processownerid) || $processownerid >= 65535)) {
-		// Test IP quality
-		file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " We check the quality of the remoteip=".$remoteip."\n", FILE_APPEND);
+	if ($ok && $remoteip != "unknown") {
+		if (!is_numeric($processownerid) || $processownerid >= 65535) {
+			// Test IP quality
+			file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " We check the quality of the remoteip=".$remoteip."\n", FILE_APPEND);
 
-		$evil = 0;
+			$evil = 0;
 
-		// If ipquality shows it is tor ip (has tor or active_tor on), we refuse and we add ip into blacklistip
-		// If ipquality shows it is a vpn (vpn or active_vpn on), if fraud_score > SELLYOURSAAS_VPN_FRAUDSCORE_REFUSED, we refuse and we add into blacklist
-		//file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " $remoteip sellyoursaas rules ko blacklist - IP found into blacklistip of IPQualityScore\n", FILE_APPEND);
-		//$ok=0;
-		//echo "smtp_watchdog_daemon1 has found an abusive smtp usage using a VPN to send emails." | mail -aFrom:$EMAILFROM -s "[Warning] smtp_watchdog_daemon1 has found an abusive smtp usage on "`hostname`"." $EMAILTO
-		//else
-		//file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " IP $remoteip is good according to IPQualityScore\n", FILE_APPEND);
-		// TODO
+			// If ipquality shows it is tor ip (has tor or active_tor on), we refuse and we add ip into blacklistip
+			// If ipquality shows it is a vpn (vpn or active_vpn on), if fraud_score > SELLYOURSAAS_VPN_FRAUDSCORE_REFUSED, we refuse and we add into blacklist
+			//file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " $remoteip sellyoursaas rules ko blacklist - IP found into blacklistip of IPQualityScore\n", FILE_APPEND);
+			//$ok=0;
+			//echo "smtp_watchdog_daemon1 has found an abusive smtp usage using a VPN to send emails." | mail -aFrom:$EMAILFROM -s "[Warning] smtp_watchdog_daemon1 has found an abusive smtp usage on "`hostname`"." $EMAILTO
+			//else
+			//file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " IP $remoteip is good according to IPQualityScore\n", FILE_APPEND);
+			// TODO
 
-		if ($evil) {
-			file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " $remoteip sellyoursaas rules ko blacklist - IP found into blacklistip of IPQualityScore\n", FILE_APPEND);
+			if ($evil) {
+				file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " $remoteip sellyoursaas rules ko blacklist - IP found into blacklistip of IPQualityScore\n", FILE_APPEND);
 
-			// Add IP to blacklistip
-			file_put_contents($pathtospamdir.'/blacklistip', $remoteip."\n", FILE_APPEND);
-			chmod($pathtospamdir."/blacklistip", 0666);
+				// Add IP to blacklistip
+				file_put_contents($pathtospamdir.'/blacklistip', $remoteip."\n", FILE_APPEND);
+				chmod($pathtospamdir."/blacklistip", 0666);
+			}
+		} else {
+			file_put_contents($logphpsendmail, date('Y-m-d H:i:s') . " Process owner id=".$processownerid." is lower than 65535 so we do not check quota.\n", FILE_APPEND);
 		}
 	}
 

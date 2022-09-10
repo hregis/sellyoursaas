@@ -997,7 +997,7 @@ There are two scenarios depending on your version of Ubuntu. Follow the instruct
 [source,bash]
 ---------------
 sudo apt update
-sudo apt install -y ntp git gzip zip zstd memcached ncdu acl
+sudo apt install -y ntp git gzip zip zstd memcached ncdu acl ufw sudo
 sudo apt install -y mariadb-server mariadb-client
 sudo apt install -y apache2 apache2-bin lynx
 sudo apt install -y php php-cli libapache2-mod-php php-fpm php-gd php-imap php-json php-ldap php-mysqlnd php-curl php-memcached php-imagick php-geoip php-mcrypt php-intl php-xml php-zip php-bz2 php-ssh2 php-mbstring
@@ -1016,7 +1016,7 @@ sudo apt install -y mailutils postfix
 [source,bash]
 ---------------
 sudo apt update
-sudo apt install -y systemd-timesyncd git gzip zip zstd memcached ncdu acl
+sudo apt install -y systemd-timesyncd git gzip zip zstd memcached ncdu acl ufw sudo
 sudo apt install -y mariadb-server mariadb-client
 sudo apt install -y apache2 apache2-bin lynx
 sudo apt install -y php php-cli libapache2-mod-php php-fpm php-gd php-imap php-json php-ldap php-mysql php-curl php-memcached php-imagick php-geoip php-intl php-xml php-zip php-bz2 php-ssh2 php-mbstring php-dev libmcrypt-dev
@@ -1027,7 +1027,7 @@ sudo apt install -y bind9
 sudo apt install -y spamc spamassassin clamav clamav-daemon
 sudo apt install -y fail2ban
 sudo apt install -y libreoffice-common libreoffice-writer
-sudo apt install -y mailutils
+sudo apt install -y mailutils postfix
 ---------------
 
 
@@ -3339,13 +3339,6 @@ Note: Reports are into */var/crash*
 sudo apt remove cerbot; sudo apt install snapd;
 sudo snap install --classic certbot;
 sudo ln -fs /snap/bin/certbot /usr/bin/certbot
-
-# Old method was:
-#cd /root
-#apt install software-properties-common python-software-properties
-#add-apt-repository ppa:certbot/certbot
-#apt update
-#apt install python-certbot-apache
 ---------------
 
 And to list certbot cron job:
@@ -3575,7 +3568,6 @@ a2ensite 000-default-ssl.conf
 
 
 [[installing_cron_tasks]]
-[[installation_des_taches_cron]]
 === Installation of Cron tasks
 
 ==== On Master server
@@ -4022,13 +4014,13 @@ script is regularly completed but still check only few part of your installation
 A backup of the server+bases can be done with a VM snapshot.
 It is also possible to snapshot only extra disks.
 
-See chapter <<Cloning a server instance for an extra production server or a dev server>>
+See chapter <<Cloning_a_server_instance_for_an_extra_production_server_or_a_dev_server>>
 
 ==== Restoration system
 
 From OVH's "Snapshots" interface, you can restore a VM image on a server or a disk image on a disk, provided the target has at least the same amount of storage.
 
-See chapter <<Cloning a server instance for an extra production server or a dev server>>
+See chapter <<Cloning_a_server_instance_for_an_extra_production_server_or_a_dev_server>>
 
 
 ==== Backup files and database
@@ -4115,7 +4107,7 @@ resize2fs /dev/vdX9
 ---------------
 
 
-[Cloning a server instance for an extra production server or a dev server]
+[[Cloning_a_server_instance_for_an_extra_production_server_or_a_dev_server]]
 === Clone or duplicate a server instance into another server
 
 The following explains the operations to clone a deployment server into another new deployment server.
@@ -4580,7 +4572,7 @@ To push an image on a project:
 
 - To recreate a server from an image
 
-See chapter <<Cloning a server instance for an extra production server ordéveloppement>>
+See chapter <<Cloning_a_server_instance_for_an_extra_production_server_or_a_dev_server>>
 
 
 === Booting a server in rescue mode

@@ -32,6 +32,7 @@ echo "**** ${0}"
 
 export PID=${$}
 export scriptdir=$(dirname $(realpath ${0}))
+export dolibarrdir=`grep '^dolibarrdir=' /etc/sellyoursaas.conf | cut -d '=' -f 2`
 
 if [ "x$1" == "x" ]; then
 	echo "Usage: ${0##*/} start|stop|status"
@@ -43,16 +44,33 @@ if [ "$(id -u)" != "0" ]; then
 fi
 
 if [ "x$1" == "xstart" ]; then
+	# Note: to enabled including --log-uid, we must insert rule directly in iptables
+	# We add rule only if not already found
+	iptables -n --line-numbers -L OUTPUT | grep 'SELLYOURSAAS' > /dev/null
+	if [ "x$?" == "x1" ]; then
+		echo Add iptables rule
+		iptables -I OUTPUT 1 -p tcp -m multiport --dports 25,2525,465,587 -m state --state NEW -j LOG --log-uid --log-prefix  "[UFW ALLOW SELLYOURSAAS] "
+	fi
+	ip6tables -n --line-numbers -L OUTPUT | grep 'SELLYOURSAAS' > /dev/null
+	if [ "x$?" == "x1" ]; then
+		echo Add ip6tables rule
+		ip6tables -I OUTPUT 1 -p tcp -m multiport --dports 25,2525,465,587 -m state --state NEW -j LOG --log-uid --log-prefix  "[UFW ALLOW SELLYOURSAAS] "
+	fi
 
 	pid=`ps ax | grep 'smtp_watchdog_daemon1' | grep -v grep | awk ' { print $1 } '`
 	if [ "x$pid" == "x" ]; then
 		echo Switch on directory $scriptdir
 		cd $scriptdir
 		
-		echo "smtp_watchdog_daemon1 started"
 		#./smtp_watchdog_daemon1.sh 2>&1 &
-		/home/admin/wwwroot/dolibarr/htdocs/custom/sellyoursaas/scripts/smtp_watchdog_daemon1.php 2>&1 &
-		
+		if [ "x$dolibarrdir" != "x" ]; then
+			echo "Launch $dolibarrdir/htdocs/custom/sellyoursaas/scripts/smtp_watchdog_daemon1.php"
+			"${dolibarrdir}/htdocs/custom/sellyoursaas/scripts/smtp_watchdog_daemon1.php" 2>&1 &
+		else
+			echo Launch /home/admin/wwwroot/dolibarr/htdocs/custom/sellyoursaas/scripts/smtp_watchdog_daemon1.php
+			/home/admin/wwwroot/dolibarr/htdocs/custom/sellyoursaas/scripts/smtp_watchdog_daemon1.php 2>&1 &
+		fi
+		echo "smtp_watchdog_daemon1 started"
 	else
 		echo smtp_watchdog_daemon1 is already running with PID $pid
 	fi
