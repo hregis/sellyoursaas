@@ -303,7 +303,7 @@ mkdir /home/admin/backup/mysql; chown admin.admin /home/admin/backup/mysql;
 mkdir /home/admin/wwwroot; chown admin.admin /home/admin/wwwroot
 ---------------
 
-Check that the id of this user *admin* is greater than or equal to 1000.
+Check in /etc/passwd that the id of this user *admin* is greater than or equal to 1000.
  
 
 Create a user account for yourself (or other administrators), for example: *myunixlogin*. It will be used to log in.
@@ -847,7 +847,8 @@ With the following content:
 # File /etc/sellyoursaas-public.conf
 
 # Options for antispam system
-maxemailperday=500
+maxemailperday=50
+maxemailperdaypaid=500
 
 # Option to use a different path for spam (for public script)
 #pathtospamdir=/tmp/spam
@@ -1931,9 +1932,9 @@ exclude_suffix := tmp old bak
 # default configuration will be upgraded
 # local configuration will be kept
 ########## put your local config below ####################
-!/var/log/mysql
-!/var/log/letsencrypt
-!/var/log/datadog
+! /var/log/mysql
+! /var/log/letsencrypt
+! /var/log/datadog
 
 !/etc/apache2/sellyoursaas-available
 !/etc/apache2/sellyoursaas-online
@@ -1954,7 +1955,7 @@ exclude_suffix := tmp old bak
 
 /home MyRule
 /home/admin/logs Logs
-/var/log/datadog Logs
+/var/log/datadog Logs2
 !/home/admin/backup
 !/home/jail/home
 !/home/admin/wwwroot/dolibarr_documents

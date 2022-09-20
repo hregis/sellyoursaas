@@ -321,9 +321,9 @@ class SellYourSaasUtils
 
 					dol_syslog("* Process contract id=".$object->id." ref=".$object->ref." ref_customer=".$object->ref_customer);
 
-					dol_syslog('Call sellyoursaasIsPaidInstance', LOG_DEBUG, 1);
+					dol_syslog('Call sellyoursaasIsPaidInstance start', LOG_DEBUG, 1);
 					$isAPayingContract = sellyoursaasIsPaidInstance($object);
-					dol_syslog('', 0, -1);
+					dol_syslog('Call sellyoursaasIsPaidInstance end', LOG_DEBUG, -1);
 					if ($mode == 'test' && $isAPayingContract) {          // Discard if this is a paid instance when we are in test mode
 						$contractpayingupdated[$object->id]=$object->ref;
 
@@ -337,9 +337,9 @@ class SellYourSaasUtils
 					//if ($mode == 'paid' && ! $isAPayingContract) continue;										// Discard if this is a test instance when we are in paid mode
 
 					// Suspend instance
-					dol_syslog('Call sellyoursaasGetExpirationDate', LOG_DEBUG, 1);
+					dol_syslog('Call sellyoursaasGetExpirationDate start', LOG_DEBUG, 1);
 					$tmparray = sellyoursaasGetExpirationDate($object);
-					dol_syslog('', 0, -1);
+					dol_syslog('Call sellyoursaasGetExpirationDate end', LOG_DEBUG, -1);
 					$expirationdate = $tmparray['expirationdate'];
 
 					if ($expirationdate && $expirationdate < $date_limit_expiration) {
@@ -1705,9 +1705,9 @@ class SellYourSaasUtils
 
 					dol_syslog("* Process contract in doRefreshContracts for contract id=".$object->id." ref=".$object->ref." ref_customer=".$object->ref_customer);
 
-					dol_syslog('Call sellyoursaasIsPaidInstance', LOG_DEBUG, 1);
+					dol_syslog('Call sellyoursaasIsPaidInstance start', LOG_DEBUG, 1);
 					$isAPayingContract = sellyoursaasIsPaidInstance($object, 0, 0);		// This load also ->linkedObjectsIds
-					dol_syslog('', 0, -1);
+					dol_syslog('Call sellyoursaasIsPaidInstance end isAPayingContract='.$isAPayingContract, LOG_DEBUG, -1);
 					if ($mode == 'test' && $isAPayingContract) {
 						$contractignored[$object->id]=$object->ref;
 						continue;											// Discard if this is a paid instance when we are in test mode
@@ -1718,9 +1718,9 @@ class SellYourSaasUtils
 					}
 
 					// Update expiration date of instance
-					dol_syslog('Call sellyoursaasGetExpirationDate', LOG_DEBUG, 1);
+					dol_syslog('Call sellyoursaasGetExpirationDate start', LOG_DEBUG, 1);
 					$tmparray = sellyoursaasGetExpirationDate($object, 0);				// This loop on $object->lines
-					dol_syslog('', 0, -1);
+					dol_syslog('Call sellyoursaasGetExpirationDate end', LOG_DEBUG, -1);
 					$expirationdate = $tmparray['expirationdate'];
 					$duration_value = $tmparray['duration_value'];
 					$duration_unit = $tmparray['duration_unit'];
@@ -1789,7 +1789,7 @@ class SellYourSaasUtils
 							}
 						} else {
 							$error++;
-							$this->error = "Bad value for newdate in doRefreshContracts - expirationdate=".$expirationdate." enddatetoscan=".$enddatetoscan." duration_value=".$duration_value." duration_unit=".$duration_value;
+							$this->error = "Bad value for newdate in doRefreshContracts ".$object->ref." - expirationdate=".$expirationdate." enddatetoscan=".$enddatetoscan." duration_value=".$duration_value." duration_unit=".$duration_value;
 							dol_syslog($this->error, LOG_ERR);
 						}
 					}
@@ -1804,6 +1804,8 @@ class SellYourSaasUtils
 		$this->output .= count($contractprocessed).' paying contract(s) with end date before '.dol_print_date($enddatetoscan, 'day').' were refreshed'.(count($contractprocessed)>0 ? ' : '.join(',', $contractprocessed) : '').' (search done on contracts of SellYourSaas customers only)';
 
 		$conf->global->SYSLOG_FILE = $savlog;
+
+		dol_syslog(__METHOD__.' end', LOG_DEBUG);
 
 		return ($error ? 1: 0);
 	}
@@ -1884,9 +1886,9 @@ class SellYourSaasUtils
 
 					dol_syslog("* Process contract in doRenewalContracts for contract id=".$object->id." ref=".$object->ref." ref_customer=".$object->ref_customer);
 
-					dol_syslog('Call sellyoursaasIsPaidInstance', LOG_DEBUG, 1);
+					dol_syslog('Call sellyoursaasIsPaidInstance start', LOG_DEBUG, 1);
 					$isAPayingContract = sellyoursaasIsPaidInstance($object);
-					dol_syslog('', 0, -1);
+					dol_syslog('Call sellyoursaasIsPaidInstance end', LOG_DEBUG, -1);
 					if ($mode == 'test' && $isAPayingContract) {
 						$contractignored[$object->id]=$object->ref;
 						continue;											// Discard if this is a paid instance when we are in test mode
@@ -1897,9 +1899,9 @@ class SellYourSaasUtils
 					}
 
 					// Update expiration date of instance
-					dol_syslog('Call sellyoursaasGetExpirationDate', LOG_DEBUG, 1);
+					dol_syslog('Call sellyoursaasGetExpirationDate start', LOG_DEBUG, 1);
 					$tmparray = sellyoursaasGetExpirationDate($object, 0);
-					dol_syslog('', 0, -1);
+					dol_syslog('Call sellyoursaasGetExpirationDate end', LOG_DEBUG, -1);
 					$expirationdate = $tmparray['expirationdate'];
 					$duration_value = $tmparray['duration_value'];
 					$duration_unit = $tmparray['duration_unit'];
@@ -2003,7 +2005,7 @@ class SellYourSaasUtils
 							}
 						} else {
 							$error++;
-							$this->error = "Bad value for newdate in doRenewalContracts - expirationdate=".$expirationdate." enddatetoscan=".$enddatetoscan." duration_value=".$duration_value." duration_unit=".$duration_value;
+							$this->error = "Bad value for newdate in doRenewalContracts ".$object->ref." - expirationdate=".$expirationdate." enddatetoscan=".$enddatetoscan." duration_value=".$duration_value." duration_unit=".$duration_value;
 							dol_syslog($this->error, LOG_ERR);
 						}
 					}
@@ -2174,9 +2176,9 @@ class SellYourSaasUtils
 
 					$object->fetch_thirdparty();
 
-					dol_syslog('Call sellyoursaasIsPaidInstance', LOG_DEBUG, 1);
+					dol_syslog('Call sellyoursaasIsPaidInstance start', LOG_DEBUG, 1);
 					$isAPayingContract = sellyoursaasIsPaidInstance($object);
-					dol_syslog('', 0, -1);
+					dol_syslog('Call sellyoursaasIsPaidInstance end', LOG_DEBUG, -1);
 
 					if ($mode == 'test' && $isAPayingContract) {
 						dol_syslog("It is a paying contract, it will not be processed by this batch");
@@ -2188,9 +2190,9 @@ class SellYourSaasUtils
 					}
 
 					// Get expiration date
-					dol_syslog('Call sellyoursaasGetExpirationDate', LOG_DEBUG, 1);
+					dol_syslog('Call sellyoursaasGetExpirationDate start', LOG_DEBUG, 1);
 					$tmparray = sellyoursaasGetExpirationDate($object, 1);
-					dol_syslog('', 0, -1);
+					dol_syslog('Call sellyoursaasGetExpirationDate end', LOG_DEBUG, -1);
 					$expirationdate = $tmparray['expirationdate'];
 
 					if ($expirationdate && $expirationdate < $now) {	// If contract expired (we already had a test into main select, this is a security)

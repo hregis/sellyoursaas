@@ -605,12 +605,14 @@ done;
 # Now clean also old dir in archives-test
 echo "***** Now clean also old dir in $archivedirtest - 15 days after being archived"
 cd $archivedirtest
-find $archivedirtest -maxdepth 1 -name 'osu*' -path '*archives*' -type d -mtime +15 -delete
+# Note we can't use delete because search and delete is on dir and dir may contains some files
+find $archivedirtest -maxdepth 1 -name 'osu*' -path '*archives*' -type d -mtime +15 -exec rm -fr {} \;
 
 # Now clean also old dir in archives-paid
 echo "***** Now clean also old dir in $archivedirpaid - 90 days after being archived"
 cd $archivedirpaid
-find $archivedirpaid -maxdepth 1 -name 'osu*' -path '*archives*' -type d -mtime +90 -delete
+# Note we can't use delete because search and delete is on dir and dir may contains some files
+find $archivedirpaid -maxdepth 1 -name 'osu*' -path '*archives*' -type d -mtime +90 -exec rm -fr {} \;
 
 if [[ "$dnsserver" == "1" ]]; then
 	# Now clean also old files in $archivedirbind
@@ -645,12 +647,13 @@ fi
 
 # Clean log files
 if [[ "x$instanceserver" != "x0" ]]; then
-	echo "***** We are on a deployment server, so we clean log files" 
+	echo "***** We are on a deployment server, so we clean log files and history files" 
 	echo "Clean web server _error logs"
 	for fic in `ls -art $targetdir/osu*/dbn*/*_error.log 2>/dev/null`; do > $fic; done
 	echo "Clean applicative log files"
 	for fic in `ls -art $targetdir/osu*/dbn*/documents/dolibarr*.log 2>/dev/null`; do > $fic; done
 	for fic in `ls -art $targetdir/osu*/dbn*/htdocs/files/_log/*.log 2>/dev/null`; do > $fic; done
+	for fic in `ls -art $targetdir/osu*/.mysql_history 2>/dev/null`; do rm $fic; done
 fi
 
 
