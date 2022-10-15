@@ -604,7 +604,7 @@ if ($result <= 0 || $newobject->statut == 0) {
 			$invoice_draft->note_private		= 'Template invoice created after adding a payment mode for card/stripe';
 			$invoice_draft->mode_reglement_id	= dol_getIdFromCode($db, 'CB', 'c_paiement', 'code', 'id', 1);
 			$invoice_draft->cond_reglement_id	= dol_getIdFromCode($db, 'RECEP', 'c_payment_term', 'code', 'rowid', 1);
-			$invoice_draft->fk_account          = $conf->global->STRIPE_BANK_ACCOUNT_FOR_PAYMENTS;	// stripe
+			$invoice_draft->fk_account          = getDolGlobalInt('STRIPE_BANK_ACCOUNT_FOR_PAYMENTS');	// stripe
 
 			$invoice_draft->fetch_thirdparty();
 
@@ -928,7 +928,7 @@ print "\n";
 print "-> Files owner were modified for instance ".$newobject->ref_customer.": ".$targetdir." to user ".$newlogin."\n";
 
 
-print '--- Dump database '.$oldobject->database_db.' into /tmp/mysqldump_'.$oldobject->database_db.'_'.gmstrftime('%d').".sql\n";
+print '--- Dump database '.$oldobject->database_db.' into /tmp/mysqldump_'.$oldobject->database_db.'_'.dol_print_date(dol_now('gmt'), "%d", 'gmt').".sql\n";
 
 $command="mysqldump";
 $param=array();
@@ -949,13 +949,13 @@ $param[]="--hex-blob";
 $param[]="--default-character-set=utf8";
 
 $fullcommand=$command." ".join(" ", $param);
-$fullcommand.=' > /tmp/mysqldump_'.$oldobject->database_db.'_'.gmstrftime('%d').'.sql';
+$fullcommand.=' > /tmp/mysqldump_'.$oldobject->database_db.'_'.dol_print_date(dol_now('gmt'), "%d", 'gmt').'.sql';
 $output=array();
 $return_varmysql=0;
-print strftime("%Y%m%d-%H%M%S").' '.$fullcommand."\n";
+print dol_print_date(dol_now('gmt'), "%Y%m%d-%H%M%S", 'gmt').' '.$fullcommand."\n";
 if ($mode != 'test') {
 	exec($fullcommand, $output, $return_varmysql);
-	print strftime("%Y%m%d-%H%M%S").' mysqldump done (return='.$return_varmysql.')'."\n";
+	print dol_print_date(dol_now('gmt'), "%Y%m%d-%H%M%S", 'gmt').' mysqldump done (return='.$return_varmysql.')'."\n";
 }
 
 // Output result
@@ -980,10 +980,10 @@ $fullcommand=$command." ".join(" ", $param);
 $fullcommand.=' -e "REPLACE INTO llx_const (name, entity, value, type, visible) values(\'MAIN_ONLY_LOGIN_ALLOWED\', 0, \'nobody\', \'chaine\', 0);"';	//  UPDATE llx_user SET statut = 0 where login=\'admin\'"
 $output=array();
 $return_varmysql2=0;
-print strftime("%Y%m%d-%H%M%S").' '.$fullcommand."\n";
+print dol_print_date(dol_now('gmt'), "%Y%m%d-%H%M%S", 'gmt').' '.$fullcommand."\n";
 if ($mode != 'test') {
 	exec($fullcommand, $output, $return_varmysql2);
-	print strftime("%Y%m%d-%H%M%S").' mysql done (return='.$return_varmysql2.')'."\n";
+	print dol_print_date(dol_now('gmt'), "%Y%m%d-%H%M%S", 'gmt').' mysql done (return='.$return_varmysql2.')'."\n";
 }
 
 // Output result
@@ -999,7 +999,7 @@ print '--- Load database '.$newobject->database_db.' from /tmp/mysqldump_'.$oldo
 $fullcommanda='echo "drop table llx_accounting_account;" | mysql -u'.$newloginbase.' -p'.$newpasswordbase.' -D '.$newobject->database_db;
 $output=array();
 $return_varload=0;
-print strftime("%Y%m%d-%H%M%S").' Drop table to prevent load error with '.$fullcommanda."\n";
+print dol_print_date(dol_now('gmt'), "%Y%m%d-%H%M%S", 'gmt').' Drop table to prevent load error with '.$fullcommanda."\n";
 if ($mode == 'confirm') {
 	exec($fullcommanda, $output, $return_varload);
 	foreach ($output as $line) print $line."\n";
@@ -1008,18 +1008,18 @@ if ($mode == 'confirm') {
 $fullcommandb='echo "drop table llx_accounting_system;" | mysql -u'.$newloginbase.' -p'.$newpasswordbase.' -D '.$newobject->database_db;
 $output=array();
 $return_varload=0;
-print strftime("%Y%m%d-%H%M%S").' Drop table to prevent load error with '.$fullcommandb."\n";
+print dol_print_date(dol_now('gmt'), "%Y%m%d-%H%M%S", 'gmt').' Drop table to prevent load error with '.$fullcommandb."\n";
 if ($mode == 'confirm') {
 	exec($fullcommandb, $output, $return_varload);
 	foreach ($output as $line) print $line."\n";
 }
 
-$fullcommand="cat /tmp/mysqldump_".$oldobject->database_db.'_'.gmstrftime('%d').".sql | mysql -u".$newloginbase." -p".$newpasswordbase." -D ".$newobject->database_db;
-print strftime("%Y%m%d-%H%M%S")." Load dump with ".$fullcommand."\n";
+$fullcommand="cat /tmp/mysqldump_".$oldobject->database_db.'_'.dol_print_date(dol_now('gmt'), "%d", 'gmt').".sql | mysql -u".$newloginbase." -p".$newpasswordbase." -D ".$newobject->database_db;
+print dol_print_date(dol_now('gmt'), "%Y%m%d-%H%M%S", 'gmt')." Load dump with ".$fullcommand."\n";
 if ($mode == 'confirm') {
 	$output=array();
 	$return_varload=0;
-	print strftime("%Y%m%d-%H%M%S").' '.$fullcommand."\n";
+	print dol_print_date(dol_now('gmt'), "%Y%m%d-%H%M%S", 'gmt').' '.$fullcommand."\n";
 	exec($fullcommand, $output, $return_varload);
 	foreach ($output as $line) print $line."\n";
 }
@@ -1027,7 +1027,7 @@ if ($mode == 'confirm') {
 $fullcommandc='echo "UPDATE llx_const set value = \''.$newlogin.'\' WHERE name = \'CRON_KEY\';" | mysql -u'.$newloginbase.' -p'.$newpasswordbase.' -D '.$newobject->database_db;
 $output=array();
 $return_varcron=0;
-print strftime("%Y%m%d-%H%M%S").' Update cron key '.$fullcommandc."\n";
+print dol_print_date(dol_now('gmt'), "%Y%m%d-%H%M%S", 'gmt').' Update cron key '.$fullcommandc."\n";
 if ($mode == 'confirm') {
 	exec($fullcommandc, $output, $return_varcron);
 	foreach ($output as $line) print $line."\n";

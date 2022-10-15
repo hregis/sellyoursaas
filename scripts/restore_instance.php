@@ -166,7 +166,7 @@ if ($fp) {
  *	Main
  */
 
-print "***** ".$script_file." (".$version.") - ".strftime("%Y%m%d-%H%M%S")." *****\n";
+print "***** ".$script_file." (".$version.") - ".dol_print_date(dol_now('gmt'), "%Y%m%d-%H%M%S", 'gmt')." *****\n";
 
 if (0 == posix_getuid()) {
 	echo "Script must not be ran with root (but with the 'admin' sellyoursaas account).\n";
@@ -350,9 +350,9 @@ if ($mode == 'testrsync' || $mode == 'test' || $mode == 'confirmrsync' || $mode 
 	$fullcommand=$command." ".join(" ", $param);
 	$output=array();
 	$return_var=0;
-	print strftime("%Y%m%d-%H%M%S").' '.$fullcommand."\n";
+	print dol_print_date(dol_now('gmt'), "%Y%m%d-%H%M%S", 'gmt').' '.$fullcommand."\n";
 	exec($fullcommand, $output, $return_var);
-	print strftime("%Y%m%d-%H%M%S").' rsync done'."\n";
+	print dol_print_date(dol_now('gmt'), "%Y%m%d-%H%M%S", 'gmt').' rsync done'."\n";
 
 	// Output result
 	foreach ($output as $outputline) {
@@ -366,7 +366,7 @@ if ($mode == 'testrsync' || $mode == 'test' || $mode == 'confirmrsync' || $mode 
 			fwrite($handle, 'File created after rsync for restore of '.$instance.". return_var=".$return_var."\n");
 			fclose($handle);
 		} else {
-			print strftime("%Y%m%d-%H%M%S").' Warning: Failed to create file last_rsync_'.$instance.'.txt'."\n";
+			print dol_print_date(dol_now('gmt'), "%Y%m%d-%H%M%S", 'gmt').' Warning: Failed to create file last_rsync_'.$instance.'.txt'."\n";
 		}
 	}
 }
@@ -375,7 +375,7 @@ if ($mode == 'testrsync' || $mode == 'test' || $mode == 'confirmrsync' || $mode 
 if ($mode == 'testdatabase' || $mode == 'test' || $mode == 'confirmdatabase' || $mode == 'confirm') {
 	$serverdb = $server;
 	if (filter_var($object->hostname_db, FILTER_VALIDATE_IP) !== false) {
-		print strftime("%Y%m%d-%H%M%S").' hostname_db value is an IP, so we use it in priority instead of ip of deployment server'."\n";
+		print dol_print_date(dol_now('gmt'), "%Y%m%d-%H%M%S", 'gmt').' hostname_db value is an IP, so we use it in priority instead of ip of deployment server'."\n";
 		$serverdb = $object->hostname_db;
 	}
 
@@ -418,11 +418,11 @@ if ($mode == 'testdatabase' || $mode == 'test' || $mode == 'confirmdatabase' || 
 
 	$output=array();
 	$return_varmysql=0;
-	print strftime("%Y%m%d-%H%M%S").' '.$fullcommand."\n";
+	print dol_print_date(dol_now('gmt'), "%Y%m%d-%H%M%S", 'gmt').' '.$fullcommand."\n";
 	if ($mode == 'confirm' || $mode == 'confirmdatabase') {
 		exec($fullcommand, $output, $return_varmysql);
 	}
-	print strftime("%Y%m%d-%H%M%S").' mysql load done (return='.$return_varmysql.')'."\n";
+	print dol_print_date(dol_now('gmt'), "%Y%m%d-%H%M%S", 'gmt').' mysql load done (return='.$return_varmysql.')'."\n";
 
 	// Output result
 	foreach ($output as $outputline) {
@@ -437,7 +437,7 @@ if ($mode == 'testdatabase' || $mode == 'test' || $mode == 'confirmdatabase' || 
 			fwrite($handle, 'The dump file restored was: '.$dirroot.'/../'.$dumpfiletoload."\n");
 			fclose($handle);
 		} else {
-			print strftime("%Y%m%d-%H%M%S").' Warning: Failed to create file last_mysqlrestore_'.$instance.'.txt'."\n";
+			print dol_print_date(dol_now('gmt'), "%Y%m%d-%H%M%S", 'gmt').' Warning: Failed to create file last_mysqlrestore_'.$instance.'.txt'."\n";
 		}
 	}
 }
@@ -460,9 +460,22 @@ if (!sellyoursaasIsPaidInstance($object)) {
 	// No message
 }
 
+$sendcontext = 'emailing';
+
 // Send result to supervision if enabled
 if (empty($return_var) && empty($return_varmysql)) {
 	if ($mode == 'confirm') {
+		$from = $conf->global->SELLYOURSAAS_NOREPLY_EMAIL;
+		$to = $conf->global->SELLYOURSAAS_SUPERVISION_EMAIL;
+		// Supervision tools are generic for all domain. No way to target a specific supervision email.
+
+		$msg = 'Restore done without errors by '.$script_file." ".$argv[1]." ".$argv[2]." ".$argv[3]." (finished at ".dol_print_date(dol_now('gmt'), "%Y%m%d-%H%M%S", 'gmt').")\n\n";
+
+		include_once DOL_DOCUMENT_ROOT.'/core/class/CMailFile.class.php';
+		print 'Send email MAIN_MAIL_SENDMODE='.$conf->global->MAIN_MAIL_SENDMODE.' MAIN_MAIL_SMTP_SERVER='.$conf->global->MAIN_MAIL_SMTP_SERVER.' from='.$from.' to='.$to.' title=[Restore instance - '.gethostname().'] Restore of user instance succeed.'."\n";
+		$cmail = new CMailFile('[Restore instance - '.gethostname().'] Restore of user instance succeed - '.dol_print_date(dol_now(), 'dayrfc'), $to, $from, $msg, array(), array(), array(), '', '', 0, 0, '', '', '', '', $sendcontext);
+		$result = $cmail->sendfile();		// Use the $conf->global->MAIN_MAIL_SMTPS_PW_$SENDCONTEXT for password
+
 		// Send to DataDog (metric + event)
 		if (! empty($conf->global->SELLYOURSAAS_DATADOG_ENABLED)) {
 			try {
@@ -478,6 +491,7 @@ if (empty($return_var) && empty($return_varmysql)) {
 				$arraytags=array('result'=>'ok');
 				$statsd->increment('sellyoursaas.restore', 1, $arraytags);
 			} catch (Exception $e) {
+				// No action
 			}
 		}
 	}
@@ -486,6 +500,17 @@ if (empty($return_var) && empty($return_varmysql)) {
 	if (! empty($return_varmysql)) print "ERROR into restore process of mysqldump: ".$return_varmysql."\n";
 
 	if ($mode == 'confirm') {
+		$from = $conf->global->SELLYOURSAAS_NOREPLY_EMAIL;
+		$to = $conf->global->SELLYOURSAAS_SUPERVISION_EMAIL;
+		// Supervision tools are generic for all domain. No way to target a specific supervision email.
+
+		$msg = 'Error in '.$script_file." ".$argv[1]." ".$argv[2]." ".$argv[3]." (finished at ".dol_print_date(dol_now('gmt'), "%Y%m%d-%H%M%S", 'gmt').")\n\n".$return_var."\n".$return_varmysql;
+
+		include_once DOL_DOCUMENT_ROOT.'/core/class/CMailFile.class.php';
+		print 'Send email MAIN_MAIL_SENDMODE='.$conf->global->MAIN_MAIL_SENDMODE.' MAIN_MAIL_SMTP_SERVER='.$conf->global->MAIN_MAIL_SMTP_SERVER.' from='.$from.' to='.$to.' title=[Warning] Error(s) in restoring - '.gethostname().' - '.dol_print_date(dol_now(), 'dayrfc')."\n";
+		$cmail = new CMailFile('[Warning] Error(s) in restore process - '.gethostname().' - '.dol_print_date(dol_now(), 'dayrfc'), $to, $from, $msg, array(), array(), array(), '', '', 0, 0, '', '', '', '', $sendcontext);
+		$result = $cmail->sendfile();		// Use the $conf->global->MAIN_MAIL_SMTPS_PW_$SENDCONTEXT for password
+
 		// Send to DataDog (metric + event)
 		if (! empty($conf->global->SELLYOURSAAS_DATADOG_ENABLED)) {
 			try {
@@ -501,6 +526,7 @@ if (empty($return_var) && empty($return_varmysql)) {
 				$arraytags=array('result'=>'ko');
 				$statsd->increment('sellyoursaas.restore', 1, $arraytags);
 			} catch (Exception $e) {
+				// No action
 			}
 		}
 	}

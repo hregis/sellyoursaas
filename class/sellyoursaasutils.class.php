@@ -493,9 +493,9 @@ class SellYourSaasUtils
 		$sql = 'SELECT DISTINCT sr.rowid, sr.fk_soc, sr.exp_date_month, sr.exp_date_year, sr.last_four, sr.status';
 		$sql.= ' FROM '.MAIN_DB_PREFIX.'societe_rib as sr, '.MAIN_DB_PREFIX.'societe_extrafields as se,';
 		$sql.= ' '.MAIN_DB_PREFIX.'facture_rec as fr';
-		$sql.= " WHERE sr.fk_soc = fr.fk_soc AND sr.default_rib = 1 AND sr.type = 'card' AND sr.status = ".$servicestatus;
+		$sql.= " WHERE sr.fk_soc = fr.fk_soc AND sr.default_rib = 1 AND sr.type = 'card' AND sr.status = ".((int) $servicestatus);
 		$sql.= " AND se.fk_object = fr.fk_soc AND se.dolicloud = 'yesv2'";
-		$sql.= " AND sr.exp_date_month = ".$currentmonth." AND sr.exp_date_year = ".$currentyear;
+		$sql.= " AND sr.exp_date_month = ".((int) $currentmonth)." AND sr.exp_date_year = ".((int) $currentyear);
 		$sql.= " AND fr.suspended = ".FactureRec::STATUS_NOTSUSPENDED;
 		$sql.= " AND fr.frequency > 0";
 
@@ -642,8 +642,8 @@ class SellYourSaasUtils
 			$sql = 'SELECT DISTINCT sr.rowid, sr.fk_soc, sr.exp_date_month, sr.exp_date_year, sr.last_four, sr.status';
 			$sql.= ' FROM '.MAIN_DB_PREFIX.'societe_rib as sr, '.MAIN_DB_PREFIX.'societe_extrafields as se,';
 			$sql.= ' '.MAIN_DB_PREFIX.'facture_rec as fr';
-			$sql.= " WHERE sr.fk_soc = fr.fk_soc AND sr.default_rib = 1 AND sr.type = 'paypal' AND sr.status = ".$servicestatus;
-			$sql.= " AND sr.exp_date_month = ".$currentmonth." AND sr.exp_date_year = ".$currentyear;
+			$sql.= " WHERE sr.fk_soc = fr.fk_soc AND sr.default_rib = 1 AND sr.type = 'paypal' AND sr.status = ".((int) $servicestatus);
+			$sql.= " AND sr.exp_date_month = ".((int) $currentmonth)." AND sr.exp_date_year = ".((int) $currentyear);
 			$sql.= " AND se.fk_object = fr.fk_soc AND se.dolicloud = 'yesv2'";
 			$sql.= " AND fr.suspended = ".FactureRec::STATUS_NOTSUSPENDED;
 			$sql.= " AND fr.frequency > 0";
@@ -721,9 +721,10 @@ class SellYourSaasUtils
 	 *
 	 * @param	int		$maxnbofinvoicetotry    		Max number of payment to do (0 = No max)
 	 * @param	int		$noemailtocustomeriferror		1=No email sent to customer if there is a payment error (can be used when error is already reported on screen)
+	 * @param	string  $mode                           Payment type can be "card" or "ban"
 	 * @return	int			                    		0 if OK, <>0 if KO (this function is used also by cron so only 0 is OK)
 	 */
-	public function doTakePaymentStripe($maxnbofinvoicetotry = 0, $noemailtocustomeriferror = 0)
+	public function doTakePaymentStripe($maxnbofinvoicetotry = 0, $noemailtocustomeriferror = 0, $mode = 'card')
 	{
 		global $conf, $langs, $mysoc;
 
@@ -770,7 +771,7 @@ class SellYourSaasUtils
 		$sql .= " AND f.paye = 0 AND f.type = 0 AND f.fk_statut = ".Facture::STATUS_VALIDATED;
 		$sql .= " AND f.fk_soc = se.fk_object AND se.dolicloud = 'yesv2'";
 		$sql .= " AND sr.status = ".((int) $servicestatus);
-		$sql .= " AND sr.type = 'card'";	// This exclude payment mode of type IBAN for example (only card is used for doTakePaymentStripe)
+		$sql .= " AND sr.type = '".$this->db->escape($mode)."'";	// This exclude payment mode of other types
 		$sql .= " AND sr.stripe_card_ref IS NOT NULL";	// Only stripe payment mode
 		// We must add a sort on sr.default_rib to get the default first, and then the last recent if no default found.
 		$sql .= " ORDER BY f.datef ASC, f.rowid ASC, sr.default_rib DESC, sr.tms DESC";	// Lines may be duplicated. Never mind, we will exclude duplicated invoice later.
@@ -851,9 +852,10 @@ class SellYourSaasUtils
 	 * @param	int		             $noemailtocustomeriferror	1=No email sent to customer if there is a payment error (can be used when error is already reported on screen)
 	 * @param	int		             $nocancelifpaymenterror	1=Do not cancel payment if there is a recent payment error AC_PAYMENT_STRIPE_KO (used to charge from user console)
 	 * @param   int                  $calledinmyaccountcontext  1=The payment is called in a myaccount GUI context. So we can ignore control on delayed payments.
+	 * @param	string				 $mode						Payment type can be "card" or "ban"
 	 * @return	int					                 			0 if no error, >0 if error
 	 */
-	public function doTakePaymentStripeForThirdparty($service, $servicestatus, $thirdparty_id, $companypaymentmode, $invoice = null, $includedraft = 0, $noemailtocustomeriferror = 0, $nocancelifpaymenterror = 0, $calledinmyaccountcontext = 0)
+	public function doTakePaymentStripeForThirdparty($service, $servicestatus, $thirdparty_id, $companypaymentmode, $invoice = null, $includedraft = 0, $noemailtocustomeriferror = 0, $nocancelifpaymenterror = 0, $calledinmyaccountcontext = 0, $mode = 'card')
 	{
 		global $conf, $mysoc, $user, $langs;
 
@@ -1110,7 +1112,13 @@ class SellYourSaasUtils
 						}
 
 						if (!$error) {	// Payment was not canceled
-							$stripecard = $stripe->cardStripe($customer, $companypaymentmode, $stripeacc, $servicestatus, 0);
+							if ($mode == "ban") {
+								$stripecard = $stripe->sepaStripe($customer, $companypaymentmode, $stripeacc, $servicestatus, 0);
+							} elseif ($mode == "card") {
+								$stripecard = $stripe->cardStripe($customer, $companypaymentmode, $stripeacc, $servicestatus, 0);
+							} else {
+								$stripecard = null;
+							}
 							if ($stripecard) {  // Can be card_... (old mode) or pm_... (new mode)
 								$FULLTAG='INV='.$invoice->id.'-CUS='.$thirdparty->id;
 								$description='Stripe payment from doTakePaymentStripeForThirdparty: '.$FULLTAG.' ref='.$invoice->ref;
@@ -1157,7 +1165,7 @@ class SellYourSaasUtils
 									$paymentintent = $stripe->getPaymentIntent($amounttopay, $currency, $FULLTAG, $description, $invoice, $customer->id, $stripeacc, $servicestatus, 0, 'automatic', $confirmnow, $stripecard->id, 1);
 
 									$charge = new stdClass();
-									if ($paymentintent->status === 'succeeded') {
+									if ($paymentintent->status === 'succeeded' || $paymentintent->status === 'processing') {
 										$charge->status = 'ok';
 										$charge->id = $paymentintent->id;
 										$charge->customer = $customer->id;
@@ -1254,7 +1262,12 @@ class SellYourSaasUtils
 									if ($paymentmethod == 'stripe') $paymentTypeId = $conf->global->STRIPE_PAYMENT_MODE_FOR_PAYMENTS;
 									if (empty($paymentTypeId)) {
 										$paymentType = $_SESSION["paymentType"];
-										if (empty($paymentType)) $paymentType = 'CB';
+										if ($companypaymentmode->type == 'ban') {
+											$paymentType = 'PRE';
+										}
+										if (empty($paymentType)) {
+											$paymentType = 'CB';
+										}
 										$paymentTypeId = dol_getIdFromCode($this->db, $paymentType, 'c_paiement', 'code', 'id', 1);
 									}
 
@@ -1312,9 +1325,15 @@ class SellYourSaasUtils
 										dol_syslog('* Add payment to bank');
 
 										$bankaccountid = 0;
-										if ($paymentmethod == 'paybox') $bankaccountid = $conf->global->PAYBOX_BANK_ACCOUNT_FOR_PAYMENTS;
-										if ($paymentmethod == 'paypal') $bankaccountid = $conf->global->PAYPAL_BANK_ACCOUNT_FOR_PAYMENTS;
-										if ($paymentmethod == 'stripe') $bankaccountid = $conf->global->STRIPE_BANK_ACCOUNT_FOR_PAYMENTS;
+										if ($paymentmethod == 'paybox') {
+											$bankaccountid = getDolGlobalInt('PAYBOX_BANK_ACCOUNT_FOR_PAYMENTS');
+										}
+										if ($paymentmethod == 'paypal') {
+											$bankaccountid = getDolGlobalInt('PAYPAL_BANK_ACCOUNT_FOR_PAYMENTS');
+										}
+										if ($paymentmethod == 'stripe') {
+											$bankaccountid = getDolGlobalInt('STRIPE_BANK_ACCOUNT_FOR_PAYMENTS');
+										}
 
 										if ($bankaccountid > 0) {
 											$label='(CustomerInvoicePayment)';
@@ -2275,7 +2294,7 @@ class SellYourSaasUtils
 									$invoice_draft->note_private		= 'Template invoice created by batch doSuspendInstances because expired and a payment mode exists for customer';
 									$invoice_draft->mode_reglement_id	= dol_getIdFromCode($db, 'CB', 'c_paiement', 'code', 'id', 1);
 									$invoice_draft->cond_reglement_id	= dol_getIdFromCode($db, 'RECEP', 'c_payment_term', 'code', 'rowid', 1);
-									$invoice_draft->fk_account          = $conf->global->STRIPE_BANK_ACCOUNT_FOR_PAYMENTS;	// stripe
+									$invoice_draft->fk_account          = getDolGlobalInt('STRIPE_BANK_ACCOUNT_FOR_PAYMENTS');	// stripe
 
 									$invoice_draft->fetch_thirdparty();
 
@@ -2916,7 +2935,7 @@ class SellYourSaasUtils
 	 * 													'rename'=change apache virtual host file
 	 * 													'suspend/suspendmaintenance/unsuspend'=change apache virtual host file,
 	 * 													'refresh'=update status of install.lock+authorized key + loop on each line and read remote data and update qty of metrics
-	 * 													'refreshmetrics'=loop on each line and read remote data and update qty of metrics
+	 * 													'refreshmetrics'=loop on each line of contract and read remote data and update qty of metrics
 	 * 													'recreateauthorizedkeys', 'deletelock', 'recreatelock'
 	 * 													'migrate',
 	 * @param 	Contrat|ContratLigne	$object			Object contract or contract line
@@ -3013,9 +3032,7 @@ class SellYourSaasUtils
 								$object->array_options['options_fileauthorizekey'] = $dateauthorizedkeysfile;
 								$object->update($user);
 							}
-						}
-
-						elseif ($remoteaction == 'recreateauthorizedkeys') {
+						} elseif ($remoteaction == 'recreateauthorizedkeys') {
 							$sftp = ssh2_sftp($connection);
 							if (! $sftp) {
 								dol_syslog("Could not execute ssh2_sftp", LOG_ERR);
@@ -3065,9 +3082,7 @@ class SellYourSaasUtils
 
 								if (! empty($fstat['atime'])) $result = $object->update($user);
 							}
-						}
-
-						elseif ($remoteaction == 'deletelock') {
+						} elseif ($remoteaction == 'deletelock') {
 							$sftp = ssh2_sftp($connection);
 							if (! $sftp) {
 								dol_syslog("Could not execute ssh2_sftp", LOG_ERR);
@@ -3089,9 +3104,7 @@ class SellYourSaasUtils
 									$result = $object->update($user, 1);
 								}
 							}
-						}
-
-						elseif ($remoteaction == 'recreatelock') {
+						} elseif ($remoteaction == 'recreatelock') {
 							$sftp = ssh2_sftp($connection);
 							if (! $sftp) {
 								dol_syslog("Could not execute ssh2_sftp", LOG_ERR);
@@ -3120,9 +3133,7 @@ class SellYourSaasUtils
 									$result = $object->update($user, 1);
 								}
 							}
-						}
-
-						elseif ($remoteaction == 'deleteinstallmoduleslock') {
+						} elseif ($remoteaction == 'deleteinstallmoduleslock') {
 							$sftp = ssh2_sftp($connection);
 							if (! $sftp) {
 								dol_syslog("Could not execute ssh2_sftp", LOG_ERR);
@@ -3144,9 +3155,7 @@ class SellYourSaasUtils
 									$result = $object->update($user, 1);
 								}
 							}
-						}
-
-						elseif ($remoteaction == 'recreateinstallmoduleslock') {
+						} elseif ($remoteaction == 'recreateinstallmoduleslock') {
 							$sftp = ssh2_sftp($connection);
 							if (! $sftp) {
 								dol_syslog("Could not execute ssh2_sftp", LOG_ERR);
@@ -3760,6 +3769,8 @@ class SellYourSaasUtils
 								}
 
 								// TODO Check $newqty is lower than a max defined into service.
+
+								$dbinstance->free($resql);
 							} else {
 								$error++;
 								$this->error = $dbinstance->lasterror();

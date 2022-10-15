@@ -81,9 +81,7 @@ if ($action == 'addauthorizedkey') {
 	} else {
 		setEventMessages($langs->transnoentitiesnoconv("FailedToConnectToSftp", $server.' - port '.$server_port), null, 'errors');
 	}
-}
-
-elseif ($action == 'addinstalllock') {
+} elseif ($action == 'addinstalllock') {
 	// SSH connect
 	if (! function_exists("ssh2_connect")) {
 		dol_print_error('', 'ssh2_connect function does not exists'); exit;
@@ -134,9 +132,7 @@ elseif ($action == 'addinstalllock') {
 			}
 		}
 	} else setEventMessage($langs->transnoentitiesnoconv("FailedToConnectToSftp", $server), 'errors');
-}
-
-elseif ($action == 'addinstallmoduleslock') {
+} elseif ($action == 'addinstallmoduleslock') {
 	// SSH connect
 	if (! function_exists("ssh2_connect")) {
 		dol_print_error('', 'ssh2_connect function does not exists'); exit;
@@ -187,9 +183,7 @@ elseif ($action == 'addinstallmoduleslock') {
 			}
 		}
 	} else setEventMessage($langs->transnoentitiesnoconv("FailedToConnectToSftp", $server), 'errors');
-}
-
-elseif ($action == 'delauthorizedkey') {
+} elseif ($action == 'delauthorizedkey') {
 	// SSH connect
 	if (! function_exists("ssh2_connect")) {
 		dol_print_error('', 'ssh2_connect function does not exists'); exit;
@@ -232,9 +226,7 @@ elseif ($action == 'delauthorizedkey') {
 			}
 		}
 	} else setEventMessage($langs->transnoentitiesnoconv("FailedToConnectToSftp", $server), 'errors');
-}
-
-elseif ($action == 'delinstalllock') {
+} elseif ($action == 'delinstalllock') {
 	// SSH connect
 	if (! function_exists("ssh2_connect")) {
 		dol_print_error('', 'ssh2_connect function does not exists'); exit;
@@ -278,9 +270,7 @@ elseif ($action == 'delinstalllock') {
 			}
 		}
 	} else setEventMessage($langs->transnoentitiesnoconv("FailedToConnectToSftp", $server), 'errors');
-}
-
-elseif ($action == 'delinstallmoduleslock') {
+} elseif ($action == 'delinstallmoduleslock') {
 	// SSH connect
 	if (! function_exists("ssh2_connect")) {
 		dol_print_error('', 'ssh2_connect function does not exists'); exit;
@@ -328,13 +318,14 @@ elseif ($action == 'delinstallmoduleslock') {
 
 
 // We make a refresh of status of install.lock + authorized key, this does not update the qty into lines (this is done in doRefreshContracts or doRenewalContracts).
+/*
 if ($action == 'refresh' || $action == 'setdate') {
 	dol_include_once("/sellyoursaas/backoffice/lib/refresh.lib.php");		// do not use dol_buildpath to keep global of var into refresh.lib.php working
 
 	$object->oldcopy=dol_clone($object, 1);
 
-	// TODO Replace this with a
-	// $result = $sellyoursaasutils->sellyoursaasRemoteAction('refresh', $contract, 'admin', '', '', '0', $comment);
+	// TODO Remove this when action = refresh. Seems already done by the doActions hook.
+	// $result = $sellyoursaasutils->sellyoursaasRemoteAction('refresh', $contract);
 
 	// Check remote files (install.lock and authorized_keys_support, recreate authorized_keys_support only if not found). Does not update lastcheck field.
 	$ret=dolicloud_files_refresh($conf, $db, $object, $errors);
@@ -344,3 +335,4 @@ if ($action == 'refresh' || $action == 'setdate') {
 
 	$action = 'view';
 }
+*/

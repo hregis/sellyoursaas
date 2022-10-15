@@ -112,7 +112,7 @@ class ActionsSellyoursaas
 					}
 
 					$dol_login_hash=dol_hash(getDolGlobalString('SELLYOURSAAS_KEYFORHASH').$object->email.dol_print_date(dol_now(), 'dayrfc'), 5);	// hash to login is sha256 and is valid one day
-					$url=$urlmyaccount.'?mode=logout_dashboard&action=login&actionlogin=login&username='.urlencode($object->email).'&password=&login_hash='.$dol_login_hash;
+					$url=$urlmyaccount.'?mode=logout_dashboard&action=login&token='.newToken().'&actionlogin=login&username='.urlencode(empty($object->email) ? '' : $object->email).'&password=&login_hash='.$dol_login_hash;
 				}
 
 				if ($url) {
@@ -886,11 +886,11 @@ class ActionsSellyoursaas
 			$database_db = $object->database_db;
 			if (empty($database_db)) $database_db = $contract->array_options['options_database_db'];
 
-			$server = (! empty($hostname_db) ? $hostname_db : $instance);
+			$server = (! empty($hostname_db) ? $hostname_db : $server);
 
-			$newdb=getDoliDBInstance('mysqli', $server, $username_db, $password_db, $database_db, $port_db);
+			$newdb = getDoliDBInstance('mysqli', $server, $username_db, $password_db, $database_db, $port_db);
 
-			if ($newdb->connected) {
+			if (is_object($newdb) && $newdb->connected) {
 				// Get version
 				$parameters['substitutionarray']['sellyoursaas_version']=7;
 				$sql = " SELECT value FROM ".MAIN_DB_PREFIX."const where name = 'MAIN_VERSION_LAST_UPGRADE'";
@@ -903,6 +903,8 @@ class ActionsSellyoursaas
 						$parameters['substitutionarray']['sellyoursaas_version']=$vermaj;
 					}
 				}
+
+				$newdb->close();
 			}
 		}
 

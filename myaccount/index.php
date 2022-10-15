@@ -86,6 +86,7 @@ require_once DOL_DOCUMENT_ROOT.'/societe/class/societeaccount.class.php';
 require_once DOL_DOCUMENT_ROOT.'/societe/class/companybankaccount.class.php';
 require_once DOL_DOCUMENT_ROOT.'/societe/class/companypaymentmode.class.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/geturl.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/stripe/class/stripe.class.php';
 dol_include_once('/sellyoursaas/class/packages.class.php');
 dol_include_once('/sellyoursaas/lib/sellyoursaas.lib.php');
 dol_include_once('/sellyoursaas/class/sellyoursaasutils.class.php');
@@ -943,13 +944,25 @@ if ($action == 'updateurl') {
 
 			$resultbankcreate = $companybankaccount->update($user);
 			if ($resultbankcreate > 0) {
-				$resultbanksetdefault = $companybankaccount->setAsDefault(0, '');
-				if ($resultbanksetdefault > 0) {
-					setEventMessages($langs->trans("BankSaved"), null, 'mesgs');
-					setEventMessages($langs->trans("WeWillContactYouForMandaSepate"), null, 'warnings');
-				} else {
-					setEventMessages($companybankaccount->error, $companybankaccount->errors, 'errors');
+				$sql = "UPDATE ".MAIN_DB_PREFIX ."societe_rib";
+				$sql.= " SET status = '".$db->escape($servicestatusstripe)."'";
+				$sql.= " WHERE rowid = " . $companybankid;
+				$sql.= " AND type = 'ban'";
+				$resql = $db->query($sql);
+				if (! $resql) {
+					dol_syslog("Failed to update societe_rib ".$db->lasterror(), LOG_ERR);
+					setEventMessages($db->lasterror(), null, 'errors');
 					$error++;
+				}
+				if (!$error) {
+					$resultbanksetdefault = $companybankaccount->setAsDefault(0, '');
+					if ($resultbanksetdefault > 0) {
+						setEventMessages($langs->trans("BankSaved"), null, 'mesgs');
+						setEventMessages($langs->trans("WeWillContactYouForMandaSepate"), null, 'warnings');
+					} else {
+						setEventMessages($companybankaccount->error, $companybankaccount->errors, 'errors');
+						$error++;
+					}
 				}
 			} else {
 				if ($db->lasterrno() == 'DB_ERROR_RECORD_ALREADY_EXISTS') {
@@ -958,6 +971,42 @@ if ($action == 'updateurl') {
 					setEventMessages($companybankaccount->error, $companybankaccount->errors, 'errors');
 				}
 				$error++;
+			}
+		}
+
+		if (!$error && isModEnabled('stripe')) {
+			$companybankaccount->fetch(GETPOST('bankid'));
+			$service = 'StripeTest';
+			$servicestatus = 0;
+			if (!empty($conf->global->STRIPE_LIVE) && !GETPOST('forcesandbox', 'alpha')) {
+				$service = 'StripeLive';
+				$servicestatus = 1;
+			}
+
+			$companypaymentmode = new CompanyPaymentMode($db);
+			$companypaymentmode->fetch(null, null, $socid);
+			$stripe = new Stripe($db);
+
+			if ($companypaymentmode->type != 'ban') {
+				$error++;
+				setEventMessages('ThisPaymentModeIsNotSepa', null, 'errors');
+			} else {
+				$cu = $stripe->customerStripe($mythirdpartyaccount, $stripeacc, $servicestatus, 1);
+				if (!$cu) {
+					$error++;
+					setEventMessages($stripe->error, $stripe->errors, 'errors');
+				}
+
+				if (!$error) {
+					// Creation of Stripe SEPA + update of societe_account
+					$card = $stripe->sepaStripe($cu, $companypaymentmode, $stripeacc, $servicestatus, 1);
+					if (!$card) {
+						$error++;
+						setEventMessages($stripe->error, $stripe->errors, 'errors');
+					} else {
+						setEventMessages("SEPA on Stripe", "SEPA IBAN is now linked to customer account !");
+					}
+				}
 			}
 		}
 
@@ -1253,7 +1302,7 @@ if ($action == 'updateurl') {
 							$invoice_draft->note_private		= 'Template invoice created after adding a payment mode for card/stripe';
 							$invoice_draft->mode_reglement_id	= dol_getIdFromCode($db, 'CB', 'c_paiement', 'code', 'id', 1);
 							$invoice_draft->cond_reglement_id	= dol_getIdFromCode($db, 'RECEP', 'c_payment_term', 'code', 'rowid', 1);
-							$invoice_draft->fk_account          = $conf->global->STRIPE_BANK_ACCOUNT_FOR_PAYMENTS;	// stripe
+							$invoice_draft->fk_account          =getDolGlobalInt('STRIPE_BANK_ACCOUNT_FOR_PAYMENTS');	// stripe
 
 							$invoice_draft->fetch_thirdparty();
 
@@ -1937,7 +1986,7 @@ if ($action == 'updateurl') {
 							$invoice_draft->note_private		= 'Template invoice created after adding a payment mode for card/stripe';
 							$invoice_draft->mode_reglement_id	= dol_getIdFromCode($db, 'CB', 'c_paiement', 'code', 'id', 1);
 							$invoice_draft->cond_reglement_id	= dol_getIdFromCode($db, 'RECEP', 'c_payment_term', 'code', 'rowid', 1);
-							$invoice_draft->fk_account          = $conf->global->STRIPE_BANK_ACCOUNT_FOR_PAYMENTS;	// stripe
+							$invoice_draft->fk_account          = getDolGlobalInt('STRIPE_BANK_ACCOUNT_FOR_PAYMENTS');	// stripe
 
 							$invoice_draft->fetch_thirdparty();
 
@@ -2885,32 +2934,50 @@ if ($welcomecid > 0) {
 	';
 }
 
-// Show global announce
+$showannoucefordomain = array();
+// Detect global announce
 if (! empty($conf->global->SELLYOURSAAS_ANNOUNCE_ON) && ! empty($conf->global->SELLYOURSAAS_ANNOUNCE)) {
-	$sql = "SELECT tms from ".MAIN_DB_PREFIX."const where name = 'SELLYOURSAAS_ANNOUNCE'";
-	$resql=$db->query($sql);
-	if ($resql) {
-		$obj = $db->fetch_object($resql);
-		$datemessage = $db->jdate($obj->tms);
-
-		print '
-    		<div class="note note-warning">';
-		print '<b>'.dol_print_date($datemessage, 'dayhour').'</b> : ';
-		   $reg=array();
-		if (preg_match('/^\((.*)\)$/', $conf->global->SELLYOURSAAS_ANNOUNCE, $reg)) {
-			$texttoshow = $langs->trans($reg[1]);
-		} else {
-			$texttoshow = $conf->global->SELLYOURSAAS_ANNOUNCE;
-		}
-		print '<h4 class="block">'.$texttoshow.'</h4>
-    		</div>
-    	';
-	} else {
-		dol_print_error($db);
+	$showannoucefordomain['_global_'] = 'SELLYOURSAAS_ANNOUNCE';
+}
+// Detect local announce
+foreach ($listofcontractidopen as $tmpcontract) {
+	$tmpdomainname = getDomainFromURL($tmpcontract->ref_customer, 2);
+	if (getDolGlobalString('SELLYOURSAAS_ANNOUNCE_ON_'.$tmpdomainname)) {
+		$showannoucefordomain[$tmpdomainname] = 'SELLYOURSAAS_ANNOUNCE_'.$tmpdomainname;
 	}
 }
+// Show annouces detected
+if (!empty($showannoucefordomain)) {
+	foreach ($showannoucefordomain as $tmpdomainame => $tmpkey) {
+		$sql = "SELECT name, value, tms from ".MAIN_DB_PREFIX."const where name = '".$db->escape($tmpkey)."'";
+		$resql=$db->query($sql);
+		if ($resql) {
+			$obj = $db->fetch_object($resql);
+			if ($obj) {
+				$datemessage = $db->jdate($obj->tms);
 
-
+				print '<div class="note note-warning">';
+				print '<b>'.dol_print_date($datemessage, 'dayhour').'</b>';
+				if ($tmpdomainame != '_global_') {
+					print ' - '.$langs->trans("Domain").' <b>'.$tmpdomainame.'</b>';
+				}
+				print ' : ';
+				print '<h4 class="block">';
+				$reg=array();
+				if (preg_match('/^\((.*)\)$/', $obj->value, $reg)) {
+					print $langs->trans($reg[1]);
+				} else {
+					print $obj->value;
+				}
+				print '</h4>';
+				print '</div>';
+			}
+			$db->free($resql);
+		} else {
+			dol_print_error($db);
+		}
+	}
+}
 
 // List of available plans/products (available for reseller)
 $arrayofplans=array();
@@ -3160,7 +3227,7 @@ $arrayofcompanypaymentmode = array();
 $sql = 'SELECT rowid, default_rib FROM '.MAIN_DB_PREFIX."societe_rib";
 $sql.= " WHERE type in ('ban', 'card', 'paypal')";
 $sql.= " AND fk_soc = ".$mythirdpartyaccount->id;
-$sql.= " AND (type = 'ban' OR (type='card' AND status = ".$servicestatusstripe.") OR (type='paypal' AND status = ".$servicestatuspaypal."))";
+$sql.= " AND (type = 'ban' OR (type = 'card' AND status = ".$servicestatusstripe.") OR (type = 'paypal' AND status = ".$servicestatuspaypal."))";
 $sql.= " ORDER BY default_rib DESC, tms DESC";
 
 $resql = $db->query($sql);

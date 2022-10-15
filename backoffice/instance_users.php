@@ -103,6 +103,9 @@ $result = restrictedArea($user, 'sellyoursaas', 0, '', '');
 
 $parameters=array('id'=>$id, 'objcanvas'=>$objcanvas);
 $reshook=$hookmanager->executeHooks('doActions', $parameters, $object, $action);    // Note that $action and $object may have been modified by some hooks
+if ($reshook < 0) {
+	setEventMessages($hookmanager->error, $hookmanager->errors, 'errors');
+}
 
 if (empty($reshook)) {
 	// Cancel
@@ -113,7 +116,7 @@ if (empty($reshook)) {
 	include DOL_DOCUMENT_ROOT.'/core/actions_changeselectedfields.inc.php';
 
 	if ($action == "createsupportuser") {
-		$newdb=getDoliDBInstance($type_db, $hostname_db, $username_db, $password_db, $database_db, $port_db);
+		$newdb = getDoliDBInstance($type_db, $hostname_db, $username_db, $password_db, $database_db, $port_db);
 		$newdb->prefix_db = $prefix_db;
 
 		if (is_object($newdb)) {
@@ -189,7 +192,7 @@ if (empty($reshook)) {
 		}
 	}
 	if ($action == "deletesupportuser") {
-		$newdb=getDoliDBInstance($type_db, $hostname_db, $username_db, $password_db, $database_db, $port_db);
+		$newdb = getDoliDBInstance($type_db, $hostname_db, $username_db, $password_db, $database_db, $port_db);
 		if (is_object($newdb)) {
 			$sql="DELETE FROM ".$prefix_db."user_rights where fk_user IN (SELECT rowid FROM ".$prefix_db."user WHERE login = '".$conf->global->SELLYOURSAAS_LOGIN_FOR_SUPPORT."')";
 			$resql=$newdb->query($sql);
@@ -203,7 +206,7 @@ if (empty($reshook)) {
 	}
 
 	if ($action == "disableuser") {
-		$newdb=getDoliDBInstance($type_db, $hostname_db, $username_db, $password_db, $database_db, $port_db);
+		$newdb = getDoliDBInstance($type_db, $hostname_db, $username_db, $password_db, $database_db, $port_db);
 		if (is_object($newdb)) {
 			// TODO Set definition to disable a user into the package
 			$sql="UPDATE ".$prefix_db."user set statut=0 WHERE rowid = ".GETPOST('remoteid', 'int');
@@ -217,7 +220,7 @@ if (empty($reshook)) {
 		}
 	}
 	if ($action == "enableuser") {
-		$newdb=getDoliDBInstance($type_db, $hostname_db, $username_db, $password_db, $database_db, $port_db);
+		$newdb = getDoliDBInstance($type_db, $hostname_db, $username_db, $password_db, $database_db, $port_db);
 		if (is_object($newdb)) {
 			// TODO Set definition to disable a user into the package
 			$sql="UPDATE ".$prefix_db."user set statut=1 WHERE rowid = ".GETPOST('remoteid', 'int');
@@ -232,7 +235,7 @@ if (empty($reshook)) {
 	}
 
 	if ($action == "confirm_resetpassword") {
-		$newdb=getDoliDBInstance($type_db, $hostname_db, $username_db, $password_db, $database_db, $port_db);
+		$newdb = getDoliDBInstance($type_db, $hostname_db, $username_db, $password_db, $database_db, $port_db);
 		if (is_object($newdb)) {
 			$password=GETPOST('newpassword', 'none');
 
@@ -268,13 +271,16 @@ if (empty($reshook)) {
 
 
 			$resql=$newdb->query($sql);
-			if (! $resql) dol_print_error($newdb);
-			else setEventMessages("PasswordModified", null, 'mesgs');
+			if (! $resql) {
+				dol_print_error($newdb);
+			} else {
+				setEventMessages("PasswordModified", null, 'mesgs');
+			}
 		}
 	}
 
 	if (! in_array($action, array('resetpassword', 'confirm_resetpassword', 'createsupportuser', 'deletesupportuser'))) {
-		include 'refresh_action.inc.php';
+		//include 'refresh_action.inc.php';
 
 		$action = 'view';
 	}
@@ -333,10 +339,11 @@ if ($id > 0 && $action != 'edit' && $action != 'create') {
 
 
 
-	if (is_object($object->db2)) {
+	/*if (is_object($object->db2)) {
 		$savdb=$object->db;
 		$object->db=$object->db2;	// To have ->db to point to db2 for showrefnav function.  $db = master database
-	}
+	}*/
+
 
 	$object->fetch_thirdparty();
 
@@ -471,29 +478,6 @@ if (!$error) {
 print '</form>'."\n";
 
 
-// Application instance url
-if (!$error) {
-	if (empty($lastpassadmin)) {
-		if (! empty($object->array_options['options_deployment_init_adminpass'])) {
-			$url='https://'.$object->ref_customer.'?username='.$lastloginadmin.'&amp;password='.$object->array_options['options_deployment_init_adminpass'];
-			$link='<a href="'.$url.'" target="_blank" id="dollink">'.$url.'</a>';
-			$links.='Link to application (initial install pass) : ';
-		} else {
-			$url='https://'.$object->ref_customer.'?username='.$lastloginadmin;
-			$link='<a href="'.$url.'" target="_blank" id="dollink">'.$url.'</a>';
-			$links.='Link to application : ';
-		}
-	} else {
-		$url='https://'.$object->ref_customer.'?username='.$lastloginadmin.'&amp;password='.$lastpassadmin;
-		$link='<a href="'.$url.'" target="_blank" id="dollink">'.$url.'</a>';
-		$links.='Link to application (last logged admin) : ';
-	}
-	print $links.$link;
-
-	print '<br>';
-}
-
-
 // Barre d'actions
 if (!$error && ! $user->societe_id) {
 	print '<div class="tabsAction">';
@@ -506,6 +490,9 @@ if (!$error && ! $user->societe_id) {
 	print "</div><br>";
 }
 
+if (is_object($newdb) && $newdb->connected) {
+	$newdb->close();
+}
 
 llxFooter();
 

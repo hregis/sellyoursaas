@@ -10,11 +10,12 @@
 
 export now=`date +'%Y-%m-%d %H:%M:%S'`
 
-
+echo
 echo "**** ${0} started"
+echo
 
 if [ "x$1" == "x" ]; then
-	echo "Usage:   ${0}  remotelogin  (test|confirm)"
+	echo "Usage:   ${0}  remotelogin  (test|confirm|confirmdelete)"
 	echo "Example: ${0}  admin        test"
 	echo "Example: ${0}  admin        test     mysellyoursaasbackupserver.com:22/mydir  /volume2/NASBACKUPMYDIR"
 	echo "Note:    The user running the script must have its public key declared on the backup server to pull"
@@ -28,6 +29,7 @@ export realpath=$(realpath "${0}")
 export scriptdir=$(dirname "$realpath")
 export script=${0##*/}
 
+echo "${0} ${@}"
 echo "# user id --------> $(id -u)"
 echo "# now ------------> $now"
 echo "# PID ------------> ${$}"
@@ -58,10 +60,11 @@ fi
 export EMAILFROM=`grep '^emailfrom=' /etc/sellyoursaas.conf | cut -d '=' -f 2`
 export EMAILTO=`grep '^emailsupervision=' /etc/sellyoursaas.conf | cut -d '=' -f 2`
 
-#export OPTIONS="-v -4 --stats -a --chmod=u=rwX --delete";
-#export OPTIONS="-v -4 --stats -a --chmod=u=rwX --delete --delete-excluded";
 #export OPTIONS=" -4 --stats -rlt --chmod=u=rwX";
 export OPTIONS=" -4 --stats -rlt --no-specials";
+if [ "x$testorconfirm" == "xconfirmdelete" ]; then
+	export OPTIONS="$OPTIONS --delete --delete-excluded"
+fi
 
 #export DISTRIB_RELEASE=`lsb_release -r -s`
 #if [ "x$DISTRIB_RELEASE" == "x20.10" ]; then
@@ -103,7 +106,7 @@ echo "EMAILTO=$EMAILTO"
 
 
 if [ "x$USER" == "x" -o "x$testorconfirm" == "x" -o "x$remotebackupserver" == "x" -o "x$remotebackupdir" == "x" ]; then
-:	echo "Usage:   ${0}  remotelogin  (test|confirm)"
+	echo "Usage:   ${0}  remotelogin  (test|confirm)"
 	echo "Example: ${0}  admin        test"
 	echo "Example: ${0}  admin        test     mysellyoursaasbackupserver.com:22/media/admin/HDDATA1_LD/  /volumeX/NASBACKUPMYDIR"
 	echo "Note:    The user running the script must have its public key declared on the backup server to pull"
@@ -203,7 +206,7 @@ else
 				  	echo "ERROR Failed to make rsync for $DIRSOURCE1$i"
 			  		echo
 			   		export ret1=$(($ret1 + 1));
-			   		export errstring="$errstring\nDir $DIRSOURCE1$i "`date '+%Y-%m-%d %H:%M:%S'`" $command"
+			   		export errstring="$errstring\nDir $SERVSOURCECURSOR:$DIRSOURCE1$i "`date '+%Y-%m-%d %H:%M:%S'`" $command"
 			   	else
 	                echo "No files found"
 	                echo
@@ -225,41 +228,42 @@ else
 			echo `date +'%Y-%m-%d %H:%M:%S'`" Do rsync of customer directories on $SERVSOURCECURSOR:$DIRSOURCE2$i to $DIRDESTI2 ..."
 	
 			for i in 'a' 'b' 'c' 'd' 'e' 'f' 'g' 'h' 'i' 'j' 'k' 'l' 'm' 'n' 'o' 'p' 'q' 'r' 's' 't' 'u' 'v' 'w' 'x' 'y' 'z' '0' '1' '2' '3' '4' '5' '6' '7' '8' '9' ; do
-					echo `date +'%Y-%m-%d %H:%M:%S'`" Process directory $SERVSOURCECURSOR:$DIRSOURCE2$i"
-	
-						# Test if we force backup on a given dir
-						#if [ "x$2" != "x" ]; then
-						#	if [ "x$2" != "xosu$i" ]; then
-						#		break
-						#	fi
-						#fi
-	
-						export RSYNC_RSH="ssh -p $SERVPORTSOURCE"
-	
-						# Note for pulling a backup, we do not exclude backup_backups.exclude, so image is like the backup server.
-				        export command="rsync -x $OPTIONS $USER@$SERVSOURCECURSOR:$DIRSOURCE2$i $DIRDESTI2";
-			        	echo "$command";
-	
-						> /tmp/$script.err
-				        $command >>/tmp/$script.log 2>/tmp/$script.err
-				        if [ "x$?" != "x0" ]; then
-					        nberror=`cat /tmp/$script.err | grep -v "Broken pipe" | grep -v "No such file or directory" | grep -v "some files/attrs were not transferred" | wc -l`
-	    	    			cat /tmp/$script.err
-							if [ "x$nberror" != "x0" ]; then
-					        	echo "ERROR Failed to make rsync for $DIRSOURCE2$i"
-					        	echo
-					        	export ret2=$(($ret2 + 1));
-				    	    	export errstring="$errstring\nDir $DIRSOURCE2$i "`date '+%Y-%m-%d %H:%M:%S'`" $command"
-				    	    else
-				                echo "No files found"
-				                echo
-				    	    fi
-						else
-							echo "OK"
-							echo
-				        fi
-	
-					echo
+				echo `date +'%Y-%m-%d %H:%M:%S'`" Process directory $SERVSOURCECURSOR:$DIRSOURCE2$i"
+
+					# Test if we force backup on a given dir
+					#if [ "x$2" != "x" ]; then
+					#	if [ "x$2" != "xosu$i" ]; then
+					#		break
+					#	fi
+					#fi
+
+					export RSYNC_RSH="ssh -p $SERVPORTSOURCE"
+
+					# Note for pulling a backup, we do not exclude backup_backups.exclude, so image is like the backup server.
+			        export command="rsync -x $OPTIONS $USER@$SERVSOURCECURSOR:$DIRSOURCE2$i $DIRDESTI2";
+		        	echo "$command";
+
+					> /tmp/$script.err
+			        $command >>/tmp/$script.log 2>/tmp/$script.err
+			        if [ "x$?" != "x0" ]; then
+				        nberror=`cat /tmp/$script.err | grep -v "Broken pipe" | grep -v "No such file or directory" | grep -v "some files/attrs were not transferred" | wc -l`
+    	    			cat /tmp/$script.err
+						if [ "x$nberror" != "x0" ]; then
+				        	echo "ERROR Failed to make rsync for $DIRSOURCE2$i"
+				        	echo
+				        	export ret2=$(($ret2 + 1));
+			    	    	export errstring="$errstring\nDir $SERVSOURCECURSOR:$DIRSOURCE2$i "`date '+%Y-%m-%d %H:%M:%S'`" $command"
+			    	    else
+			                echo "No files found"
+			                echo
+			    	    fi
+					else
+						echo "OK"
+						echo
+			        fi
+
+					sleep 2
+				echo
 			done
 			
 			echo End of copy of home dirs /mnt/diskbackup/backup*x

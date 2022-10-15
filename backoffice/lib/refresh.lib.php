@@ -178,7 +178,7 @@ function dolicloud_database_refresh($conf, $db, &$object, &$errors)
 
 	$server = (! empty($hostname_db) ? $hostname_db : $instance);
 
-	$newdb=getDoliDBInstance('mysqli', $server, $username_db, $password_db, $database_db, $port_db);
+	$newdb = getDoliDBInstance('mysqli', $server, $username_db, $password_db, $database_db, $port_db);
 
 	$ret=1;
 
@@ -269,6 +269,8 @@ function dolicloud_database_refresh($conf, $db, &$object, &$errors)
 								}
 
 								$object->nbofusers += $newqty;
+
+								$newdb->free($resql);
 							} else {
 								$error++;
 								setEventMessages($newdb->lasterror(), null, 'errors');
@@ -296,6 +298,8 @@ function dolicloud_database_refresh($conf, $db, &$object, &$errors)
 					$object->lastpass_admin = $obj->pass;
 					$lastloginadmin = $object->lastlogin_admin;
 					$lastpassadmin = $object->lastpass_admin;
+
+					$newdb->free($resql);
 				} else $error++;
 			}
 
@@ -304,7 +308,7 @@ function dolicloud_database_refresh($conf, $db, &$object, &$errors)
 				$modulesenabled=array(); $lastinstall=''; $lastupgrade='';
 				$resql=$newdb->query($sqltogetmodules);
 				if ($resql) {
-					$num=$newdb->num_rows($resql);
+					$num = $newdb->num_rows($resql);
 					$i=0;
 					while ($i < $num) {
 						$obj = $newdb->fetch_object($resql);
@@ -322,20 +326,26 @@ function dolicloud_database_refresh($conf, $db, &$object, &$errors)
 					}
 					$object->modulesenabled=join(',', $modulesenabled);
 					$object->version=($lastupgrade?$lastupgrade:$lastinstall);
-				} else $error++;
+
+					$newdb->free($resql);
+				} else {
+					$error++;
+				}
 			}
 
 			$deltatzserver=(getServerTimeZoneInt()-0)*3600;	// Diff between TZ of NLTechno and DoliCloud
 
 			// Get last login of users
 			if (! $error) {
-				$resql=$newdb->query($sqltogetlastloginuser);
+				$resql = $newdb->query($sqltogetlastloginuser);
 				if ($resql) {
 					$obj = $newdb->fetch_object($resql);
 
 					$object->lastlogin  = $obj->login;
 					$object->lastpass   = $obj->pass;
 					$object->date_lastlogin = ($obj->datelastlogin ? ($newdb->jdate($obj->datelastlogin)+$deltatzserver) : '');
+
+					$newdb->free($resql);
 				} else {
 					$error++;
 					$errors[]='Failed to connect to database '.$instance.' '.$username_db;
@@ -503,6 +513,9 @@ function sellyoursaas_calculate_stats($db, $datelim, $datefirstday)
 								$totalinstancessuspendedfree++;
 							}
 
+							if (empty($listofcustomerstrial[$obj->customer_id])) {
+								$listofcustomerstrial[$obj->customer_id] = 0;	// This is the total of trial only customers
+							}
 							$listofcustomerstrial[$obj->customer_id]++;	// This is the total of trial only customers
 							//print "cpt=".$totalinstances." customer_id=".$obj->customer_id." instance=".$obj->instance." status=".$obj->status." instance_status=".$obj->instance_status." payment_status=".$obj->payment_status." => Price = ".$obj->price_instance.' * '.($obj->plan_meter_id == 1 ? $obj->nbofusers : 1)." + ".max(0,($obj->nbofusers - $obj->min_threshold))." * ".$obj->price_user." = ".$price." -> 0<br>\n";
 						} else {
@@ -527,7 +540,7 @@ function sellyoursaas_calculate_stats($db, $datelim, $datefirstday)
 							$price_ttc = 0;
 
 							$atleastonenotsuspended = 0;
-							if (is_array($object->linkedObjectsIds['facturerec'])) {		// $object->linkedObjects loaded by the previous sellyoursaasIsPaidInstance
+							if (!empty($object->linkedObjectsIds['facturerec']) && is_array($object->linkedObjectsIds['facturerec'])) {		// $object->linkedObjects loaded by the previous sellyoursaasIsPaidInstance
 								foreach ($object->linkedObjectsIds['facturerec'] as $rowidelementelement => $idtemplateinvoice) {
 									$templateinvoice->suspended = 0;
 									$templateinvoice->unit_frequency = 0;
@@ -560,11 +573,17 @@ function sellyoursaas_calculate_stats($db, $datelim, $datefirstday)
 							}
 
 							if (! $atleastonenotsuspended) {	// Really a paying customer if template invoice not suspended
+								if (empty($listofcustomerspayingwithoutrecinvoice[$obj->customer_id])) {
+									$listofcustomerspayingwithoutrecinvoice[$obj->customer_id] = 0;
+								}
 								$listofcustomerspayingwithoutrecinvoice[$obj->customer_id]++;
 								$listofinstancespayingwithoutrecinvoice[$object->id]=array('thirdparty_id'=>$obj->customer_id, 'thirdparty_name'=>$obj->name, 'contract_ref'=>$object->ref);
 								$totalinstancespayingwithoutrecinvoice++;
 							}
 
+							if (empty($listofcustomerspayingall[$obj->customer_id])) {
+								$listofcustomerspayingall[$obj->customer_id] = 0;
+							}
 							$listofcustomerspayingall[$obj->customer_id]++;
 							$listofinstancespayingall[$object->id]=array('thirdparty_id'=>$obj->customer_id, 'thirdparty_name'=>$obj->name, 'contract_ref'=>$object->ref);
 							$totalinstancespayingall++;
@@ -573,6 +592,9 @@ function sellyoursaas_calculate_stats($db, $datelim, $datefirstday)
 								// If service really paying and not suspended and no payment error
 								$total += $price;
 
+								if (empty($listofcustomerspaying[$obj->customer_id])) {
+									$listofcustomerspaying[$obj->customer_id] = 0;
+								}
 								$listofcustomerspaying[$obj->customer_id]++;
 								$listofinstancespaying[$object->id]=array('thirdparty_id'=>$obj->customer_id, 'thirdparty_name'=>$obj->name, 'contract_ref'=>$object->ref);
 								$totalinstancespaying++;

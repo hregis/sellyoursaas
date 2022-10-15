@@ -175,8 +175,8 @@ $nbofinstancedeployed=0;
 // Nb of errors
 $nboferrors=0;
 // List of instances
-$instances=array();
-$instancestrial=array();
+$instances=array();				// array of paid instances
+$instancestrial=array();		// array of trial instances
 $instancespaidsuspended=array();
 $instancespaidsuspendedandpaymenterror=array();
 $instancespaidnotsuspended=array();
@@ -202,7 +202,7 @@ $object=new Contrat($dbmaster);
 
 // Get list of instance
 $sql = "SELECT c.rowid as id, c.ref, c.ref_customer as instance,";
-$sql.= " ce.deployment_status as instance_status, ce.latestbackup_date_ok";
+$sql.= " ce.deployment_status as instance_status, ce.latestbackup_date_ok, ce.backup_frequency";
 $sql.= " FROM ".MAIN_DB_PREFIX."contrat as c LEFT JOIN ".MAIN_DB_PREFIX."contrat_extrafields as ce ON c.rowid = ce.fk_object";
 $sql.= " WHERE c.ref_customer <> '' AND c.ref_customer IS NOT NULL";
 if ($instancefiltercomplete) {
@@ -305,13 +305,13 @@ if ($resql) {
 						}
 					}
 
-					$instances[$obj->id] = array('id'=>$obj->id, 'ref'=>$obj->ref, 'instance'=>$instance, 'latestbackup_date_ok'=>$dbtousetosearch->jdate($obj->latestbackup_date_ok));
+					$instances[$obj->id] = array('id'=>$obj->id, 'ref'=>$obj->ref, 'instance'=>$instance, 'latestbackup_date_ok'=>$dbtousetosearch->jdate($obj->latestbackup_date_ok), 'backup_frequency'=>$obj->backup_frequency);
 					print "Qualify instance ".$instance." with instance_status=".$instance_status." payment_status=".$payment_status."\n";
 				} elseif ($instancefiltercomplete) {
-					$instances[$obj->id] = array('id'=>$obj->id, 'ref'=>$obj->ref, 'instance'=>$instance, 'latestbackup_date_ok'=>$dbtousetosearch->jdate($obj->latestbackup_date_ok));
+					$instances[$obj->id] = array('id'=>$obj->id, 'ref'=>$obj->ref, 'instance'=>$instance, 'latestbackup_date_ok'=>$dbtousetosearch->jdate($obj->latestbackup_date_ok), 'backup_frequency'=>$obj->backup_frequency);
 					print "Qualify instance ".$instance." with instance_status=".$instance_status." payment_status=".$payment_status."\n";
 				} else {
-					$instancestrial[$obj->id] = array('id'=>$obj->id, 'ref'=>$obj->ref, 'instance'=>$instance, 'latestbackup_date_ok'=>$dbtousetosearch->jdate($obj->latestbackup_date_ok));
+					$instancestrial[$obj->id] = array('id'=>$obj->id, 'ref'=>$obj->ref, 'instance'=>$instance, 'latestbackup_date_ok'=>$dbtousetosearch->jdate($obj->latestbackup_date_ok), 'backup_frequency'=>$obj->backup_frequency);
 					//print "Found instance ".$instance." with instance_status=".$instance_status." instance_status_bis=".$instance_status_bis." payment_status=".$payment_status."\n";
 				}
 			}
@@ -345,7 +345,8 @@ if ($action == 'backup' || $action == 'backupdelete' ||$action == 'backuprsync' 
 
 			$qualifiedforbackup = 1;
 			// TODO Use a frequency on contract to know if we have to do backup or not
-			if ($arrayofinstance['latestbackup_date_ok'] > ($now - (12 * 3600))) {
+			$frequencyindayforbackup = max(1, (int) $arrayofinstance['backup_frequency']);
+			if ($arrayofinstance['latestbackup_date_ok'] > ($now - ($frequencyindayforbackup * 24 * 3600) + (12 * 3600))) {
 				$qualifiedforbackup = 0;
 			}
 
@@ -424,9 +425,10 @@ if ($action == 'updatedatabase' || $action == 'updatestatsonly' || $action == 'u
 	dol_include_once('sellyoursaas/class/sellyoursaasutils.class.php');
 	$sellyoursaasutils = new SellYourSaasUtils($dbmaster);
 
-	// Loop on each instance
-	if (! $error && $action != 'updatestatsonly') {
+
+	if (! $error && $action != 'updatestatsonly') {		// make updatecountsonly so refresh remote metrics only
 		$i=0;
+		// Loop on each paid instance
 		foreach ($instances as $arrayofinstance) {
 			$instance = $arrayofinstance['instance'];
 
@@ -448,7 +450,7 @@ if ($action == 'updatedatabase' || $action == 'updatestatsonly' || $action == 'u
 			}
 
 			if (count($errors) == 0) {
-				print "OK";
+				print "OK\n";
 
 				$nbofok++;
 				$dbmaster->commit();
@@ -464,7 +466,7 @@ if ($action == 'updatedatabase' || $action == 'updatestatsonly' || $action == 'u
 	}
 
 
-	if (! $error && $action != 'updatecountsonly') {
+	if (! $error && $action != 'updatecountsonly') {	// make updatestatsonly so count existing instances only
 		$stats=array();
 
 		// Load list of existing stats into $stats
