@@ -54,9 +54,10 @@ require_once DOL_DOCUMENT_ROOT.'/core/class/html.form.class.php';
 require_once DOL_DOCUMENT_ROOT.'/product/class/product.class.php';
 require_once DOL_DOCUMENT_ROOT.'/contrat/class/contrat.class.php';
 dol_include_once('/sellyoursaas/class/packages.class.php');
+dol_include_once('/sellyoursaas/class/deploymentserver.class.php');
 
 // Re set variables specific to new environment
-$conf->global->SYSLOG_FILE_ONEPERSESSION=1;
+$conf->global->SYSLOG_FILE_ONEPERSESSION='register';
 
 
 //$langs=new Translate('', $conf);
@@ -85,6 +86,12 @@ $reusesocid = GETPOST('reusesocid', 'int');
 $fromsocid = GETPOST('fromsocid', 'int');
 $disablecustomeremail = GETPOST('disablecustomeremail', 'alpha');
 $extcss=GETPOST('extcss', 'alpha');
+if (empty($extcss)) {
+	$extcss = getDolGlobalString('SELLYOURSAAS_EXTCSS', 'dist/css/myaccount.css');
+} elseif ($extcss == 'generic') {
+	$extcss = 'dist/css/myaccount.css';
+}
+
 
 // SERVER_NAME here is myaccount.mydomain.com (we can exploit only the part mydomain.com)
 include_once DOL_DOCUMENT_ROOT.'/core/lib/geturl.lib.php';
@@ -238,13 +245,9 @@ if ($favicon) {
 	if (preg_match('/^http/i', $favicon)) $href = $favicon;
 	$head.='<link rel="icon" href="'.$href.'">'."\n";
 }
-$head.='<!-- Bootstrap core CSS -->
-<link href="dist/css/bootstrap.css" type="text/css" rel="stylesheet">';
-if ($extcss) {
-	$head.='<link href="'.$extcss.'" type="text/css" rel="stylesheet">';
-} else {
-	$head.='<link href="dist/css/myaccount.css" type="text/css" rel="stylesheet">';
-}
+$head .= '<!-- Bootstrap core CSS -->';
+$head .= '<link href="dist/css/bootstrap.css" type="text/css" rel="stylesheet">';
+$head .= '<link href="'.$extcss.'" type="text/css" rel="stylesheet">';
 
 // Javascript code on logon page only to detect user tz, dst_observed, dst_first, dst_second
 $arrayofjs=array(
@@ -448,10 +451,15 @@ llxHeader($head, $title, '', '', 0, 0, $arrayofjs, array(), '', 'register');
 
 			<?php
 			$disabled='';
-			if (!empty($conf->global->SELLYOURSAAS_DISABLE_NEW_INSTANCES)) {
+			if (getDolGlobalInt('SELLYOURSAAS_DISABLE_NEW_INSTANCES') && !in_array(getUserRemoteIP(), explode(',', getDolGlobalString('SELLYOURSAAS_DISABLE_NEW_INSTANCES_EXCEPT_IP')))) {
 				$disabled=' disabled';
+				print '<!-- RegistrationSuspendedForTheMomentPleaseTryLater -->'."\n";
 				print '<div class="alert alert-warning">';
-				print $langs->trans("RegistrationSuspendedForTheMomentPleaseTryLater");
+				if (getDolGlobalString('SELLYOURSAAS_DISABLE_NEW_INSTANCES_MESSAGE')) {
+					print getDolGlobalString('SELLYOURSAAS_DISABLE_NEW_INSTANCES_MESSAGE');
+				} else {
+					print $langs->trans("RegistrationSuspendedForTheMomentPleaseTryLater");
+				}
 				print '</div>';
 			}
 
@@ -479,12 +487,29 @@ llxHeader($head, $title, '', '', 0, 0, $arrayofjs, array(), '', 'register');
 				</div>
 			</div>
 
-			<div class="control-group  required">
-				<label class="control-label" for="orgName" trans="1"><span class="fa fa-building opacityhigh"></span> <?php echo $langs->trans("NameOfCompany") ?></label>
-				<div class="controls">
-					<input type="text"<?php echo $disabled; ?> name="orgName" maxlength="250" value="<?php echo GETPOST('orgName', 'alpha'); ?>" required="" id="orgName" />
+			<div class="group">
+				<div class="horizontal-fld">
+					<div class="control-group  required">
+						<label class="control-label" for="orgName"
+							   trans="1"><span class="fa fa-building opacityhigh"></span> <?php echo $langs->trans("NameOfCompany") ?></label>
+						<div class="controls">
+							<input type="text"<?php echo $disabled; ?> name="orgName" maxlength="250"
+								   value="<?php echo GETPOST('orgName', 'alpha'); ?>" required="" id="orgName"/>
+						</div>
+					</div>
 				</div>
-			</div>
+				<?php if (! getDolGlobalInt('SELLYOURSAAS_REGISTER_HIDE_PHONE')) { ?>
+				<div class="horizontal-fld">
+					<div class='control-group'>
+						<label class='control-label' for='phone' trans='1'><span class="fa fa-phone opacityhigh"></span> <?php echo $langs->trans('Phone') ?></label>
+						<div class="controls">
+							<input type="text"<?php echo $disabled; ?> name="phone" maxlength="250"
+								   value="<?php echo GETPOST('phone', 'alpha'); ?>" id="phone"/>
+						</div>
+					</div>
+				</div>
+				<?php } ?>
+				</div>
 				<?php
 			}
 			if (empty($reusecontractid)) {
@@ -549,15 +574,22 @@ llxHeader($head, $title, '', '', 0, 0, $arrayofjs, array(), '', 'register');
 				<div class="fld select-domain required">
 				  <label trans="1"><?php echo $langs->trans("ChooseANameForYourApplication") ?></label>
 				  <div class="linked-flds">
+					  <span class="nowraponall">
 					<span class="opacitymedium">https://</span>
-					<input<?php echo $disabled; ?> class="sldAndSubdomain" type="text" name="sldAndSubdomain" id="sldAndSubdomain" value="<?php echo $sldAndSubdomain; ?>" maxlength="29" />
+					<input<?php echo $disabled; ?> class="sldAndSubdomain" type="text" name="sldAndSubdomain" id="sldAndSubdomain" value="<?php echo $sldAndSubdomain; ?>" maxlength="29" required="" />
+					</span>
 					<select<?php echo $disabled; ?> name="tldid" id="tldid" >
 						<?php
 						// SERVER_NAME here is myaccount.mydomain.com (we can exploit only the part mydomain.com)
 						$domainname = getDomainFromURL($_SERVER["SERVER_NAME"], 1);
-
 						$domainstosuggest = array();
-						$listofdomain = explode(',', $conf->global->SELLYOURSAAS_SUB_DOMAIN_NAMES);   // This is list of all sub domains to show into combo list
+						$domainstosuggestcountryfilter = array();
+						if (!getDolGlobalString('SELLYOURSAAS_OBJECT_DEPLOYMENT_SERVER_MIGRATION')) {
+							$listofdomain = explode(',', $conf->global->SELLYOURSAAS_SUB_DOMAIN_NAMES);   // This is list of all sub domains to show into combo list
+						} else {
+							$staticdeploymentserver = new Deploymentserver($db);
+							$listofdomain = $staticdeploymentserver->fetchAllDomains();
+						}
 						foreach ($listofdomain as $val) {
 							$newval = $val;
 							$reg = array();
@@ -595,10 +627,35 @@ llxHeader($head, $title, '', '', 0, 0, $arrayofjs, array(), '', 'register');
 									continue;   // The subdomain in SELLYOURSAAS_SUB_DOMAIN_NAMES has not a domain inside restrictlist of package, so we discard it.
 								}
 							}
+							if (getDolGlobalString('SELLYOURSAAS_OBJECT_DEPLOYMENT_SERVER_MIGRATION')) {
+								$deploymentserver = new Deploymentserver($db);
+								$deploymentserver->fetch(0, $newval);
 
-							if (! preg_match('/^\./', $newval)) $newval='.'.$newval;
-
-							$domainstosuggest[] = $newval;
+								if (!empty($deploymentserver->servercountries)) {
+									$servercountries = explode(',', $deploymentserver->servercountries);
+									$ipuser = getUserRemoteIP();
+									$countryuser = dolGetCountryCodeFromIp($ipuser);
+									if (in_array($countryuser, $servercountries)) {
+										if (! preg_match('/^\./', $newval)) $newval='.'.$newval;
+										$domainstosuggestcountryfilter[] = $newval; // Servers with user country
+									} else {
+										print '<!-- '.$newval.' disabled. Server country range '.$deploymentserver->servercountries.' does not contain '.$countryuser.' -->';
+										continue;
+									}
+								} else {
+									if (! preg_match('/^\./', $newval)) $newval='.'.$newval;
+									$domainstosuggest[] = $newval;
+								}
+							} else {
+								if (! preg_match('/^\./', $newval)) $newval='.'.$newval;
+								$domainstosuggest[] = $newval;
+							}
+						}
+						if (!empty($domainstosuggestcountryfilter)) {
+							foreach ($domainstosuggest as $key => $value) {
+								print '<!-- '.$value.' disabled. Matching server found with user location -->';
+							}
+							$domainstosuggest = $domainstosuggestcountryfilter;
 						}
 
 						// Defined a preselected domain
@@ -659,10 +716,10 @@ llxHeader($head, $title, '', '', 0, 0, $arrayofjs, array(), '', 'register');
 			<?php if (getDolGlobalInt('SELLYOURSAAS_ONLY_NON_PROFIT_ORGA')) { ?>
 			<!-- Checkbox for non profit orga -->
 			<br>
-			<section id="checkbosnonprofitorgaid">
+			<section id="checkboxnonprofitorgaid">
 			<div class="group required">
-				<input type="checkbox" id="checkbosnonprofitorga" name="checkbosnonprofitorga" class="valignmiddle inline" style="margin-top: 0" value="1" required="">
-				<label for="checkbosnonprofitorga" class="valignmiddle small inline"><?php
+				<input type="checkbox" id="checkboxnonprofitorga" name="checkboxnonprofitorga" class="valignmiddle inline" style="margin-top: 0" value="1" required=""<?php echo (GETPOST('checkboxnonprofitorga') ? ' checked="checked"' : ''); ?>>
+				<label for="checkboxnonprofitorga" class="valignmiddle small inline"><?php
 					echo $langs->trans("ConfirmNonProfitOrga", $sellyoursaasname);
 					echo '. ';
 				if (getDolGlobalString('SELLYOURSAAS_ONLY_NON_PROFIT_ORGA_LINK_COMMERCIAL')) {

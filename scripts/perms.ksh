@@ -8,10 +8,16 @@ if [ "$(id -u)" != "0" ]; then
 	exit 100
 fi
 
-# possibility to change the directory of instances are stored
+# possibility to change the directory where instances are stored
 export targetdir=`grep '^targetdir=' /etc/sellyoursaas.conf | cut -d '=' -f 2`
 if [[ "x$targetdir" == "x" ]]; then
 	export targetdir="/home/jail/home"
+fi
+
+# possibility to change the directory where backup instances are stored
+export backupdir=`grep '^backupdir=' /etc/sellyoursaas.conf | cut -d '=' -f 2`
+if [[ "x$backupdir" == "x" ]]; then
+	export backupdir="/mnt/diskbackup/backup"
 fi
 
 echo "Search to know if we are a master server in /etc/sellyoursaas.conf"
@@ -35,14 +41,13 @@ cd /tmp
 
 # Owner root on logs and backups dir
 echo "Set owner and permission on logs and backup directory"
-chown root.adm /home/admin/logs/
 [ -d /home/admin/logs ] || mkdir /home/admin/logs;
 [ -d /mnt/diskbackup ] || mkdir /mnt/diskbackup;
 [ -d /home/admin/backup ] || mkdir /home/admin/backup;
 [ -d /home/admin/backup/conf ] || mkdir /home/admin/backup/conf;
 [ -d /home/admin/backup/mysql ] || mkdir /home/admin/backup/mysql;
 [ -d /home/admin/wwwroot ] || mkdir /home/admin/wwwroot;
-chown root.adm /home/admin/logs; chmod 770 /home/admin/logs; 
+chown root.admin /home/admin/logs; chmod 770 /home/admin/logs; 
 chown admin.admin /mnt/diskbackup; 
 chown admin.admin /home/admin/backup; chown admin.admin /home/admin/backup/conf; chown admin.admin /home/admin/backup/mysql; 
 chown admin.admin /home/admin/wwwroot
@@ -57,8 +62,10 @@ chmod g+ws /home/admin/wwwroot/dolibarr_documents/
 chown admin.www-data /home/admin/wwwroot/dolibarr_documents
 for fic in `ls /home/admin/wwwroot/dolibarr_documents | grep -v sellyoursaas`; 
 do 
-	chown -R admin.www-data /home/admin/wwwroot/dolibarr_documents/$fic
-	chmod -R ug+w /home/admin/wwwroot/dolibarr_documents/$fic
+	chown -R admin.www-data "/home/admin/wwwroot/dolibarr_documents/$fic"
+	chmod -R ug+rw "/home/admin/wwwroot/dolibarr_documents/$fic"
+	find "/home/admin/wwwroot/dolibarr_documents/$fic" -type d -exec chmod u+wx {} \;
+	find "/home/admin/wwwroot/dolibarr_documents/$fic" -type d -exec chmod g+ws {} \;
 done
 if [ -d /home/admin/wwwroot/dolibarr_documents/users/temp/odtaspdf ]; then
 	chown www-data.www-data /home/admin/wwwroot/dolibarr_documents/users/temp/odtaspdf
@@ -94,13 +101,17 @@ chown -R admin.admin /home/admin/wwwroot/dolibarr
 chmod -R a-w /home/admin/wwwroot/dolibarr
 chmod -R u+w /home/admin/wwwroot/dolibarr/.git
 
-echo Set owner and permission on /home/admin/wwwroot/dolibarr_nltechno
-chmod -R a-w /home/admin/wwwroot/dolibarr_nltechno 2>/dev/null
-chmod -R u+w /home/admin/wwwroot/dolibarr_nltechno/.git 2>/dev/null
+if [ -d /home/admin/wwwroot/dolibarr_nltechno ]; then
+	echo Set owner and permission on /home/admin/wwwroot/dolibarr_nltechno
+	chmod -R a-w /home/admin/wwwroot/dolibarr_nltechno 2>/dev/null
+	chmod -R u+w /home/admin/wwwroot/dolibarr_nltechno/.git 2>/dev/null
+fi
 
-echo Set owner and permission on /home/admin/wwwroot/dolibarr_sellyoursaas
-chmod -R a-w /home/admin/wwwroot/dolibarr_sellyoursaas
-chmod -R u+w /home/admin/wwwroot/dolibarr_sellyoursaas/.git
+if [ -d /home/admin/wwwroot/dolibarr_sellyoursaas ]; then
+	echo Set owner and permission on /home/admin/wwwroot/dolibarr_sellyoursaas
+	chmod -R a-w /home/admin/wwwroot/dolibarr_sellyoursaas 2>/dev/null
+	chmod -R u+w /home/admin/wwwroot/dolibarr_sellyoursaas/.git 2>/dev/null
+fi
 
 echo Set owner and permission on /home/admin/wwwroot/dolibarr/htdocs/conf/conf.php
 if [ -f /home/admin/wwwroot/dolibarr/htdocs/conf/conf.php ]; then
@@ -116,7 +127,7 @@ do
 	chmod o-rwx /etc/apache2/$fic
 done
 
-if [[ "x$instanceserver" != "x0" ]]; then
+if [ "x$instanceserver" != "x0" -a "x$instanceserver" != "x" ]; then
 	IFS=$(echo -en "\n\b")
 	echo We are on a deployment server, so we clean log files 
 	echo "Clean web server _error logs"
@@ -157,3 +168,10 @@ chown -R admin.www-data /home/admin/wwwroot/dolibarr_documents/sellyoursaas_loca
 [ -s $pathtospamdir/blacklistcontent ] || cp -p /home/admin/wwwroot/dolibarr_documents/sellyoursaas_local/spam/blacklistcontent $pathtospamdir/;
 chmod a+rwx $pathtospamdir; chmod a+rw $pathtospamdir/*
 chown admin.www-data $pathtospamdir/*
+
+# Disabled: We prefer --prune-empty-dirs
+#if [ "x$instanceserver" != "x0" -a "x$instanceserver" != "x" ]; then
+#	IFS=$(echo -en "\n\b")
+#	echo "We are on a deployment server, so we try to delete empty dirs into backup directory under $backupdir/osu*"
+#	find $backupdir/osu*/ -type d -empty -ls -delete > /var/log/find_delete_empty_dir.log 2>&1
+#fi

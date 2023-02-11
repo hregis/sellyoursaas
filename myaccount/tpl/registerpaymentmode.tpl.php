@@ -117,7 +117,7 @@ if ($totalInvoiced == 0) {
 			$urlforplanprices = $conf->global->SELLYOURSAAS_PRICES_URL;
 			if (! empty($mythirdpartyaccount->array_options['options_domain_registration_page'])
 				&& $mythirdpartyaccount->array_options['options_domain_registration_page'] != $conf->global->SELLYOURSAAS_MAIN_DOMAIN_NAME) {
-				$newnamekey = 'SELLYOURSAAS_PRICES_URL_FORDOMAIN-'.$mythirdpartyaccount->array_options['options_domain_registration_page'];
+				$newnamekey = 'SELLYOURSAAS_PRICES_URL_'.strtoupper(str_replace('.', '_', $mythirdpartyaccount->array_options['options_domain_registration_page']));
 				$urlforplanprices = $conf->global->$newnamekey;
 			}
 
@@ -138,7 +138,7 @@ if ($totalInvoiced == 0) {
 		// Show input text for the discount code
 		if ($acceptdiscountcode) {
 			print '<br>';
-			print $langs->trans("DiscountCode").': <input type="text" name="discountcode" id="discountcode" value="'.$defaultdiscountcode.'" class="maxwidth150"><br>';
+			print $langs->trans("DiscountCode").': <input type="text" name="discountcode" id="discountcode" value="'.$defaultdiscountcode.'" class="maxwidth200"><br>';
 			print '<div class="discountcodetext margintoponly" id="discountcodetext" autocomplete="off"></div>';
 			//var_dump($listofcontractid);
 			print '<script type="text/javascript" language="javascript">'."\n";
@@ -658,8 +658,8 @@ if ($mythirdpartyaccount->isInEEC()) {
 		print '<div class="marginbottomonly">'.img_picto('', 'bank_account', 'class="marginrightonlyimp"');
 		print '<span class="opacitymedium">'.$langs->trans("NewBAN").'</div>';
 		print '<table class="center">';
-		print '<tr><td class="minwidth100 valignmiddle start bold">'.$langs->trans("BankName").' </td><td class="valignmiddle start"><input type="text" name="bankname" id="bankname" value="'.dol_escape_htmltag($bankname).'"></td></tr>';
-		print '<tr><td class="minwidth100 valignmiddle start bold">'.$langs->trans("IBAN").' </td><td class="valignmiddle start"><input type="text" name="iban" id="iban" value="'.dol_escape_htmltag($iban).'"></td></tr>';
+		print '<tr><td class="minwidth100 valignmiddle start bold">'.$langs->trans("BankName").' </td><td class="valignmiddle start"><input type="text" class="maxwidth150onsmartphone" name="bankname" id="bankname" value="'.dol_escape_htmltag($bankname).'"></td></tr>';
+		print '<tr><td class="minwidth100 valignmiddle start bold">'.$langs->trans("IBAN").' </td><td class="valignmiddle start"><input type="text" class="maxwidth150onsmartphone" name="iban" id="iban" value="'.dol_escape_htmltag($iban).'"></td></tr>';
 		print '<tr><td class="minwidth100 valignmiddle start bold">'.$langs->trans("BIC").' </td><td class="valignmiddle start"><input type="text" name="bic" id="bic" value="'.dol_escape_htmltag($bic).'" class="maxwidth125"></td></tr>';
 		print '</table>';
 

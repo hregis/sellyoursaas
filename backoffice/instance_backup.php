@@ -38,6 +38,7 @@ if (! $res) die("Include of main fails");
 require_once DOL_DOCUMENT_ROOT."/comm/action/class/actioncomm.class.php";
 require_once DOL_DOCUMENT_ROOT."/contact/class/contact.class.php";
 require_once DOL_DOCUMENT_ROOT."/contrat/class/contrat.class.php";
+require_once DOL_DOCUMENT_ROOT."/projet/class/project.class.php";
 require_once DOL_DOCUMENT_ROOT."/core/lib/contract.lib.php";
 require_once DOL_DOCUMENT_ROOT."/core/lib/company.lib.php";
 require_once DOL_DOCUMENT_ROOT."/core/lib/date.lib.php";
@@ -80,6 +81,7 @@ $backupstring=$conf->global->DOLICLOUD_SCRIPTS_PATH.'/backup_instance.php '.$obj
 $restorestringfrombackup = '';
 $restorestringfromarchive = '';
 $restorestringpretoshow = '';
+$restorestringposttoshow = '';
 $moveinstancestringtoshow = '';
 
 $ispaid = sellyoursaasIsPaidInstance($object);
@@ -168,9 +170,13 @@ if ($ispaid) {
 
 $tmparray = explode('.', $object->ref_customer);
 
-$moveinstancestringtoshow .= "chmod a+r /etc/apache2/".getDomainFromURL($object->ref_customer, 2).".key\n";
+// Set certif file key with read mode so admin will be able to read it. Note: Other certif files are already in read only
+// TODO Certif file may be a custom one
+//$moveinstancestringtoshow .= "chmod a+r /etc/apache2/".getDomainFromURL($object->ref_customer, 2).".key\n";
+$moveinstancestringtoshow .= "# First, copy the certificate files of old instances into the directory /home/admin/wwwroot/dolibarr_documents/sellyoursaas/crt (must be readable to admin user)\n";
 $moveinstancestringtoshow .= "su - admin\n";
 $moveinstancestringtoshow .= $conf->global->DOLICLOUD_SCRIPTS_PATH.'/master_move_instance.php '.$object->ref_customer.' '.$tmparray[0].'.withNEW.'.getDomainFromURL($object->ref_customer, 1).' (test|confirm|confirmredirect)'."\n";
+// Remove read in certif file.
 $moveinstancestringtoshow .= "chmod o-r /etc/apache2/".getDomainFromURL($object->ref_customer, 2).".key\n";
 
 
@@ -251,7 +257,6 @@ $help_url='';
 llxHeader('', $langs->trans("DoliCloudInstances"), $help_url);
 
 $form = new Form($db);
-$form2 = new Form($db2);
 $formcompany = new FormCompany($db);
 
 $countrynotdefined=$langs->trans("ErrorSetACountryFirst").' ('.$langs->trans("SeeAbove").')';
@@ -278,8 +283,8 @@ if (($id > 0 || $instanceoldid > 0) && $action != 'edit' && $action != 'create')
 	$password_db = $object->array_options['options_password_db'];
 	$database_db = $object->array_options['options_database_db'];
 	$port_db     = $object->array_options['options_port_db'];
-	$username_web = $object->array_options['options_username_os'];
-	$password_web = $object->array_options['options_password_os'];
+	$username_os = $object->array_options['options_username_os'];
+	$password_os = $object->array_options['options_password_os'];
 	$hostname_os = $object->array_options['options_hostname_os'];
 
 	//$newdb = getDoliDBInstance($type_db, $hostname_db, $username_db, $password_db, $database_db, $port_db);
@@ -355,24 +360,25 @@ if ($id > 0 || $instanceoldid > 0) {
 }
 
 if ($id > 0 && $action != 'edit' && $action != 'create') {
-	if (is_object($object->db2)) {
+	/*if (is_object($object->db2)) {
 		$object->db = $savdb;
-	}
+	}*/
 
 
 	print '<div class="fichecenter">';
 
-	$backupdir=$conf->global->DOLICLOUD_BACKUP_PATH;
+	$backupdir = $conf->global->DOLICLOUD_BACKUP_PATH;
 
-	$login=$username_web;
-	$password=$password_web;
-
-	$server=$object->ref_customer;
+	$login = $username_os;
+	$password = $password_os;
+	$server = $object->ref_customer;
 
 	// ----- Backup instance -----
 	//print '<strong>INSTANCE BACKUP</strong><br>';
 
-	print '<div class="underbanner clearboth"></div>';
+	//print '<div class="underbanner clearboth"></div>';
+
+	print '<div class="div-table-responsive">';
 	print '<table class="noborder centpercent tableforfield">';
 
 	// Backup dir
@@ -422,13 +428,13 @@ if ($id > 0 && $action != 'edit' && $action != 'create') {
 	print '</tr>';
 
 	print "</table>";
-
+	print '</div>';
 
 	print "</div>";
 
 
 	// Barre d'actions
-	if (! $user->societe_id) {
+	if (! $user->socid) {
 		print '<div class="tabsAction">';
 
 		if ($user->rights->sellyoursaas->write) {
@@ -441,7 +447,7 @@ if ($id > 0 && $action != 'edit' && $action != 'create') {
 
 
 // Backup command line
-$backupstringtoshow=$backupstring.' confirm --nostats';
+$backupstringtoshow=$backupstring.' confirm --nostats --forcersync --forcedump';
 $backupstringtoshow2=$backupstring.' confirm';
 print '<span class="fa fa-database secondary"></span> -> <span class="fa fa-file paddingright"></span> Backup command line string <span class="opacitymedium">(to run on the server where to store the backup)</span><br>';
 print '<input type="text" name="backupstring" id="backupstring" value="'.$backupstringtoshow.'" class="quatrevingtpercent"><br>';
@@ -477,7 +483,7 @@ if ($restorestringfromarchive) {
 // Duplicate an instance into another instance (already existing instance)
 if ($restorestringfrombackupshort) {
 	$restorestringtoshow=$restorestringfrombackupshort.' nameoftargetinstance (test|confirm)';
-	print '<span class="fa fa-database secondary"></span><span class="fa fa-database"></span> -> <span class="fa fa-database secondary"></span><span class="fa fa-database secondary paddingright"></span> Duplicate an instance into another instance (already existing instance) <span class="opacitymedium">(can be run on any server)</span><br>';
+	print '<span class="fa fa-database secondary"></span><span class="fa fa-database"></span> -> <span class="fa fa-database secondary"></span><span class="fa fa-database secondary paddingright"></span> Duplicate an instance into another instance (already existing instance) <span class="opacitymedium">(can be run on source OR taget server)</span><br>';
 	print '<textarea name="restorestringfromarchive" id="restorestringfromarchive" class="centpercent" rows="'.ROWS_2.'">';
 	print $backupstringtoshow."\n";
 	print $restorestringtoshow;
@@ -491,7 +497,7 @@ if ($restorestringfrombackupshort) {
 if ($moveinstancestringtoshow) {
 	//$restorestringtoshow=$restorestringfrombackupshort.' nameoftargetinstance (test|confirm)';
 	print '<span class="fa fa-database secondary"></span> -> <span class="fa fa-database opacitymedium"></span><span class="fa fa-database secondary paddingright"></span> Move an instance into another server (non existing target instance) <span class="opacitymedium">(to run on master server)</span><br>';
-	print '<textarea name="restorestringfromarchive" id="restorestringfromarchive" class="centpercent" rows="'.ROWS_3.'">';
+	print '<textarea name="moveinstancestring" id="moveinstancestring" class="centpercent" rows="'.ROWS_3.'">';
 	print $moveinstancestringtoshow;
 	print '</textarea>';
 

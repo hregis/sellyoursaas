@@ -715,7 +715,7 @@ fi
 
 # Clean backup dir of instances that are now archived
 > /tmp/deletedirs.sh
-for fic in `find $backupdir/*/last_mysqldump* -name "last_mysqldump*" -mtime +90`
+for fic in `find $backupdir/*/last_mysqldump*.txt -name "last_mysqldump*.txt" -mtime +90 | grep -v ".ok.txt"`
 do
 	noyoungfile=1
 	dirtoscan=`dirname $fic`

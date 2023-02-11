@@ -82,7 +82,7 @@ else fwrite($fh, "\n".date('Y-m-d H:i:s').' >>>>>>>>>> Call for action '.$tmparr
 
 fwrite($fh, "\n".date('Y-m-d H:i:s').' dnsserver='.$dnsserver.", instanceserver=".$instanceserver.", allowed_hosts=".$allowed_hosts."\n");
 
-if (in_array($tmparray[0], array('deploy', 'undeploy', 'deployall', 'undeployall'))) {
+if (in_array($tmparray[0], array('deploy', 'undeploy', 'deployoption', 'deployall', 'undeployall'))) {
 	if ($DEBUG) fwrite($fh, date('Y-m-d H:i:s').' ./action_deploy_undeploy.sh '.$tmparray[0].' '.$paramspace."\n");
 	else fwrite($fh, date('Y-m-d H:i:s').' ./action_deploy_undeploy.sh '.$tmparray[0].' ...'."\n");
 
@@ -128,7 +128,7 @@ if (in_array($tmparray[0], array('backup'))) {
 	else fwrite($fh, date('Y-m-d H:i:s').' sudo -u admin ./backup_instance.php '.$paramarray[2].'.'.$paramarray[3].' '.$backupdir." confirm\n");
 	fwrite($fh, "getcwd() = ".getcwd()."\n");
 
-	exec('sudo -u admin ./backup_instance.php '.$paramarray[2].'.'.$paramarray[3].' '.$backupdir.' confirm 2>&1', $output, $return_var);
+	exec('sudo -u admin ./backup_instance.php '.$paramarray[2].'.'.$paramarray[3].' '.$backupdir.' confirm --quick --forcersync --forcedump 2>&1', $output, $return_var);
 
 	fwrite($fh, date('Y-m-d H:i:s').' return = '.$return_var."\n");
 	fwrite($fh, date('Y-m-d H:i:s').' '.join("\n", $output)."\n");

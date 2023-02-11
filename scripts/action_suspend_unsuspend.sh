@@ -51,27 +51,27 @@ if [ "x$1" == "x" ]; then
 fi
 if [ "x$2" == "x" ]; then
 	echo "Missing parameter 2 - osusername" 1>&2
-	exit 20
+	exit 2
 fi
 if [ "x$3" == "x" ]; then
 	echo "Missing parameter 3 - ospassword" 1>&2
-	exit 30
+	exit 3
 fi
 if [ "x$4" == "x" ]; then
 	echo "Missing parameter 4 - instancename" 1>&2
-	exit 40
+	exit 4
 fi
 if [ "x$5" == "x" ]; then
 	echo "Missing parameter 5 - domainname" 1>&2
-	exit 50
+	exit 5
 fi
 if [ "x$6" == "x" ]; then
 	echo "Missing parameter 6 - dbname" 1>&2
-	exit 60
+	exit 6
 fi
 if [ "x$7" == "x" ]; then
 	echo "Missing parameter 7 - dbport" 1>&2
-	exit 70
+	exit 7
 fi
 if [ "x${22}" == "x" ]; then
 	echo "Missing parameter 22 - EMAILFROM" 1>&2
@@ -138,8 +138,11 @@ if [ "x$INCLUDEFROMCONTRACT" == "x-" ]; then
 	INCLUDEFROMCONTRACT=""
 fi
 
-export ErrorLog='#ErrorLog'
+export CUSTOMDOMAIN=${46}
 
+
+
+export ErrorLog='#ErrorLog'
 
 export instancedir=$targetdir/$osusername/$dbname
 export fqn=$instancename.$domainname
@@ -763,10 +766,15 @@ if [[ "$mode" == "unsuspend" ]]; then
 	echo `date +'%Y-%m-%d %H:%M:%S'`" ***** Reinstall cron file $cronfile"
 	if [[ -f /var/spool/cron/crontabs/$osusername ]]; then
 		echo merge existing $cronfile with existing /var/spool/cron/crontabs/$osusername
-		echo "cat /var/spool/cron/crontabs/$osusername | grep -v $dbname > /tmp/$dbname.tmp"
-		cat /var/spool/cron/crontabs/$osusername | grep -v $dbname > /tmp/$dbname.tmp
+		# We remove the line that contains the dbname, TZ and comment into the tmp file
+		echo "cat /var/spool/cron/crontabs/$osusername | grep -v $dbname | grep -v 'TZ=' | grep -v '^#' > /tmp/$dbname.tmp"
+		cat /var/spool/cron/crontabs/$osusername | grep -v "$dbname" | grep -v "TZ=" | grep -v "^#" > /tmp/$dbname.tmp
+		# Now we add the lines to use for this instance into the tmp file
 		echo "cat $cronfile >> /tmp/$dbname.tmp"
 		cat $cronfile >> /tmp/$dbname.tmp
+		# Then we add an empty line (otherwise the last line is ignored)
+		#echo "echo >> /tmp/$dbname.tmp"
+		#echo >> /tmp/$dbname.tmp
 		echo cp /tmp/$dbname.tmp /var/spool/cron/crontabs/$osusername
 		cp /tmp/$dbname.tmp /var/spool/cron/crontabs/$osusername
 		echo rm -f /tmp/$dbname.tmp
@@ -789,8 +797,10 @@ if [[ "$mode" == "suspend" ]]; then
 		rm -f /var/spool/cron/crontabs.disabled/$osusername
 		echo cp /var/spool/cron/crontabs/$osusername /var/spool/cron/crontabs.disabled/$osusername
 		cp /var/spool/cron/crontabs/$osusername /var/spool/cron/crontabs.disabled/$osusername
+		# We remove the line that contains the dbname
 		echo "cat /var/spool/cron/crontabs/$osusername | grep -v $dbname > /tmp/$dbname.tmp"
 		cat /var/spool/cron/crontabs/$osusername | grep -v $dbname > /tmp/$dbname.tmp
+		# Copy the file without the dbname line
 		echo cp /tmp/$dbname.tmp /var/spool/cron/crontabs/$osusername
 		cp /tmp/$dbname.tmp /var/spool/cron/crontabs/$osusername
 		echo rm -f /tmp/$dbname.tmp

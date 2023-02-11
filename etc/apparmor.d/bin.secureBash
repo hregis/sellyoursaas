@@ -156,6 +156,8 @@
   #/usr/lib/openssh/sftp-server rix,
   /usr/lib{,32,64}/** mr,
   /usr/local/bin/ r,
+  /usr/local/bin/phpsendmail.php rix,
+  /usr/local/bin/phpsendmailprepend.php r,
   /usr/local/lib/python2.7/dist-packages/ r,
   /usr/local/sbin/ r,
   /usr/sbin/ r,
@@ -226,7 +228,7 @@
 		# Warning: this comments are interpreted
 		#include <abstractions/base>
 		/etc/ssl/openssl.cnf r,
-        /etc/nsswitch.conf r,
+		/etc/nsswitch.conf r,
 		
 		#allow owner /etc/passwd r,
 		allow /etc/passwd r,
@@ -237,5 +239,6 @@
 		owner /mnt/diskhome/home/** rixwlk,
 		@{HOME}/dbn*/*_error.log r,		# does not work because HOME is a /home/jail/home and sftp need /mnt/diskhome/home
 		/mnt/diskhome/home/osu*/dbn*/*_error.log r,
+		/usr/lib/openssh/sftp-server mr,
   }  
 }

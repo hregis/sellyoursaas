@@ -24,6 +24,7 @@
 require_once DOL_DOCUMENT_ROOT."/core/class/commonobject.class.php";
 require_once DOL_DOCUMENT_ROOT.'/compta/facture/class/facture-rec.class.php';
 dol_include_once('sellyoursaas/lib/sellyoursaas.lib.php');
+dol_include_once('sellyoursaas/class/deploymentserver.class.php');
 
 
 /**
@@ -90,7 +91,7 @@ class ActionsSellyoursaas
 
 		if ($object->element == 'societe') {
 			// Dashboard
-			if ($user->rights->sellyoursaas->read && ! empty($object->array_options['options_dolicloud'])) {
+			if ($user->hasRight('sellyoursaas', 'read') && ! empty($object->array_options['options_dolicloud'])) {
 				$url = '';
 				if ($object->array_options['options_dolicloud'] == 'yesv2') {
 					$urlmyaccount = getDolGlobalString('SELLYOURSAAS_ACCOUNT_URL');
@@ -160,11 +161,25 @@ class ActionsSellyoursaas
 
 		if (! empty($parameters['objref'])) {
 			$isanurlofasellyoursaasinstance=false;
-			$tmparray=explode(',', $conf->global->SELLYOURSAAS_SUB_DOMAIN_NAMES);
-			foreach ($tmparray as $tmp) {
-				$newtmp = preg_replace('/:.*$/', '', $tmp);
-				if (preg_match('/'.preg_quote($newtmp, '/').'$/', $parameters['objref'])) $isanurlofasellyoursaasinstance=true;
+			if (!getDolGlobalString('SELLYOURSAAS_OBJECT_DEPLOYMENT_SERVER_MIGRATION')) {
+				$tmparray=explode(',', $conf->global->SELLYOURSAAS_SUB_DOMAIN_NAMES);
+				foreach ($tmparray as $tmp) {
+					$newtmp = preg_replace('/:.*$/', '', $tmp);
+					if (preg_match('/'.preg_quote('.'.$newtmp, '/').'$/', $parameters['objref'])) {
+						$isanurlofasellyoursaasinstance=true;
+					}
+				}
+			} else {
+				$staticdeploymentserver = new Deploymentserver($this->db);
+				$tmparray = $staticdeploymentserver->fetchAllDomains();
+				foreach ($tmparray as $tmp) {
+					$newtmp = preg_replace('/:.*$/', '', $tmp);
+					if (preg_match('/'.preg_quote('.'.$newtmp, '/').'$/', $parameters['objref'])) {
+						$isanurlofasellyoursaasinstance=true;
+					}
+				}
 			}
+
 			if ($isanurlofasellyoursaasinstance) {
 				$objref = $parameters['objref'];
 				$url = 'https://'.$parameters['objref'];
@@ -218,10 +233,36 @@ class ActionsSellyoursaas
 
 		if (in_array($parameters['currentcontext'], array('contractcard'))				// do something only for the context 'contractcard'
 			&& ! empty($object->array_options['options_deployment_status'])) {
-			if ($user->rights->sellyoursaas->write) {
+			if ($user->hasRight('sellyoursaas', 'write')) {
 				if (in_array($object->array_options['options_deployment_status'], array('processing', 'undeployed'))) {
-					$alt = $langs->trans("SellYourSaasSubDomains").' '.$conf->global->SELLYOURSAAS_SUB_DOMAIN_NAMES;
-					$alt.= '<br>'.$langs->trans("SellYourSaasSubDomainsIP").' '.$conf->global->SELLYOURSAAS_SUB_DOMAIN_IP;
+					if (!getDolGlobalString('SELLYOURSAAS_OBJECT_DEPLOYMENT_SERVER_MIGRATION')) {
+						$alt = $langs->trans("SellYourSaasSubDomains").' '.$conf->global->SELLYOURSAAS_SUB_DOMAIN_NAMES;
+						$alt.= '<br>'.$langs->trans("SellYourSaasSubDomainsIP").' '.$conf->global->SELLYOURSAAS_SUB_DOMAIN_IP;
+					} else {
+						$listsubdomainname = array();
+						$listsubdomainip = array();
+						$sql = "SELECT ref, ipaddress";
+						$sql .= " FROM ".MAIN_DB_PREFIX."sellyoursaas_deploymentserver";
+						$sql .= " WHERE entity = '".$this->db->escape($conf->entity)."'";
+						$resql = $this->db->query($sql);
+						if ($resql) {
+							$num = $this->db->num_rows($resql);
+							while ($i < $num) {
+								$obj = $this->db->fetch_object($resql);
+								$listsubdomainname[] = $obj->ref;
+								$listsubdomainip[] = $obj->ipaddress;
+								$i++;
+							}
+						} else {
+							$this->error = $this->db->lasterror();
+							dol_syslog(__METHOD__.' '.join(',', $this->errors), LOG_ERR);
+							return -1;
+						}
+						$listsubdomainip = implode(',', $listsubdomainip);
+						$listsubdomainname = implode(',', $listsubdomainname);
+						$alt = $langs->trans("SellYourSaasSubDomains").' '.$listsubdomainname;
+						$alt.= '<br>'.$langs->trans("SellYourSaasSubDomainsIP").' '.$listsubdomainip;
+					}
 
 					print '<a class="butAction" href="'.$_SERVER["PHP_SELF"].'?id='.$object->id.'&action=deploy&token='.urlencode(newToken()).'" title="'.dol_escape_htmltag($alt).'">' . $langs->trans('Redeploy') . '</a>';
 				} else {
@@ -553,7 +594,7 @@ class ActionsSellyoursaas
 				}
 			}
 
-			if (in_array($action, array('refresh', 'recreateauthorizedkeys', 'deletelock', 'recreatelock', 'unsuspend', 'suspendmaintenance'))) {
+			if (in_array($action, array('refresh', 'refreshfilesonly', 'recreateauthorizedkeys', 'deletelock', 'recreatelock', 'unsuspend', 'suspendmaintenance'))) {
 				dol_include_once('sellyoursaas/class/sellyoursaasutils.class.php');
 				$sellyoursaasutils = new SellYourSaasUtils($db);
 				$result = $sellyoursaasutils->sellyoursaasRemoteAction($action, $object);
@@ -564,6 +605,7 @@ class ActionsSellyoursaas
 					//setEventMessages($this->error, $this->errors, 'errors'); // We already return errors with this->errors, no need to seEventMessages()
 				} else {
 					if ($action == 'refresh') setEventMessages($langs->trans("ResourceComputed"), null, 'mesgs');
+					if ($action == 'refreshfilesonly') setEventMessages($langs->trans("ResourceComputed"), null, 'mesgs');
 					if ($action == 'recreateauthorizedkeys') setEventMessages($langs->trans("FileCreated"), null, 'mesgs');
 					if ($action == 'recreatelock') setEventMessages($langs->trans("FileCreated"), null, 'mesgs');
 					if ($action == 'deletelock') setEventMessages($langs->trans("FilesDeleted"), null, 'mesgs');
@@ -704,7 +746,7 @@ class ActionsSellyoursaas
 	{
 		global $conf, $langs, $user;
 
-		if (! empty($user->rights->sellyoursaas->read)) {
+		if ($user->hasRight('sellyoursaas', 'read')) {
 			/*$langs->load("sellyoursaas@sellyoursaas");
 			$search_boxvalue = $parameters['search_boxvalue'];
 
@@ -740,7 +782,11 @@ class ActionsSellyoursaas
 				if ($object->array_options['options_deployment_status'] == 'done') {
 					// Show warning if in maintenance mode
 					if (! empty($object->array_options['options_suspendmaintenance_message'])) {
-						$messagetoshow = $langs->trans("InstanceInMaintenanceMode", $conf->global->SELLYOURSAAS_LOGIN_FOR_SUPPORT);
+						if (preg_match('/^http/i', $object->array_options['options_suspendmaintenance_message'])) {
+							$messagetoshow = $langs->trans("InstanceIsARedirectionInstance", $conf->global->SELLYOURSAAS_LOGIN_FOR_SUPPORT);
+						} else {
+							$messagetoshow = $langs->trans("InstanceInMaintenanceMode", $conf->global->SELLYOURSAAS_LOGIN_FOR_SUPPORT);
+						}
 						$messagetoshow .= '<br><u>'.$langs->trans("MaintenanceMessage").':</u><br>';
 						$messagetoshow .= $object->array_options['options_suspendmaintenance_message'];
 						$ret .= img_warning($messagetoshow, '', 'classfortooltip marginrightonly');
@@ -750,11 +796,11 @@ class ActionsSellyoursaas
 						$ret .= '<span class="badge badge-status4 badge-status valignmiddle inline-block">'.$langs->trans("PayedMode").'</span>';
 						// nbofserviceswait, nbofservicesopened, nbofservicesexpired and nbofservicesclosed
 						if (! $object->nbofservicesclosed) {
-							$daysafterexpiration = $conf->global->SELLYOURSAAS_NBDAYS_AFTER_EXPIRATION_BEFORE_PAID_SUSPEND;
+							$daysafterexpiration = getDolGlobalString('SELLYOURSAAS_NBDAYS_AFTER_EXPIRATION_BEFORE_PAID_SUSPEND');
 							$ret.='<span class="badge2 small marginleftonly valignmiddle inline-block" title="Expiration = Date planed for end of service">Paid services will be suspended<br>'.$daysafterexpiration.' days after expiration.</span>';
 						}
 						if ($object->nbofservicesclosed) {
-							$daysafterexpiration = $conf->global->SELLYOURSAAS_NBDAYS_AFTER_EXPIRATION_BEFORE_PAID_UNDEPLOYMENT;
+							$daysafterexpiration = getDolGlobalString('SELLYOURSAAS_NBDAYS_AFTER_EXPIRATION_BEFORE_PAID_UNDEPLOYMENT');
 							$ret.='<span class="badge2 small marginleftonly valignmiddle inline-block" title="Expiration = Date planed for end of service">Paid instance will be undeployed<br>'.$daysafterexpiration.' days after expiration.</span>';
 						}
 					} else {
@@ -817,7 +863,7 @@ class ActionsSellyoursaas
 
 		$result='';
 
-		if ($user->rights->sellyoursaas->read) {
+		if ($user->hasRight('sellyoursaas', 'read')) {
 			if (is_object($object)) {
 				$thirdparty = null;
 				if (is_object($object->thirdparty)) $thirdparty = $object->thirdparty;
@@ -968,7 +1014,7 @@ class ActionsSellyoursaas
 	}
 
 	/**
-	 * Complete list
+	 * Complete the list of contracts
 	 *
 	 * @param	array	$parameters		Array of parameters
 	 * @param	object	$object			Object
@@ -981,7 +1027,7 @@ class ActionsSellyoursaas
 		global $contextpage;
 
 		if ($parameters['currentcontext'] == 'contractlist' && in_array($contextpage, array('sellyoursaasinstances','sellyoursaasinstancesvtwo'))) {
-			if (empty($conf->global->SELLYOURSAAS_DISABLE_TRIAL_OR_PAID)) { // Field "Mode paid or free" not hidden
+			if (empty($conf->global->SELLYOURSAAS_DISABLE_TRIAL_OR_PAID)) { // Column "Mode paid or free" not hidden
 				global $contractmpforloop;
 				if (! is_object($contractmpforloop)) {
 					$contractmpforloop = new Contrat($db);
@@ -1005,7 +1051,7 @@ class ActionsSellyoursaas
 				}
 				print '</td>';
 			}
-			if (empty($conf->global->SELLYOURSAAS_DISABLE_PAYMENT_MODE_SAVED)) {    // Field "Payment mode recorded" not hidden
+			if (empty($conf->global->SELLYOURSAAS_DISABLE_PAYMENT_MODE_SAVED)) {    // Column "Payment mode recorded" not hidden
 				print '<td class="center">';
 				if (!empty($parameters['obj']->options_deployment_status)) {
 					dol_include_once('sellyoursaas/lib/sellyoursaas.lib.php');
@@ -1056,8 +1102,8 @@ class ActionsSellyoursaas
 			return 0;
 		}
 
-		if (! is_object($parameters['object']->thirdparty)) {
-			dol_syslog("Trigger afterPDFCreation was called but property thirdparty of object was not load by caller.", LOG_WARNING);
+		if (! isset($parameters['object']->thirdparty) || ! is_object($parameters['object']->thirdparty)) {
+			dol_syslog("Trigger afterPDFCreation was called but property thirdparty of object was not load by caller or does not exists.");
 			return 0;
 		}
 
@@ -1069,19 +1115,19 @@ class ActionsSellyoursaas
 		$mythirdpartyaccount = $parameters['object']->thirdparty;
 
 		// Define logo
-		$secondlogo = $conf->global->SELLYOURSAAS_LOGO_SMALL;
-		$secondlogoblack = $conf->global->SELLYOURSAAS_LOGO_SMALL_BLACK;
+		$secondlogo = getDolGlobalString('SELLYOURSAAS_LOGO_SMALL');
+		$secondlogoblack = getDolGlobalString('SELLYOURSAAS_LOGO_SMALL_BLACK');
 		if (is_object($mythirdpartyaccount) && $mythirdpartyaccount->array_options['options_domain_registration_page']) {
 			$domainforkey = strtoupper($mythirdpartyaccount->array_options['options_domain_registration_page']);
 			$domainforkey = preg_replace('/\./', '_', $domainforkey);
 
 			$constname = 'SELLYOURSAAS_LOGO_SMALL_'.$domainforkey;
 			$constnameblack = 'SELLYOURSAAS_LOGO_SMALL_BLACK_'.$domainforkey;
-			if (! empty($conf->global->$constname)) {
-				$secondlogo=$conf->global->$constname;
+			if (getDolGlobalString($constname)) {
+				$secondlogo = getDolGlobalString($constname);
 			}
-			if (! empty($conf->global->$constnameblack)) {
-				$secondlogoblack=$conf->global->$constnameblack;
+			if (getDolGlobalString($constnameblack)) {
+				$secondlogoblack = getDolGlobalString($constnameblack);
 			}
 		}
 
@@ -1174,10 +1220,18 @@ class ActionsSellyoursaas
 			$head[$h][2] = 'home';
 			$h++;
 
-			$head[$h][0] = dol_buildpath('/sellyoursaas/backoffice/deployment_servers.php', 1);
-			$head[$h][1] = $langs->trans("DeploymentServers");
-			$head[$h][2] = 'deploymentservers';
-			$h++;
+			if (!getDolGlobalString('SELLYOURSAAS_OBJECT_DEPLOYMENT_SERVER_MIGRATION')) {
+				$head[$h][0] = dol_buildpath('/sellyoursaas/backoffice/deployment_servers.php', 1);
+				$head[$h][1] = $langs->trans("DeploymentServers");
+				$head[$h][2] = 'deploymentservers';
+				$h++;
+			} else {
+				$head[$h][0] = '/custom/sellyoursaas/deploymentserver_list.php';
+				$head[$h][0] = dol_buildpath('/sellyoursaas/deploymentserver_list.php', 1);
+				$head[$h][1] = $langs->trans("DeploymentServers");
+				$head[$h][2] = 'deploymentservers';
+				$h++;
+			}
 
 			$head[$h][0] = dol_buildpath('/sellyoursaas/backoffice/setup_antispam.php', 1);
 			$head[$h][1] = $langs->trans("AntiSpam");
@@ -1218,8 +1272,25 @@ class ActionsSellyoursaas
 	 * @param   array           $parameters     Hook metadatas (context, etc...)
 	 * @param   string          $action         Current action (if set). Generally create or edit or null
 	 * @param   HookManager     $hookmanager    Hook manager propagated to allow calling another hook
-	 * @return  int 		      			  	<0 if KO,
-	 *                          				=0 if OK but we want to process standard actions too,
+	 * @return  int 		      			  	=0
+	 */
+	public function completeFieldsToSearchAll($parameters, &$action, $hookmanager)
+	{
+		$this->results['fieldstosearchall']['username_os'] = 'Username OS';
+		$this->results['fieldstosearchall']['database_db'] = 'Database DB';
+		$this->results['fieldstosearchall']['username_db'] = 'Username DB';
+
+		return 0;
+	}
+
+
+	/**
+	 * Overloading the restrictedArea function : check permission on an object
+	 *
+	 * @param   array           $parameters     Hook metadatas (context, etc...)
+	 * @param   string          $action         Current action (if set). Generally create or edit or null
+	 * @param   HookManager     $hookmanager    Hook manager propagated to allow calling another hook
+	 * @return  int 		      			  	=0 if OK but we want to process standard actions too,
 	 *  	                            		>0 if OK and we want to replace standard actions.
 	 */
 	public function restrictedArea($parameters, &$action, $hookmanager)
@@ -1227,7 +1298,7 @@ class ActionsSellyoursaas
 		global $user;
 
 		if ($parameters['features'] == 'packages') {
-			if ($user->rights->sellyoursaas->read) {
+			if ($user->hasRight('sellyoursaas', 'read')) {
 				$this->results['result'] = 1;
 				return 1;
 			} else {

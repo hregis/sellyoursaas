@@ -8,10 +8,11 @@
 # And allow apache to sudo on this script by doing visudo to add line:
 #www-data        ALL=(ALL) NOPASSWD: /usr/bin/create_deploy_undeploy.sh
 #
-# deployall   create user and instance
-# deploy      create only instance
-# undeployall remove user and instance
-# undeploy    remove only instance (must be easy to restore) - rest can be done later with clean.sh
+# deployall    create user/dir + dns + files + config + apache virtual host + cron + database creation + cli
+# deploy       create dns + files + config + apache virtual host + cron + database creation + cli
+# deployoption create files + cli
+# undeployall  remove user and instance
+# undeploy     remove only instance (must be easy to restore) - rest can be done later with clean.sh
 
 export now=`date +'%Y-%m-%d %H:%M:%S'`
 export nowlog=`date +'%Y%m%d-%H%M%S'`
@@ -38,12 +39,12 @@ if [[ "x$templatesdir" != "x" ]]; then
 	export vhostfile="$templatesdir/vhostHttps-sellyoursaas.template"
 	export vhostfilesuspended="$templatesdir/vhostHttps-sellyoursaas-suspended.template"
 	export vhostfilemaintenance="$templatesdir/vhostHttps-sellyoursaas-maintenance.template"
-	export fpmpoolfile="$templatesdir/osuxxx.template"
+	export fpmpoolfiletemplate="$templatesdir/osuxxx.template"
 else
 	export vhostfile="$scriptdir/templates/vhostHttps-sellyoursaas.template"
 	export vhostfilesuspended="$scriptdir/templates/vhostHttps-sellyoursaas-suspended.template"
 	export vhostfilemaintenance="$scriptdir/templates/vhostHttps-sellyoursaas-maintenance.template"
-	export fpmpoolfile="$scriptdir/templates/osuxxx.template"
+	export fpmpoolfiletemplate="$scriptdir/templates/osuxxx.template"
 fi
 
 
@@ -154,8 +155,11 @@ if [ "x$INCLUDEFROMCONTRACT" == "x-" ]; then
 	INCLUDEFROMCONTRACT=""
 fi
 
-export ErrorLog='#ErrorLog'
+export CUSTOMDOMAIN=${46}
 
+
+
+export ErrorLog='#ErrorLog'
 
 export instancedir=$targetdir/$osusername/$dbname
 export fqn=$instancename.$domainname
@@ -692,7 +696,7 @@ fi
 
 # Deploy files
 
-if [[ "$mode" == "deploy" || "$mode" == "deployall" ]]; then
+if [[ "$mode" == "deploy" || "$mode" == "deployall" || "$mode" == "deployoption" ]]; then
 
 	echo `date +'%Y-%m-%d %H:%M:%S'`" ***** Deploy files"
 	
@@ -973,7 +977,6 @@ if [[ "$mode" == "deploy" || "$mode" == "deployall" ]]; then
 
 		echo "Check that SSL files for $fqn.custom exists and create link to generic certificate files if not"
 		if [[ "x$CERTIFFORCUSTOMDOMAIN" != "x" ]]; then
-			export pathforcertif=`dirname $fileforconfig1`
 			export pathforcertif=`dirname $pathforcertif`
 			export webCustomSSLCertificateCRT=$CERTIFFORCUSTOMDOMAIN.crt
 			export webCustomSSLCertificateKEY=$CERTIFFORCUSTOMDOMAIN.key
@@ -1051,17 +1054,18 @@ if [[ "$mode" == "deploy" || "$mode" == "deployall" ]]; then
 	fi
 	
 	
-	# Deploy also the php fpm pool file
-	export phpfpmconf="/etc/apache2/sellyoursaas-fpm-pool/$fqn.conf"
-	if [ -d /etc/apache2/sellyoursaas-fpm-pool ]; then
-		echo `date +'%Y-%m-%d %H:%M:%S'`" ***** Create php fpm conf $phpfpmconf from $fpmpoolfile"
+	# Deploy also the php fpm pool file from the scripts/templates/osuxxx.conf
+	# A link will also be created into /etc/php/x.x/fpm/pool.d/$fqn.conf to this fpm pool file $fqn.conf
+	export phpfpmconf="/etc/apache2/sellyoursaas-fpm-pool.d/$fqn.conf"
+	if [ -d /etc/apache2/sellyoursaas-fpm-pool.d ]; then
+		echo `date +'%Y-%m-%d %H:%M:%S'`" ***** Create php fpm conf $phpfpmconf from $fpmpoolfiletemplate"
 		if [[ -s $phpfpmconf ]]
 		then
 			echo "Apache conf $phpfpmconf already exists, we delete it since it may be a file from an old instance with same name"
 			rm -f $phpfpmconf
 		fi
 	
-		echo "cat $fpmpoolfile | sed -e 's/__webAppDomain__/$instancename.$domainname/g' | \
+		echo "cat $fpmpoolfiletemplate | sed -e 's/__webAppDomain__/$instancename.$domainname/g' | \
 				  sed -e 's/__webAppAliases__/$instancename.$domainname/g' | \
 				  sed -e 's/__webAppLogName__/$instancename/g' | \
 	              sed -e 's/__webSSLCertificateCRT__/$webSSLCertificateCRT/g' | \
@@ -1078,7 +1082,7 @@ if [[ "$mode" == "deploy" || "$mode" == "deployall" ]]; then
 				  sed -e 's;#ErrorLog;$ErrorLog;g' | \
 				  sed -e 's;__webMyAccount__;$SELLYOURSAAS_ACCOUNT_URL;g' | \
 				  sed -e 's;__webAppPath__;$instancedir;g' > $phpfpmconf"
-		cat $fpmpoolfile | sed -e "s/__webAppDomain__/$instancename.$domainname/g" | \
+		cat $fpmpoolfiletemplate | sed -e "s/__webAppDomain__/$instancename.$domainname/g" | \
 				  sed -e "s/__webAppAliases__/$instancename.$domainname/g" | \
 				  sed -e "s/__webAppLogName__/$instancename/g" | \
 	              sed -e "s/__webSSLCertificateCRT__/$webSSLCertificateCRT/g" | \
@@ -1101,9 +1105,10 @@ if [[ "$mode" == "deploy" || "$mode" == "deployall" ]]; then
 	echo /usr/sbin/apache2ctl configtest
 	/usr/sbin/apache2ctl configtest
 	if [[ "x$?" != "x0" ]]; then
-		echo Error when running apache2ctl configtest. We remove the new created virtual host /etc/apache2/sellyoursaas-online/$fqn.conf to hope to restore configtest ok.
+		echo Error when running apache2ctl configtest. We remove the new created virtual host /etc/apache2/sellyoursaas-online/$fqn...conf to hope to restore configtest ok.
 		rm -f /etc/apache2/sellyoursaas-online/$fqn.conf
 		rm -f /etc/apache2/sellyoursaas-online/$fqn.custom.conf
+		rm -f /etc/apache2/sellyoursaas-online/$fqn.website*.conf
 		echo "Failed to deployall instance $instancename.$domainname with: Error when running apache2ctl configtest" | mail -aFrom:$EMAILFROM -s "[Alert] Pb in deployment" $EMAILTO
 		exit 19
 	fi
@@ -1139,9 +1144,13 @@ if [[ "$mode" == "undeploy" || "$mode" == "undeployall" ]]; then
 		#a2dissite $fqn.conf
 		rm /etc/apache2/sellyoursaas-online/$fqn.custom.conf
 
+		echo Disable conf with a2dissite $fqn.website*.conf
+		#a2dissite $fqn.conf
+		rm /etc/apache2/sellyoursaas-online/$fqn.website*.conf
+
 		echo Delete php fpm file $fqn.conf
-		if [ -f /etc/apache2/sellyoursaas-fpm-pool/$fqn.conf ]; then
-			rm /etc/apache2/sellyoursaas-fpm-pool/$fqn.conf
+		if [ -f /etc/apache2/sellyoursaas-fpm-pool.d/$fqn.conf ]; then
+			rm /etc/apache2/sellyoursaas-fpm-pool.d/$fqn.conf
 		fi
 
 		/usr/sbin/apache2ctl configtest
@@ -1181,12 +1190,15 @@ if [[ "$mode" == "deploy" || "$mode" == "deployall" ]]; then
 	then
 		if [[ -f /var/spool/cron/crontabs/$osusername ]]; then
 			echo merge existing $cronfile with existing /var/spool/cron/crontabs/$osusername
-			# We remove the line that contains the dbname into the tmp file
-			echo "cat /var/spool/cron/crontabs/$osusername | grep -v $dbname > /tmp/$dbname.tmp"
-			cat /var/spool/cron/crontabs/$osusername | grep -v $dbname > /tmp/$dbname.tmp
+			# We remove the line that contains the dbname, TZ and comment into the tmp file
+			echo "cat /var/spool/cron/crontabs/$osusername | grep -v $dbname | grep -v 'TZ=' | grep -v '^#' > /tmp/$dbname.tmp"
+			cat /var/spool/cron/crontabs/$osusername | grep -v "$dbname" | grep -v "TZ=" | grep -v "^#" > /tmp/$dbname.tmp
 			# Now we add the lines to use for this instance into the tmp file
 			echo "cat $cronfile >> /tmp/$dbname.tmp"
 			cat $cronfile >> /tmp/$dbname.tmp
+			# Then we add an empty line (otherwise the last line is ignored)
+			#echo "echo >> /tmp/$dbname.tmp"
+			#echo >> /tmp/$dbname.tmp
 			echo cp /tmp/$dbname.tmp /var/spool/cron/crontabs/$osusername
 			cp /tmp/$dbname.tmp /var/spool/cron/crontabs/$osusername
 			echo rm -f /tmp/$dbname.tmp
@@ -1213,8 +1225,7 @@ if [[ "$mode" == "undeploy" || "$mode" == "undeployall" ]]; then
 		echo cp /var/spool/cron/crontabs/$osusername /var/spool/cron/crontabs.disabled/$osusername
 		cp /var/spool/cron/crontabs/$osusername /var/spool/cron/crontabs.disabled/$osusername
 
-		#echo cp /tmp/$dbname.tmp /var/spool/cron/crontabs/$osusername
-		#cp /tmp/$dbname.tmp /var/spool/cron/crontabs/$osusername
+		# Remove the cron file
 		echo rm -f /var/spool/cron/crontabs/$osusername
 		rm -f /var/spool/cron/crontabs/$osusername
 	else
@@ -1354,7 +1365,7 @@ fi
 
 # Execute after CLI
 
-if [[ "$mode" == "deploy" || "$mode" == "deployall" ]]; then
+if [[ "$mode" == "deploy" || "$mode" == "deployall" || "$mode" == "deployoption" ]]; then
 	if [[ "x$cliafter" != "x" ]]; then
 		if [ -f $cliafter ]; then
 			echo `date +'%Y-%m-%d %H:%M:%S'`" Execute script with . $cliafter"

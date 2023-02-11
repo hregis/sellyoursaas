@@ -51,37 +51,37 @@ if [ "x$1" == "x" ]; then
 fi
 if [ "x$2" == "x" ]; then
 	echo "Missing parameter 2 - osusername" 1>&2
-	exit 20
+	exit 2
 fi
 if [ "x$3" == "x" ]; then
 	echo "Missing parameter 3 - ospassword" 1>&2
-	exit 30
+	exit 3
 fi
 if [ "x$4" == "x" ]; then
 	echo "Missing parameter 4 - instancename" 1>&2
-	exit 41
+	exit 4
 fi
 if [ "x$5" == "x" ]; then
 	echo "Missing parameter 5 - domainname" 1>&2
-	exit 50
+	exit 5
 fi
 if [ "x$6" == "x" ]; then
 	echo "Missing parameter 6 - dbname" 1>&2
-	exit 60
+	exit 6
 fi
 if [ "x$7" == "x" ]; then
 	echo "Missing parameter 7 - dbport" 1>&2
-	exit 70
+	exit 7
 fi
 if [ "x${23}" == "x" ]; then
 	echo "Missing parameter 23 - REMOTEIP" 1>&2
 	exit 23
 fi
-if [ "x$41" == "x"]; then
+if [ "x$41" == "x" ]; then
         echo "Missing parameter 41 - automigrationtmpdir"
         exit 41
 fi
-if [ "x$42" == "x"]; then
+if [ "x$42" == "x" ]; then
         echo "Missing parameter 42 - automigrationdocumentarchivename"
         exit 42
 fi
@@ -141,8 +141,11 @@ export sshaccesstype=${39}
 export automigrationtmpdir=${41}
 export automigrationdocumentarchivename=${42}
 
-export ErrorLog='#ErrorLog'
+export CUSTOMDOMAIN=${46}
 
+
+
+export ErrorLog='#ErrorLog'
 
 export instancedir=$targetdir/$osusername/$dbname
 export fqn=$instancename.$domainname
@@ -228,43 +231,45 @@ if [[ "$mode" == "migrate" ]]; then
 			case "$automigrationdocumentarchivename" in
 					*.zip)
 							echo "unzip $automigrationdocumentarchivename -r $instancedir/documents/"
-							unzip $automigrationdocumentarchivename -r $instancedir/
+							unzip $automigrationdocumentarchivename -r "$instancedir/"
 							if [ $? -eq 0 ]
 							then
 									echo "Successfully file migration"
 							else
 									echo "Error on file migration"
-									exit 411
+									exit 211
 							fi
 							;;
 					*.tbz2|*.tar.bz2)
 							echo "tar -C $instancedir/documents/ -xjvf $automigrationdocumentarchivename"
-							tar -C $instancedir/ -xjvf $automigrationdocumentarchivename
+							tar -C "$instancedir/" -xjvf $automigrationdocumentarchivename
 							if [ $? -eq 0 ]
 							then
 									echo "Successfully file migration"
 							else
 									echo "Error on file migration"
-									exit 412
+									exit 212
 							fi
 							;;
 					*.tgz|*.tar.gz)
 							echo "tar -C $instancedir/documents/ -zxvf $automigrationdocumentarchivename"
-							tar -C $instancedir/ -zxvf $automigrationdocumentarchivename
+							tar -C "$instancedir/" -zxvf $automigrationdocumentarchivename
 							if [ $? -eq 0 ]
 							then
 									echo "Successfully file migration"
 							else
 									echo "Error on file migration"
-									exit 413
+									exit 213
 							fi
 							;;
 			esac
-			echo "chown $osusername:$osusername $instancedir/documents"
-            chown $osusername:$osusername $instancedir/documents
+			
+			# Set user owner instead of root used to copy files
+			echo "chown -R $osusername:$osusername $instancedir/documents"
+            chown -R $osusername:$osusername "$instancedir/documents"
 	else
 			echo "File $automigrationdocumentarchivename not found"
-			exit 410
+			exit 210
 	fi
 fi
 

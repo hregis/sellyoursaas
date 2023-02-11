@@ -354,7 +354,11 @@ class SellYourSaasUtils
 
 						// @TODO Save in cache $arraydefaultmessage for each $object->thirdparty->default_lang and reuse it to avoid getEMailTemplate called each time
 						dol_syslog("We will call getEMailTemplate for type 'contract', label 'GentleTrialExpiringReminder', outputlangs->defaultlang=".$outputlangs->defaultlang);
-						$arraydefaultmessage=$formmail->getEMailTemplate($this->db, 'contract', $user, $outputlangs, 0, 1, 'GentleTrialExpiringReminder');
+						if ($object->thirdparty->array_options['options_checkboxnonprofitorga'] == 'nonprofit' && getDolGlobalInt("SELLYOURSAAS_ENABLE_FREE_PAYMENT_MODE")) {
+							$arraydefaultmessage=$formmail->getEMailTemplate($this->db, 'contract', $user, $outputlangs, 0, 1, 'GentleTrialExpiringReminderFreeInstance');
+						} else {
+							$arraydefaultmessage=$formmail->getEMailTemplate($this->db, 'contract', $user, $outputlangs, 0, 1, 'GentleTrialExpiringReminder');
+						}
 
 						$substitutionarray=getCommonSubstitutionArray($outputlangs, 0, null, $object);
 						$substitutionarray['__SELLYOURSAAS_EXPIRY_DATE__']=dol_print_date($expirationdate, 'day', 'tzserver', $outputlangs);
@@ -2930,11 +2934,13 @@ class SellYourSaasUtils
 	 *
 	 * @param	string					$remoteaction	Remote action:
 	 * 													'backup',
-	 * 													'deploy/deployall/undeploy/undeployall'=create/delete database,
-	 * 													'deployoption'=???
-	 * 													'rename'=change apache virtual host file
+	 * 													'deployall/undeployall'=create/delete all,
+	 * 													'deploy/undeploy'=create/delete all except user,
+	 * 													'deployoption'=create/delete files+cli,
+	 * 													'rename'=change apache virtual host file,
 	 * 													'suspend/suspendmaintenance/unsuspend'=change apache virtual host file,
-	 * 													'refresh'=update status of install.lock+authorized key + loop on each line and read remote data and update qty of metrics
+	 * 													'refresh'=update status of install.lock+installmodules.lock+authorized key + loop on each line and read remote data and update qty of metrics
+	 * 													'refreshfilesonly'=update status of install.lock+installmodules.lock+authorized key
 	 * 													'refreshmetrics'=loop on each line of contract and read remote data and update qty of metrics
 	 * 													'recreateauthorizedkeys', 'deletelock', 'recreatelock'
 	 * 													'migrate',
@@ -2974,7 +2980,8 @@ class SellYourSaasUtils
 
 		// Action 'refresh', 'recreateauthorizedkeys', 'deletelock', 'recreatelock' for contract
 		// No need for 'refreshmetrics' here.
-		if (in_array($remoteaction, array('refresh', 'recreateauthorizedkeys', 'deletelock', 'recreatelock')) && get_class($object) == 'Contrat') {
+		if (in_array($remoteaction, array('refresh', 'refreshfilesonly', 'recreateauthorizedkeys', 'deletelock', 'recreatelock'))
+			&& (in_array(get_class($object), array('Contrat', 'SellYourSaasContract')))) {
 			// SFTP refresh
 			if (function_exists("ssh2_connect")) {
 				// Set timeout for ssh2_connect
@@ -2998,7 +3005,7 @@ class SellYourSaasUtils
 						$this->errors[] = "Could not authenticate with username ".$object->array_options['options_username_os']." and password ".preg_replace('/./', '*', $object->array_options['options_password_os']);
 						$error++;
 					} else {
-						if ($remoteaction == 'refresh') {
+						if ($remoteaction == 'refresh' || $remoteaction == 'refreshfilesonly') {
 							$sftp = ssh2_sftp($connection);
 							if (! $sftp) {
 								dol_syslog("Could not execute ssh2_sftp", LOG_ERR);
@@ -3025,6 +3032,7 @@ class SellYourSaasUtils
 								$fstatlock=@ssh2_sftp_stat($sftp, $fileauthorizedkeys2);
 								$dateauthorizedkeysfile=(empty($fstatlock['atime'])?'':$fstatlock['atime']);
 								//var_dump($datelockfile);
+								//var_dump(dateinstallmoduleslockfile);
 								//var_dump($fileauthorizedkeys2);
 
 								$object->array_options['options_filelock'] = $datelockfile;
@@ -3053,7 +3061,6 @@ class SellYourSaasUtils
 								}
 
 								// Check if authorized_key exists
-								//$filecert="ssh2.sftp://".$sftp.$conf->global->DOLICLOUD_EXT_HOME.'/'.$object->username_web.'/.ssh/authorized_keys_support';
 								$filecert="ssh2.sftp://".intval($sftp).$conf->global->DOLICLOUD_INSTANCES_PATH.'/'.$object->array_options['options_username_os'].'/.ssh/authorized_keys_support';  // With PHP 5.6.27+
 								$fstat=@ssh2_sftp_stat($sftp, $conf->global->DOLICLOUD_INSTANCES_PATH.'/'.$object->array_options['options_username_os'].'/.ssh/authorized_keys_support');
 
@@ -3219,6 +3226,7 @@ class SellYourSaasUtils
 				dol_syslog("List of lines contains an empty ContratLine, we discard this line.", LOG_WARNING);
 				continue;
 			}
+			dol_syslog("** Process contract line id=".$tmpobject->id);
 
 			$producttmp = new Product($this->db);
 			$producttmp->fetch($tmpobject->fk_product, '', '', '', 1, 1, 1);
@@ -3234,18 +3242,24 @@ class SellYourSaasUtils
 			// Note remote action 'undeployall' is used to undeploy test instances
 			// Note remote action 'undeploy' is used to undeploy paying instances
 			$doremoteaction = 0;
-			if (in_array($remoteaction, array('backup', 'deploy', 'deployall', 'rename', 'suspend', 'suspendmaintenance','unsuspend', 'undeploy', 'undeployall', 'migrate','upgrade')) &&
-				($producttmp->array_options['options_app_or_option'] == 'app')) $doremoteaction = 1;
+			if (in_array($remoteaction, array('backup', 'deploy', 'deployall', 'rename', 'suspend', 'suspendmaintenance', 'unsuspend', 'undeploy', 'undeployall', 'migrate', 'upgrade')) &&
+				($producttmp->array_options['options_app_or_option'] == 'app')) {
+					$doremoteaction = 1;
+			}
 			if (in_array($remoteaction, array('deploy','deployall','deployoption')) &&
-				($producttmp->array_options['options_app_or_option'] == 'option')) $doremoteaction = 1;
+				($producttmp->array_options['options_app_or_option'] == 'option') && $tmppackage->id > 0) {
+					$doremoteaction = 1;
+					$remoteaction = 'deployoption';		// force on deployoption for options services
+			}
 			// 'refresh' and 'refreshmetrics' are processed later.
 
-			// remoteaction = 'deploy','deployall','deployoption','rename','suspend','suspendmaintenance','unsuspend','undeploy'
+			// remoteaction = 'deploy','deployall','deployoption',...
 			if ($doremoteaction) {
-				dol_syslog("Enter into doremoteaction code, with contract id=".$tmpobject->id." app_or_option=".$producttmp->array_options['options_app_or_option']);
+				dol_syslog("Enter into doremoteaction code for contract line id=".$tmpobject->id." app_or_option=".$producttmp->array_options['options_app_or_option']);
 
 				include_once DOL_DOCUMENT_ROOT.'/contrat/class/contrat.class.php';
 
+				// Load parent contract of the processed contract line $tmpobject
 				$contract = new Contrat($this->db);
 				$contract->fetch($tmpobject->fk_contrat);
 				$contract->fetch_thirdparty();
@@ -3354,12 +3368,12 @@ class SellYourSaasUtils
 				dol_syslog("password0salted=".$password0salted." passwordmd5salted=".$passwordmd5salted." passwordsha256salted=".$passwordsha256salted, LOG_DEBUG);
 
 				$conf->global->MAIN_SECURITY_SALT = '';
-				dol_syslog("Using empty salt for __APPPASSWORDxxx__ variables : ".$conf->global->MAIN_SECURITY_SALT);
+				//dol_syslog("Using empty salt for __APPPASSWORDxxx__ variables : ".$conf->global->MAIN_SECURITY_SALT);
 				$password0 = dol_hash($password);	// deprecated. Depend on master setup.
 				$passwordmd5 = dol_hash($password, 'md5');
 				$passwordsha256 = dol_hash($password, 'sha256');
 				$passwordpassword_hash = dol_hash($password, 'password_hash');
-				dol_syslog("password0=".$password." passwordmd5=".$passwordmd5." passwordsha256=".$passwordsha256, LOG_DEBUG);
+				//dol_syslog("password0=".$password." passwordmd5=".$passwordmd5." passwordsha256=".$passwordsha256, LOG_DEBUG);
 
 				$conf->global->MAIN_SECURITY_SALT = $savsalt;
 				$conf->global->MAIN_SECURITY_HASH_ALGO = $savhashalgo;
@@ -3559,6 +3573,8 @@ class SellYourSaasUtils
 						}
 					}
 				}
+			} else {
+				dol_syslog("Do not enter into doremoteaction code for contract line id=".$tmpobject->id." app_or_option=".(empty($producttmp->array_options['options_app_or_option']) ? '' : $producttmp->array_options['options_app_or_option']));
 			}
 
 			// remoteaction = refresh or refreshmetrics => update the qty for this line if it is a line that is a metric
@@ -4018,6 +4034,7 @@ class SellYourSaasUtils
 				$actioncomm->elementtype = 'contract';
 				$actioncomm->note_private = $comment;     // Description of event ($comment come from calling parameter of function sellyoursaasRemoteAction)
 				if (! is_numeric($forceaddevent)) {
+					// Complete the note with an error message.
 					$actioncomm->note_private = dol_concatdesc($actioncomm->note_private, $forceaddevent);
 				}
 				$ret=$actioncomm->create($user);       // User creating action
@@ -4120,33 +4137,55 @@ class SellYourSaasUtils
 		$error = 0;
 
 		$REMOTEIPTODEPLOYTO='';
-		$tmparray=explode(',', $conf->global->SELLYOURSAAS_SUB_DOMAIN_NAMES);
-		$found=0;
-		foreach ($tmparray as $key => $val) {
-			$newval = preg_replace('/:.*$/', '', $val);
-			if ($newval == $domainname) {
-				if ($onlyifopen && preg_match('/:closed/', $val)) {		// Can be 'withX.adomain.com:closed' or 'withX.adomain.com:closed:adomain.com'
-					// This entry is closed.
-					continue;
+		if (!getDolGlobalString('SELLYOURSAAS_OBJECT_DEPLOYMENT_SERVER_MIGRATION')) {
+			$tmparray=explode(',', $conf->global->SELLYOURSAAS_SUB_DOMAIN_NAMES);
+			$found=0;
+			foreach ($tmparray as $key => $val) {
+				$newval = preg_replace('/:.*$/', '', $val);
+				if ($newval == $domainname) {
+					if ($onlyifopen && preg_match('/:closed/', $val)) {		// Can be 'withX.adomain.com:closed' or 'withX.adomain.com:closed:adomain.com'
+						// This entry is closed.
+						continue;
+					}
+					$found = $key+1;
+					break;
 				}
-				$found = $key+1;
-				break;
 			}
-		}
-		//print 'Found domain at position '.$found;
-		if (! $found) {
-			dol_syslog("Failed to found position of server domain '".$domainname."' into SELLYOURSAAS_SUB_DOMAIN_NAMES=".$conf->global->SELLYOURSAAS_SUB_DOMAIN_NAMES, LOG_WARNING);
-			$this->error="Failed to found position of server domain '".$domainname."' into SELLYOURSAAS_SUB_DOMAIN_NAMES";
-			$this->errors[]="Failed to found position of server domain '".$domainname."' into SELLYOURSAAS_SUB_DOMAIN_NAMES";
-			$error++;
-		} else {
-			$tmparray=explode(',', $conf->global->SELLYOURSAAS_SUB_DOMAIN_IP);
-			$REMOTEIPTODEPLOYTO=$tmparray[($found-1)];
-			if (! $REMOTEIPTODEPLOYTO) {
-				dol_syslog("Failed to found ip of server domain '".$domainname."' at position '".$found."' into SELLYOURSAAS_SUB_DOMAIN_IP".$conf->global->SELLYOURSAAS_SUB_DOMAIN_IP, LOG_WARNING);
-				$this->error="Failed to found ip of server domain '".$domainname."' at position '".$found."' into SELLYOURSAAS_SUB_DOMAIN_IP";
-				$this->errors[]="Failed to found ip of server domain '".$domainname."' at position '".$found."' into SELLYOURSAAS_SUB_DOMAIN_IP";
+			//print 'Found domain at position '.$found;
+			if (! $found) {
+				dol_syslog("Failed to found position of server domain '".$domainname."' into SELLYOURSAAS_SUB_DOMAIN_NAMES=".$conf->global->SELLYOURSAAS_SUB_DOMAIN_NAMES, LOG_WARNING);
+				$this->error="Failed to found position of server domain '".$domainname."' into SELLYOURSAAS_SUB_DOMAIN_NAMES";
+				$this->errors[]="Failed to found position of server domain '".$domainname."' into SELLYOURSAAS_SUB_DOMAIN_NAMES";
 				$error++;
+			} else {
+				$tmparray=explode(',', $conf->global->SELLYOURSAAS_SUB_DOMAIN_IP);
+				$REMOTEIPTODEPLOYTO=$tmparray[($found-1)];
+				if (! $REMOTEIPTODEPLOYTO) {
+					dol_syslog("Failed to found ip of server domain '".$domainname."' at position '".$found."' into SELLYOURSAAS_SUB_DOMAIN_IP".$conf->global->SELLYOURSAAS_SUB_DOMAIN_IP, LOG_WARNING);
+					$this->error="Failed to found ip of server domain '".$domainname."' at position '".$found."' into SELLYOURSAAS_SUB_DOMAIN_IP";
+					$this->errors[]="Failed to found ip of server domain '".$domainname."' at position '".$found."' into SELLYOURSAAS_SUB_DOMAIN_IP";
+					$error++;
+				}
+			}
+		} else {
+			dol_include_once('sellyoursaas/class/deploymentserver.class.php');
+			$deployementserver = new Deploymentserver($this->db);
+
+			$res = $deployementserver->fetch(null, $domainname);
+
+			if ($res < 0) {
+				$this->error = $deployementserver->error;
+				$this->errors[] = $deployementserver->errors;
+				$error++;
+			} elseif ($res == 0 ) {
+				dol_syslog("Failed to find server domain '".$domainname."' into database", LOG_WARNING);
+				$this->error="Failed to find server domain '".$domainname."' into database";
+				$this->errors[]="Failed to find server domain '".$domainname."' into database";
+				$error++;
+			}
+
+			if ($deployementserver->status != $deployementserver::STATUS_DISABLED) {
+				$REMOTEIPTODEPLOYTO = $deployementserver->ipaddress;
 			}
 		}
 

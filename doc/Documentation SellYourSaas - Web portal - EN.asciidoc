@@ -883,8 +883,8 @@ Create a file */etc/postfix/generic* to add binding between email used to send e
 
 [source,bash]
 ---------------
-root@myshortservername.mysaasdomain.com		noreply@mysaasdomain.com
-admin@myshortservername.mysaasdomain.com	noreply@mysaasdomain.com
+root@myshortservername.mysaasdomainname.com		noreply@mysaasdomainname.com
+admin@myshortservername.mysaasdomainname.com	noreply@mysaasdomainname.com
 ---------------
 
 Compile the file with:
@@ -898,7 +898,7 @@ echo >> /etc/postfix/access_to; postmap /etc/postfix/access_to
 echo >> /etc/postfix/access_from; postmap /etc/postfix/access_from
 ---------------
 
-Edit the file */etc/mailname* to set the long FQDN of the server *myshortservername.mysaasdomain.com*:
+Edit the file */etc/mailname* to set the long FQDN of the server *myshortservername.mysaasdomainname.com*:
 
 [source,bash]
 ---------------
@@ -1204,9 +1204,12 @@ vi */etc/apache2/sites-available/mysellyoursaasdomain.com.conf*
         Require all granted
         </Directory>
 
-RewriteEngine on
-RewriteCond %{SERVER_NAME} =mysellyoursaasdomain.com
-RewriteRule ^ https://www.%{SERVER_NAME}%{REQUEST_URI} [END,NE,R=permanent]
+	Header always set Strict-Transport-Security max-age=31536000
+   	#add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload";
+
+	RewriteEngine on
+	RewriteCond %{SERVER_NAME} =mysellyoursaasdomain.com
+	RewriteRule ^ https://www.%{SERVER_NAME}%{REQUEST_URI} [END,NE,R=permanent]
 
 </VirtualHost>
 ---------------
@@ -1286,17 +1289,6 @@ su root syslog
 
 [source,conf]
 ---------------
-/var/log/backup_backups.log {
-        su root root
-        weekly
-        rotate 4
-        compress
-        delaycompress
-        missingok
-        notifempty
-        create 600 root root
-}
-
 /home/admin/wwwroot/dolibarr_documents/*.log {
         su admin www-data
         daily

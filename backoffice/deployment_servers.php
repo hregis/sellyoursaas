@@ -120,6 +120,7 @@ if ($action == 'setSELLYOURSAAS_DISABLE_INSTANCE') {
 	}
 }
 
+// Enable the annouce for the server $keyforaction
 if ($action == 'setSELLYOURSAAS_ANNOUNCE_ON') {
 	$keyforparam = 'SELLYOURSAAS_ANNOUNCE_ON_'.$keyforaction;
 	if ($value) {
@@ -129,12 +130,20 @@ if ($action == 'setSELLYOURSAAS_ANNOUNCE_ON') {
 	}
 }
 
+// Set text for announce
 if ($action == 'setSELLYOURSAAS_ANNOUNCE') {
-	$keyforparam = 'SELLYOURSAAS_ANNOUNCE_'.$keyforaction;
-	if ($value) {
-		dolibarr_set_const($db, $keyforparam, $value, 'chaine', 0, '', $conf->entity);
-	} else {
-		dolibarr_del_const($db, $keyforparam, $conf->entity);
+	foreach ($_POST as $key => $val) {	// Loop on each entry to search the o
+		$reg = array();
+		if (preg_match('/^saveannounce_(.*)$/', $key, $reg)) {
+			$keyforparam = 'SELLYOURSAAS_ANNOUNCE_'.str_replace('_', '.', $reg[1]);
+			$value = GETPOST('value_'.$reg[1]);
+			if ($value) {
+				dolibarr_del_const($db, $keyforparam, $conf->entity);	// Delete old text
+				dolibarr_set_const($db, $keyforparam, $value, 'chaine', 0, '', $conf->entity);
+			} else {
+				dolibarr_del_const($db, $keyforparam, $conf->entity);
+			}
+		}
 	}
 }
 
@@ -164,7 +173,7 @@ if ($action == 'addinstance') {
 				$tmpdomainkey[1] = 'closed';
 				$listofdomains[] = implode(':', $tmpdomainkey);
 				$listofdomains = implode(',', $listofdomains);
-				dolibarr_set_const($db, "SELLYOURSAAS_SUB_DOMAIN_NAMES", $listofdomains, 'chaine', 0, '', $conf->entity);
+				dolibarr_set_const($db, "SELLYOURSAAS_SUB_DOMAis_emptyIN_NAMES", $listofdomains, 'chaine', 0, '', $conf->entity);
 			} elseif ($statusnew == 1) {
 				$tmpdomainkey[0] = $domainnamenew;
 				$listofdomains[] = implode(':', $tmpdomainkey);
@@ -349,7 +358,7 @@ if (empty($conf->global->SELLYOURSAAS_SUB_DOMAIN_IP)) {
 	$helptooltip = img_warning('', '').' '.$langs->trans("EvenIfDomainIsOpenTo");
 	print $form->textwithpicto($langs->trans("Closed").'|'.$langs->trans("Opened"), $helptooltip);
 	print '</td>';
-	// Nb of instances
+
 	print '<td class="center">';
 	print $form->textwithpicto($langs->trans("Instances"), $langs->trans("NbOfOpenInstances"));
 	print '</td>';
@@ -542,15 +551,14 @@ if (empty($conf->global->SELLYOURSAAS_SUB_DOMAIN_IP)) {
 			print '<input type="hidden" name="action" value="setSELLYOURSAAS_ANNOUNCE">';
 			print '<input type="hidden" name="key" value="'.$tmparraydomain[0].'">';
 			print '<input type="hidden" name="token" value="'.newToken().'">';
-			print '<textarea class="flat valignmiddle inputsearch inline-block maxwidth200" type="text" name="value" rows="'.ROWS_2.'">';
+			print '<textarea class="flat valignmiddle inputsearch inline-block maxwidth200" type="text" name="value_'.$tmparraydomain[0].'" rows="'.ROWS_2.'">';
 			print $conf->global->$keyforparam2;
 			print '</textarea>';
 			print '<div class="center valignmiddle inline-block">';
-			print '<input type="submit" name="saveannounce" class="button smallpaddingimp" value="'.$langs->trans("Save").'">';
+			print '<input type="submit" id="saveannounce_'.$tmparraydomain[0].'" name="saveannounce_'.$tmparraydomain[0].'" class="button smallpaddingimp" value="'.$langs->trans("Save").'">';
 			print '</div>';
 			print '</td>';
 			if ($user->hasRight('sellyoursaas', 'write') || $user->hasRight('sellyoursaas', 'delete')) {
-				// code...
 				print '<td class="minwidth50">';
 				if ($user->hasRight('sellyoursaas', 'write')) {
 					print '<a href="'.$_SERVER["PHP_SELF"].'?action=edit&token='.newToken().'&key='.$key.'">'.img_picto($langs->trans("Edit"), 'edit', 'class="marginleftonly"').'</a>';

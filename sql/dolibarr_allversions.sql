@@ -32,6 +32,7 @@
 
 ALTER TABLE llx_packages ADD COLUMN cliafterpaid text;
 ALTER TABLE llx_packages ADD COLUMN sqlafterpaid text;
+ALTER TABLE llx_packages ADD COLUMN sqlpasswordreset text;
 
 
 
@@ -110,12 +111,31 @@ CREATE TABLE llx_sellyoursaas_blacklistdir(
 	-- END MODULEBUILDER FIELDS
 ) ENGINE=innodb;
 
+CREATE TABLE llx_sellyoursaas_deploymentserver(
+	-- BEGIN MODULEBUILDER FIELDS
+	rowid integer AUTO_INCREMENT PRIMARY KEY NOT NULL,
+	ref varchar(128) NOT NULL,
+	entity integer DEFAULT 1 NOT NULL,  -- multi company id
+	note_private text, 
+	date_creation datetime NOT NULL,
+	date_modification timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+	status integer DEFAULT 0 NOT NULL,
+	fk_country integer,
+	fromdomainname varchar(128),
+	ipaddress varchar(128) NOT NULL,
+	servercountries text,
+	servercustomerannounce text,
+	servercustomerannouncestatus integer
+	-- END MODULEBUILDER FIELDS
+) ENGINE=innodb;
 
 ALTER TABLE llx_sellyoursaas_blacklistip ADD COLUMN date_use datetime;
 ALTER TABLE llx_sellyoursaas_blacklistip ADD COLUMN comment varchar(255);
 ALTER TABLE llx_sellyoursaas_whitelistip ADD COLUMN comment varchar(255);
 
 ALTER TABLE llx_sellyoursaas_blacklistdir ADD COLUMN noblacklistif varchar(255);
+
+ALTER TABLE llx_sellyoursaas_deploymentserver ADD COLUMN servercountries text;
 
 ALTER TABLE llx_sellyoursaas_blacklistdir DROP INDEX idx_sellyoursaas_blacklistto_content;
 ALTER TABLE llx_sellyoursaas_blacklistto DROP INDEX idx_sellyoursaas_blacklistto_content;
@@ -131,6 +151,7 @@ ALTER TABLE llx_sellyoursaas_blacklistto ADD UNIQUE INDEX uk_sellyoursaas_blackl
 ALTER TABLE llx_sellyoursaas_blacklistfrom ADD UNIQUE INDEX uk_sellyoursaas_blacklistfrom_content (content);
 ALTER TABLE llx_sellyoursaas_blacklistip ADD UNIQUE INDEX uk_sellyoursaas_blacklistip_content (content);
 ALTER TABLE llx_sellyoursaas_whitelistip ADD UNIQUE INDEX uk_sellyoursaas_whitelistip_content (content);
+
 
 
 ALTER TABLE llx_dolicloud_stats RENAME TO llx_sellyoursaas_stats;

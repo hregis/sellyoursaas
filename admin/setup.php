@@ -47,6 +47,7 @@ require_once DOL_DOCUMENT_ROOT."/core/class/html.formother.class.php";
 require_once DOL_DOCUMENT_ROOT."/core/class/html.formticket.class.php";
 require_once DOL_DOCUMENT_ROOT."/categories/class/categorie.class.php";
 dol_include_once('/sellyoursaas/lib/sellyoursaas.lib.php');
+dol_include_once('/sellyoursaas/class/deploymentserver.class.php');
 
 // Access control
 if (! $user->admin) accessforbidden();
@@ -63,7 +64,12 @@ $langs->loadLangs(array("admin", "errors", "install", "sellyoursaas@sellyoursaas
 $hookmanager->initHooks(array('sellyoursaas-setup'));
 
 $tmpservices=array();
-$tmpservicessub = explode(',', getDolGlobalString('SELLYOURSAAS_SUB_DOMAIN_NAMES'));
+$staticdeploymentserver = new Deploymentserver($db);
+if (empty(getDolGlobalString('SELLYOURSAAS_OBJECT_DEPLOYMENT_SERVER_MIGRATION'))) {
+	$tmpservicessub = explode(',', getDolGlobalString('SELLYOURSAAS_SUB_DOMAIN_NAMES'));
+} else {
+	$tmpservicessub = $staticdeploymentserver->fetchAllDomains();
+}
 foreach ($tmpservicessub as $key => $tmpservicesub) {
 	$tmpservicesub = preg_replace('/:.*$/', '', $tmpservicesub);
 	if ($key > 0) $tmpservices[$tmpservicesub]=getDomainFromURL($tmpservicesub, 1);
@@ -128,7 +134,10 @@ if ($action == 'set') {
 		dolibarr_set_const($db, "SELLYOURSAAS_REFS_URL", GETPOST("SELLYOURSAAS_REFS_URL"), 'chaine', 0, '', $conf->entity);
 
 		dolibarr_set_const($db, "SELLYOURSAAS_ACCOUNT_URL", GETPOST("SELLYOURSAAS_ACCOUNT_URL", 'alpha'), 'chaine', 0, '', $conf->entity);
-		dolibarr_set_const($db, "SELLYOURSAAS_PRICES_URL", GETPOST("SELLYOURSAAS_PRICES_URL", 'alpha'), 'chaine', 0, '', $conf->entity);
+		foreach ($arrayofsuffixfound as $suffix) {
+			dolibarr_set_const($db, "SELLYOURSAAS_PRICES_URL".$suffix, GETPOST("SELLYOURSAAS_PRICES_URL".$suffix), 'chaine', 0, '', $conf->entity);
+		}
+		//dolibarr_set_const($db, "SELLYOURSAAS_PRICES_URL", GETPOST("SELLYOURSAAS_PRICES_URL", 'alpha'), 'chaine', 0, '', $conf->entity);
 		dolibarr_set_const($db, "SELLYOURSAAS_STATUS_URL", GETPOST("SELLYOURSAAS_STATUS_URL", 'alpha'), 'chaine', 0, '', $conf->entity);
 		dolibarr_set_const($db, "SELLYOURSAAS_RESELLER_URL", GETPOST("SELLYOURSAAS_RESELLER_URL", 'alpha'), 'chaine', 0, '', $conf->entity);
 
@@ -147,17 +156,17 @@ if ($action == 'removelogo') {
 	require_once DOL_DOCUMENT_ROOT.'/core/lib/files.lib.php';
 
 	$constname='SELLYOURSAAS_LOGO'.GETPOST('suffix', 'aZ09');
-	$logofile=$conf->mycompany->dir_output.'/logos/'.$conf->global->$constname;
+	$logofile=$conf->mycompany->dir_output.'/logos/'.getDolGlobalString($constname);
 	if ($conf->global->$constname != '') dol_delete_file($logofile);
 	dolibarr_del_const($db, $constname, $conf->entity);
 
 	$constname='SELLYOURSAAS_LOGO_SMALL'.GETPOST('suffix', 'aZ09');
-	$logosmallfile=$conf->mycompany->dir_output.'/logos/thumbs/'.$conf->global->$constname;
+	$logosmallfile=$conf->mycompany->dir_output.'/logos/thumbs/'.getDolGlobalString($constname);
 	if ($conf->global->$constname != '') dol_delete_file($logosmallfile);
 	dolibarr_del_const($db, $constname, $conf->entity);
 
 	$constname='SELLYOURSAAS_LOGO_MINI'.GETPOST('suffix', 'aZ09');
-	$logominifile=$conf->mycompany->dir_output.'/logos/thumbs/'.$conf->global->$constname;
+	$logominifile=$conf->mycompany->dir_output.'/logos/thumbs/'.getDolGlobalString($constname);
 	if ($conf->global->$constname != '') dol_delete_file($logominifile);
 	dolibarr_del_const($db, $constname, $conf->entity);
 }
@@ -165,17 +174,17 @@ if ($action == 'removelogoblack') {
 	require_once DOL_DOCUMENT_ROOT.'/core/lib/files.lib.php';
 
 	$constname='SELLYOURSAAS_LOGO_BLACK'.GETPOST('suffix', 'aZ09');
-	$logofile=$conf->mycompany->dir_output.'/logos/'.$conf->global->$constname;
+	$logofile=$conf->mycompany->dir_output.'/logos/'.getDolGlobalString($constname);
 	if ($conf->global->$constname != '') dol_delete_file($logofile);
 	dolibarr_del_const($db, "$constname", $conf->entity);
 
 	$constname='SELLYOURSAAS_LOGO_SMALL_BLACK'.GETPOST('suffix', 'aZ09');
-	$logosmallfile=$conf->mycompany->dir_output.'/logos/thumbs/'.$conf->global->$constname;
+	$logosmallfile=$conf->mycompany->dir_output.'/logos/thumbs/'.getDolGlobalString($constname);
 	if ($conf->global->$constname != '') dol_delete_file($logosmallfile);
 	dolibarr_del_const($db, $constname, $conf->entity);
 
 	$constname='SELLYOURSAAS_LOGO_MINI_BLACK'.GETPOST('suffix', 'aZ09');
-	$logominifile=$conf->mycompany->dir_output.'/logos/thumbs/'.$conf->global->$constname;
+	$logominifile=$conf->mycompany->dir_output.'/logos/thumbs/'.getDolGlobalString($constname);
 	if ($conf->global->$constname != '') dol_delete_file($logominifile);
 	dolibarr_del_const($db, $constname, $conf->entity);
 }
@@ -208,7 +217,6 @@ if (in_array('exec', $arrayoffunctionsdisabled)) {
 	print 'Parameter <b>disable_functions</b>: '.img_picto('', 'tick', 'class="paddingrightonly"').' does not contains: exec<br>';
 }
 print "<br>\n";
-
 
 $error=0;
 
@@ -247,19 +255,21 @@ print '</td>';
 print '<td><span class="opacitymedium small">mysaasdomainname.com</span></td>';
 print '</tr>';
 
-print '<tr class="oddeven"><td class="fieldrequired">'.$form->textwithpicto($langs->trans("SellYourSaasSubDomains"), $langs->trans("SellYourSaasSubDomainsHelp")).'</td>';
-print '<td>';
-print '<input type="text" name="SELLYOURSAAS_SUB_DOMAIN_NAMES" value="'.getDolGlobalString('SELLYOURSAAS_SUB_DOMAIN_NAMES').'" class="minwidth300">';
-print '</td>';
-print '<td><span class="opacitymedium small">with.mysaasdomainname.com,with.mysaas2.com:mysaas2.com...</span></td>';
-print '</tr>';
+if (empty(getDolGlobalString('SELLYOURSAAS_OBJECT_DEPLOYMENT_SERVER_MIGRATION'))) {
+	print '<tr class="oddeven"><td class="fieldrequired">'.$form->textwithpicto($langs->trans("SellYourSaasSubDomains"), $langs->trans("SellYourSaasSubDomainsHelp")).'</td>';
+	print '<td>';
+	print '<input type="text" name="SELLYOURSAAS_SUB_DOMAIN_NAMES" value="'.getDolGlobalString('SELLYOURSAAS_SUB_DOMAIN_NAMES').'" class="minwidth300">';
+	print '</td>';
+	print '<td><span class="opacitymedium small">with.mysaasdomainname.com,with.mysaas2.com:mysaas2.com...</span></td>';
+	print '</tr>';
 
-print '<tr class="oddeven"><td class="fieldrequired">'.$langs->trans("SellYourSaasSubDomainsIP").'</td>';
-print '<td>';
-print '<input type="text" name="SELLYOURSAAS_SUB_DOMAIN_IP" value="'.getDolGlobalString('SELLYOURSAAS_SUB_DOMAIN_IP').'" class="minwidth300">';
-print '</td>';
-print '<td><span class="opacitymedium small">192.168.0.1,123.456.789.012...</span></td>';
-print '</tr>';
+	print '<tr class="oddeven"><td class="fieldrequired">'.$langs->trans("SellYourSaasSubDomainsIP").'</td>';
+	print '<td>';
+	print '<input type="text" name="SELLYOURSAAS_SUB_DOMAIN_IP" value="'.getDolGlobalString('SELLYOURSAAS_SUB_DOMAIN_IP').'" class="minwidth300">';
+	print '</td>';
+	print '<td><span class="opacitymedium small">192.168.0.1,123.456.789.012...</span></td>';
+	print '</tr>';
+}
 
 print '<tr class="oddeven"><td class="fieldrequired">'.$langs->trans("SellYourSaasMainEmail").'</td>';
 print '<td>';
@@ -432,12 +442,18 @@ print '</td>';
 print '<td><span class="opacitymedium small">https://myaccount.mysaasdomainname.com<br>Note: Virtual hosts for such domains must link to <strong>'.dol_buildpath('sellyoursaas/myaccount').'</strong></span></td>';
 print '</tr>';
 
-print '<tr class="oddeven"><td>'.$langs->trans("SellYourSaasPricesUrl").'</td>';
-print '<td>';
-print '<input class="minwidth300" type="text" name="SELLYOURSAAS_PRICES_URL" value="'.getDolGlobalString('SELLYOURSAAS_PRICES_URL').'">';
-print '</td>';
-print '<td><span class="opacitymedium small">https://myaccount.mysaasdomainname.com/prices.html</span></td>';
-print '</tr>';
+foreach ($arrayofsuffixfound as $service => $suffix) {
+	print '<!-- suffix = '.$suffix.' -->'."\n";
+
+	print '<tr class="oddeven"><td>'.($service ? $service.' - ' : '').$langs->trans("SellYourSaasPricesUrl").'</td>';
+	print '<td>';
+	$constname = 'SELLYOURSAAS_PRICES_URL'.$suffix;
+	print '<!-- constname = '.$constname.' -->';
+	print '<input class="minwidth300" type="text" name="SELLYOURSAAS_PRICES_URL'.$suffix.'" value="'.getDolGlobalString('SELLYOURSAAS_PRICES_URL'.$suffix).'">';
+	print '</td>';
+	print '<td><span class="opacitymedium small">https://myaccount.mysaasdomainname.com/prices.html</span></td>';
+	print '</tr>';
+}
 
 print '<tr class="oddeven"><td>'.$langs->trans("SellYourSaasStatusUrl").'</td>';
 print '<td>';

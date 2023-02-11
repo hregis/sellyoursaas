@@ -405,6 +405,7 @@ border-radius: 0 4px 4px 0;
     padding: 10px 20px;
     text-align: justify;
     opacity: 0.65;
+	font-size: 0.95em;
 }
 
 .areaforresources {
@@ -416,6 +417,9 @@ border-radius: 0 4px 4px 0;
 	box-shadow: 0px 0px 10px #ccc;
 }
 
+.whitespacenowrap {
+	white-space : normal !important;
+}
 
 .grid-wrapper-automigration {
 	display : grid;
@@ -447,6 +451,13 @@ input.input-field {
 .span-icon-user:before, .span-icon-password:before {
 	opacity: 0.4;
 }
+
+
+.tagtable, .table-border { display: table; }
+.tagtr, .table-border-row  { display: table-row; }
+.tagtd, .table-border-col, .table-key-border-col, .table-val-border-col { display: table-cell; }
+
+
 
 /* For smartphones */
 

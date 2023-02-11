@@ -10,6 +10,7 @@
 
 
 export now=`date +'%Y-%m-%d %H:%M:%S'`
+export nowlog=`date +'%Y%m%d-%H%M%S'`
 
 echo
 echo
@@ -25,7 +26,6 @@ echo "# realname name --> $(basename $(realpath ${0}))"
 echo "# realname dir ---> $(dirname $(realpath ${0}))"
 
 export PID=${$}
-export ZONES_PATH="/etc/bind/zones"
 export scriptdir=$(dirname $(realpath ${0}))
 
 # possibility to change the directory of vhostfile templates
@@ -46,46 +46,46 @@ if [ "$(id -u)" != "0" ]; then
 fi
 
 if [ "x$1" == "x" ]; then
-	echo "Missing parameter 1 - mode (suspend|suspendmaintenance|unsuspend)" 1>&2
+	echo "Missing parameter 1 - mode (upgrade)" 1>&2
 	exit 1
 fi
 if [ "x$2" == "x" ]; then
 	echo "Missing parameter 2 - osusername" 1>&2
-	exit 20
+	exit 2
 fi
 if [ "x$3" == "x" ]; then
 	echo "Missing parameter 3 - ospassword" 1>&2
-	exit 30
+	exit 3
 fi
 if [ "x$4" == "x" ]; then
 	echo "Missing parameter 4 - instancename" 1>&2
-	exit 41
+	exit 4
 fi
 if [ "x$5" == "x" ]; then
 	echo "Missing parameter 5 - domainname" 1>&2
-	exit 50
+	exit 5
 fi
 if [ "x$6" == "x" ]; then
 	echo "Missing parameter 6 - dbname" 1>&2
-	exit 60
+	exit 6
 fi
 if [ "x$7" == "x" ]; then
 	echo "Missing parameter 7 - dbport" 1>&2
-	exit 70
+	exit 7
 fi
 if [ "x${23}" == "x" ]; then
 	echo "Missing parameter 23 - REMOTEIP" 1>&2
 	exit 23
 fi
-if [ "x$43" == "x"]; then
+if [ "x$43" == "x" ]; then
         echo "Missing parameter 43 - dirforexampleforsources"
         exit 43
 fi
-if [ "x$44" == "x"]; then
+if [ "x$44" == "x" ]; then
         echo "Missing parameter 44 - laststableupgradeversion"
         exit 44
 fi
-if [ "x$45" == "x"]; then
+if [ "x$45" == "x" ]; then
         echo "Missing parameter 45 - lastversiondolibarrinstance"
         exit 45
 fi
@@ -101,9 +101,9 @@ export dbport=$7
 export dbusername=$8
 export dbpassword=$9
 
-export fileforconfig1=${10}
-export targetfileforconfig1=${11}
-export dirwithdumpfile=${12}
+export fileforconfig1=${10//£/ }
+export targetfileforconfig1=${11//£/ }
+export dirwithdumpfile=${12//£/ }
 export dirwithsources1=${13}
 export targetdirwithsources1=${14}
 export dirwithsources2=${15}
@@ -140,13 +140,20 @@ export ispaidinstance=${36}
 export SELLYOURSAAS_LOGIN_FOR_SUPPORT=${37}
 export directaccess=${38}
 export sshaccesstype=${39}
+export INCLUDEFROMCONTRACT=${40//£/ }
+if [ "x$INCLUDEFROMCONTRACT" == "x-" ]; then
+	INCLUDEFROMCONTRACT=""
+fi
 
 export dirforexampleforsources=${43}
 export laststableupgradeversion=${44}
 export lastversiondolibarrinstance=${45}
 
-export ErrorLog='#ErrorLog'
+export CUSTOMDOMAIN=${46}
 
+
+
+export ErrorLog='#ErrorLog'
 
 export instancedir=$targetdir/$osusername/$dbname
 export fqn=$instancename.$domainname
@@ -166,6 +173,8 @@ export webSSLCertificateIntermediate=`grep '^websslcertificateintermediate=' /et
 if [[ "x$webSSLCertificateIntermediate" == "x" ]]; then
 	export webSSLCertificateIntermediate=with.sellyoursaas.com-intermediate.crt
 fi
+
+export usecompressformatforarchive=`grep '^usecompressformatforarchive=' /etc/sellyoursaas.conf | cut -d '=' -f 2`
 
 # possibility to change the path of sellyoursass directory
 olddoldataroot=`grep '^olddoldataroot=' /etc/sellyoursaas.conf | cut -d '=' -f 2`
@@ -210,7 +219,8 @@ echo "sshaccesstype = $sshaccesstype"
 echo "ErrorLog = $ErrorLog"
 
 echo `date +'%Y-%m-%d %H:%M:%S'`" calculated params:"
-echo "instancedir = $instancedir"
+echo "templatesdir (from parameters) = $templatesdir"
+echo "instancedir (from parameters) = $instancedir"
 echo "fqn = $fqn"
 echo "fqnold = $fqnold"
 echo "CRONHEAD = $CRONHEAD"
@@ -219,7 +229,15 @@ echo "laststableupgradeversion = $laststableupgradeversion"
 echo "lastversiondolibarrinstance = $lastversiondolibarrinstance"
 
 
+MYSQL=`which mysql`
+MYSQLDUMP=`which mysqldump`
+
+
 testorconfirm="confirm"
+
+
+# Backup of database should have been done previously
+# by calling the remote action 'backup'
 
 
 # Upgrade
@@ -229,84 +247,106 @@ if [[ "$mode" == "upgrade" ]];then
 	if [ $lastversiondolibarrinstance -lt 4 ]
 	then
 		echo "Version too old."
-		exit 440
+		exit 220
 	fi
 	if [ -d "$dirforexampleforsources" ]
 	then
-		echo "cp $dirforexampleforsources/* $instancedir/"
-		cp -r $dirforexampleforsources/* $instancedir/
+		echo "rsync -rlt -p -og --chmod=a+x,g-rwx,o-rwx --chown=$osusername:$osusername $dirforexampleforsources/* $instancedir/ --exclude test/ --exclude .buildpath --exclude .codeclimate.yml --exclude .editorconfig --exclude .git --exclude .github --exclude .gitignore --exclude .gitmessage --exclude .mailmap --exclude .settings --exclude .scrutinizer.yml --exclude .stickler.yml --exclude .project --exclude .travis.yml --exclude .tx --exclude phpstan.neon --exclude build/exe/ --exclude dev/ --exclude documents/ --include htdocs/modulebuilder/template/test/ --exclude test/ --exclude htdocs/conf/conf.php* --exclude htdocs/custom"
+		rsync -rlt -p -og --chmod=a+x,g-rwx,o-rwx --chown=$osusername:$osusername $dirforexampleforsources/* $instancedir/ --exclude test/ --exclude .buildpath --exclude .codeclimate.yml --exclude .editorconfig --exclude .git --exclude .github --exclude .gitignore --exclude .gitmessage --exclude .mailmap --exclude .settings --exclude .scrutinizer.yml --exclude .stickler.yml --exclude .project --exclude .travis.yml --exclude .tx --exclude phpstan.neon --exclude build/exe/ --exclude dev/ --exclude documents/ --include htdocs/modulebuilder/template/test/ --exclude test/ --exclude htdocs/conf/conf.php* --exclude htdocs/custom
 
 		if [ $? -eq 0 ]
 		then
 			echo "Successfully copied dolibarr folder"
 		else
 			echo "Error on copying dolibarr folder"
-			exit 431
+			exit 221
 		fi
 
-		echo "cd $instancedir/"
+		echo `date +'%Y-%m-%d %H:%M:%S'`" cd $instancedir/"
         cd $instancedir/
 
-		if [ -f "documents/install.lock" ]
+		if [ ! -d "$instancedir/documents/admin/temp" ]
 		then
-			echo "rm documents/install.lock"
-			rm documents/install.lock
+			echo "mkdir -p $instancedir/documents/admin/temp"
+			mkdir -p "$instancedir/documents/admin/temp"
+			chown -R $osusername.$osusername "$instancedir/documents/admin/temp"
 		fi
 
-		echo "$instancedir/htdocs/install/"
-		cd $instancedir/htdocs/install/
+		echo `date +'%Y-%m-%d %H:%M:%S'`" cd $instancedir/htdocs/install/"
+		cd "$instancedir/htdocs/install/"
+
+		echo `date +'%Y-%m-%d %H:%M:%S'`" clean the output file $instancedir/documents/admin/temp/output.html"
+		> "$instancedir/documents/admin/temp/output.html"
+		chown $osusername.$osusername "$instancedir/documents/admin/temp/output.html"
+
 
 		versionfrom=$lastversiondolibarrinstance
 		versionto=$(( $versionfrom + 1 ))
 		while [ $versionfrom -lt $laststableupgradeversion ]
 		do
-			echo "upgrade from version $versionfrom.0.0 to version $versionto.0.0"
+			if [ -f "$instancedir/documents/install.lock" ]
+			then
+				echo `date +'%Y-%m-%d %H:%M:%S'`" rm $instancedir/documents/install.lock"
+				rm "$instancedir/documents/install.lock"
+			fi
 
-			echo "php upgrade.php $versionfrom.0.0 $versionto.0.0 > output.html"
-			php upgrade.php $versionfrom.0.0 $versionto.0.0 > output.html
+			echo `date +'%Y-%m-%d %H:%M:%S'`" upgrade from version $versionfrom.0.0 to version $versionto.0.0"
+
+			echo `date +'%Y-%m-%d %H:%M:%S'`" php upgrade.php $versionfrom.0.0 $versionto.0.0 >> $instancedir/documents/admin/temp/output.html"
+			php upgrade.php $versionfrom.0.0 $versionto.0.0 >> "$instancedir/documents/admin/temp/output.html"
+			echo >> "$instancedir/documents/admin/temp/output.html"
 
 			if [ $? -eq 0 ]
 			then
-				echo "php upgrade2.php $versionfrom.0.0 $versionto.0.0 > output2.html"
-				php upgrade2.php $versionfrom.0.0 $versionto.0.0 > output2.html
+				echo `date +'%Y-%m-%d %H:%M:%S'`" php upgrade2.php $versionfrom.0.0 $versionto.0.0 >> $instancedir/documents/admin/temp/output.html"
+				php upgrade2.php $versionfrom.0.0 $versionto.0.0 >> "$instancedir/documents/admin/temp/output.html"
+				echo >> "$instancedir/documents/admin/temp/output.html"
 
 				if [ $? -eq 0 ]
 				then
-					echo "php step5.php $versionfrom.0.0 $versionto.0.0 > output3.html"
-					php step5.php $versionfrom.0.0 $versionto.0.0 > output3.html
+					echo `date +'%Y-%m-%d %H:%M:%S'`" php step5.php $versionfrom.0.0 $versionto.0.0 >> $instancedir/admin/temp/output.html"
+					php step5.php $versionfrom.0.0 $versionto.0.0 >> "$instancedir/documents/admin/temp/output.html"
+					echo >> "$instancedir/documents/admin/temp/output.html"
 
 					if [ $? -eq 0 ]
 					then
 						echo "Successfully upgraded to version $versionto"
 					else
 						echo "Error on step5.php"
-						exit 434
+						exit 224
 					fi
 
 				else
 					echo "Error on upgrade2.php"
-					exit 433
+					exit 223
 				fi
 			else
 				echo "Error on upgrade.php"
-				exit 432
+				exit 222
 			fi
 			versionfrom=$(( $versionfrom + 1 ))
 			versionto=$(( $versionto + 1 ))
 		done
 
-		echo "cd $instancedir/"
+		echo `date +'%Y-%m-%d %H:%M:%S'`" cd $instancedir/"
 		cd $instancedir/
 
 		if [ ! -f "documents/install.lock" ]
 		then
-			echo "touch documents/install.lock"
+			echo `date +'%Y-%m-%d %H:%M:%S'`" Recreate the lock file documents/install.lock"
 			touch documents/install.lock
+			chmod o-w documents/install.lock
+			chown $osusername.$osusername documents/install.lock 
 		fi
+		
+		# Restore user owner on all files into documents
+		# because the upgrade/upgrade2/step5 may have created new files owned by root (because they were run with root).
+		echo `date +'%Y-%m-%d %H:%M:%S'`" find $instancedir/documents ! -user $osusername -exec chown $osusername.$osusername {} \;"
+		find "$instancedir/documents" ! -user $osusername -exec chown $osusername.$osusername {} \; 
 	fi
 fi
 
-echo `date +'%Y-%m-%d %H:%M:%S'`" Process of action $mode of $instancename.$domainname for user $osusername finished"
+echo `date +'%Y-%m-%d %H:%M:%S'`" Process of action $mode of $instancename.$domainname for user $osusername finished with success"
 sleep 1
 echo `date +'%Y-%m-%d %H:%M:%S'`" return 0"
 echo

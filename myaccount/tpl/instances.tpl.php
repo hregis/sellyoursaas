@@ -169,9 +169,10 @@ if (count($listofcontractid) == 0) {				// If all contracts were removed
 
 		$planref = $contract->array_options['options_plan'];
 		$statuslabel = $contract->array_options['options_deployment_status'];
+		$statuslabeltitle = '';
 		$instancename = preg_replace('/\..*$/', '', $contract->ref_customer);
 
-		$dbprefix = empty($contract->array_options['options_db_prefix']) ? '' : $contract->array_options['options_db_prefix'];
+		$dbprefix = empty($contract->array_options['options_prefix_db']) ? '' : $contract->array_options['options_prefix_db'];
 		if (empty($dbprefix)) $dbprefix = 'llx_';
 
 		// Get info about PLAN of Contract
@@ -215,6 +216,7 @@ if (count($listofcontractid) == 0) {				// If all contracts were removed
 				if ($result == -2) {
 					// We overwrite status 'suspended' and status 'done' with 'unreachable' (a status only for screen output)
 					$statuslabel = 'unreachable';
+					$statuslabeltitle = $sellyoursaasutils->error;
 					$color = 'orange';
 				} else {
 					setEventMessages($langs->trans("ErrorRefreshOfResourceFailed", $contract->ref_customer).' : '.$sellyoursaasutils->error, $sellyoursaasutils->errors, 'warnings');
@@ -240,7 +242,7 @@ if (count($listofcontractid) == 0) {				// If all contracts were removed
 		print '<span class="caption-helper floatright clearboth">';
 		//print $langs->trans("Status").' : ';
 		print '<!-- status = '.dol_escape_htmltag($statuslabel).' -->';
-		print '<span class="bold uppercase badge-myaccount-status" style="background-color:'.$color.'; border-radius: 5px; padding: 10px; color: #fff;">';
+		print '<span class="bold uppercase badge-myaccount-status" style="background-color:'.$color.'; border-radius: 5px; padding: 10px; color: #fff;"'.($statuslabeltitle ? ' title="'.$statuslabeltitle.'"' : '').'>';
 		if (preg_match('/^http/i', $contract->array_options['options_suspendmaintenance_message'])) {
 			print $langs->trans("Redirection");
 		} elseif ($statuslabel == 'processing') print $langs->trans("DeploymentInProgress");
@@ -329,17 +331,19 @@ if (count($listofcontractid) == 0) {				// If all contracts were removed
 		print '</div>';
 		print '</div>';
 
+		// Tab for the instance info
 		print '<!-- tabs for instance -->'."\n";
 		print '<div class="portlet-body" style="'.$displayforinstance.'">
 
 				        <div class="tabbable-custom nav-justified">
-				          <ul class="nav nav-tabs nav-justified">
+				          <ul class="nav nav-tabs nav-justified centpercent">
 				            <li><a id="a_tab_resource_'.$contract->id.'" href="#tab_resource_'.$contract->id.'" data-toggle="tab"'.(! in_array($action, array('updateurlxxx')) ? ' class="active"' : '').'>'.$langs->trans("ResourcesAndOptions").'</a></li>';
-							print '<li><a id="a_tab_domain_'.$contract->id.'" href="#tab_domain_'.$contract->id.'" data-toggle="tab"'.($action == 'updateurlxxx' ? ' class="active"' : '').'>'.$langs->trans("Domain").'</a></li>';
-							if (in_array($statuslabel, array('done','suspended')) && $directaccess) print '<li><a id="a_tab_ssh_'.$contract->id.'" href="#tab_ssh_'.$contract->id.'" data-toggle="tab">'.$langs->trans("SSH").' / '.$langs->trans("SFTP").'</a></li>';
-							if (in_array($statuslabel, array('done','suspended')) && $directaccess) print '<li><a id="a_tab_db_'.$contract->id.'" href="#tab_db_'.$contract->id.'" data-toggle="tab">'.$langs->trans("Database").'</a></li>';
-							if (in_array($statuslabel, array('done','suspended'))) print '<li><a id="a_tab_danger_'.$contract->id.'" href="#tab_danger_'.$contract->id.'" data-toggle="tab">'.$langs->trans("DangerZone").'</a></li>';
-							print '
+
+		print '<li><a id="a_tab_domain_'.$contract->id.'" href="#tab_domain_'.$contract->id.'" data-toggle="tab"'.($action == 'updateurlxxx' ? ' class="active"' : '').'>'.$langs->trans("Domain").'</a></li>';
+		if (in_array($statuslabel, array('done','suspended')) && $directaccess) print '<li><a id="a_tab_ssh_'.$contract->id.'" href="#tab_ssh_'.$contract->id.'" data-toggle="tab">'.$langs->trans("SSH").' / '.$langs->trans("SFTP").'</a></li>';
+		if (in_array($statuslabel, array('done','suspended')) && $directaccess) print '<li><a id="a_tab_db_'.$contract->id.'" href="#tab_db_'.$contract->id.'" data-toggle="tab">'.$langs->trans("Database").'</a></li>';
+		if (in_array($statuslabel, array('done','suspended'))) print '<li><a id="a_tab_danger_'.$contract->id.'" href="#tab_danger_'.$contract->id.'" data-toggle="tab">'.$langs->trans("DangerZone").'</a></li>';
+		print '
 				          </ul>
 
 				          <div class="tab-content">
@@ -348,10 +352,10 @@ if (count($listofcontractid) == 0) {				// If all contracts were removed
 								<!-- <p class="opacitymedium" style="padding: 15px; margin-bottom: 5px;">'.$langs->trans("YourResourceAndOptionsDesc").' :</p> -->
 					            <div class="areaforresources" style="padding-bottom: 12px;">';
 
-								$arrayoflines = $contract->lines;
-								//var_dump($arrayoflines);
+		$arrayoflines = $contract->lines;
+		//var_dump($arrayoflines);
 
-								// Loop on each service / option enabled
+		// Loop on each service / option enabled
 		foreach ($arrayoflines as $keyline => $line) {
 			//if ($line->statut != ContratLigne::STATUS_OPEN) continue;     // We need to show even if closed for the dashboard
 
@@ -495,13 +499,74 @@ if (count($listofcontractid) == 0) {				// If all contracts were removed
 
 		// Add new option
 		if ($statuslabel != 'processing' && $statuslabel != 'undeployed') {
-			print '<div class="resource inline-block boxresource opacitymedium small">';
+			print '<a id="switchoptionpanel" href="#switchoptionpanel">';
+			print '<div class="resource inline-block boxresource small">';
 			print '<br><br><br>';
-			print $langs->trans("SoonMoreOptionsHere");
+			print '<span class="fa fa-plus-circle valignmiddle" style="font-size: 1.5em; padding-bottom: 4px;"></span><br>';
+			print $langs->trans("AddMoreOptions").'...';
 			print '</div>';
+			print '</a>';
 		}
 
+		// Add here the Option panel (hidden by default)
+		print '<div id="optionpanel" style="display: none">';
+		print '<br>';
+		print '<div class="areaforresources sectionresources">';
+		print '<br>';
+
+		// Hard coded option: Custom domain name
+		print '<div class="tagtable centpercent divcustomdomain hidden"><div class="tagtr">';
+		print '<div class="tagtd">';
+		print $langs->trans("OptionYourCustomDomainName").'<br>';
+		print '<span class="small">';
+		print $langs->trans("OptionYourCustomDomainNameDesc", $contract->ref_customer).'<br>';
+		print $langs->trans("OptionYourCustomDomainNameStep1", $langs->transnoentitiesnoconv("Enable")).'<br>';
+		print '<input disabled="disabled" type="text" name="domainname" value="" placeholder="'.$langs->trans("Example").': myerp.mycompany.com"><br>';
+		print $langs->trans("OptionYourCustomDomainNameStep2", $contract->ref_customer).'<br>';
+		print '</span>';
+		print '</div>';
+		print '<div class="tagtd center">';
+		// TODO Use same frequency than into the template invoice
+		$nbmonth = 1;
+		print '<span class="font-green-sharp">'.(2 * $nbmonth).' '.$conf->currency.' / '.$langs->trans("month").'</span><br>';
+		print '<span class="opacitymedium warning" style="color:orange">'.$langs->trans("NotYetAvailable").'</span><br>';
+		print '<input type="submit" name="activateoption" disabled="disabled" value="'.$langs->trans("Enable").'">';
+		print '</div>';
+		print '</div></div>';
+
+		print '<hr>';
+
+		// Hard coded option: A website
+		if (getDolGlobalString('SELLYOURSAAS_ENABLE_DOLIBARR_FEATURES')) {
+			print '<div class="tagtable centpercent divdolibarrwebsites"><div class="tagtr">';
+			print '<div class="tagtd">';
+			print $langs->trans("OptionYourWebsite");
+			print '<span class="small">';
+			print $langs->trans("OptionYourWebsiteDesc").'<br>';
+			print $langs->trans("OptionYourWebsiteStep1", $langs->transnoentitiesnoconv("Enable")).'<br>';
+			print '</span>';
+			// TODO Scan if module is enabled, if no, show a message to do it. If yes, show list of available websites
+			print '</div>';
+			print '<div class="tagtd">';
+			print '<span class="opacitymedium">'.$langs->trans("NotYetAvailable").'</span>';
+			print '</div>';
+			print '</div></div>';
+
+			print '<hr>';
+		}
+
+		// TODO Add option from options services into databases
+
+
+
+		print '<span class="opacitymedium">'.$langs->trans("SoonMoreOptionsHere").'...</span><br>';
+		print '<br>';
+		print '</div>';
+		print '</div>';
+
+
 		print '<br><br>';
+
 
 		// Show the current Plan (with link to change it)
 		print '<span class="caption-helper"><span class="opacitymedium">'.$langs->trans("YourSubscriptionPlan").' : </span>';
@@ -528,7 +593,7 @@ if (count($listofcontractid) == 0) {				// If all contracts were removed
 			$sqlproducts.= " OR pa.restrict_domains LIKE '%,".$db->escape($domainname).",%'"; // can be the middle domain of [mydomain1.com,mydomain2.com,mydomain3.com]
 			$sqlproducts.= " OR pa.restrict_domains LIKE '%,".$db->escape($domainname)."'"; // can be the last domain of [mydomain1.com,mydomain2.com]
 			$sqlproducts.= ")";
-			$sqlproducts.= " AND (p.rowid = ".$planid." OR 1 = 1)";		// TODO Restrict on plans compatible with current plan...
+			$sqlproducts.= " AND (p.rowid = ".((int) $planid)." OR 1 = 1)";		// TODO Restrict on plans compatible with current plan...
 			$sqlproducts.= " ORDER BY pe.position ASC";
 			$resqlproducts = $db->query($sqlproducts);
 			if ($resqlproducts) {
@@ -557,8 +622,10 @@ if (count($listofcontractid) == 0) {				// If all contracts were removed
 
 		// Billing
 		if ($statuslabel != 'undeployed') {
+			$freemodeinstance = $mythirdpartyaccount->array_options['options_checkboxnonprofitorga'] == 'nonprofit' && getDolGlobalInt("SELLYOURSAAS_ENABLE_FREE_PAYMENT_MODE");
+
 			print '<!-- Billing information of contract -->'."\n";
-			print '<span class="caption-helper spanbilling"><span class="opacitymedium">'.$langs->trans("Billing").' : </span>';
+			print '<span class="caption-helper spanbilling"><span class="opacitymedium">'.($freemodeinstance ? ($foundtemplate == 0 ? $langs->trans("Confirmation") : $langs->trans("Billing")) : $langs->trans("Billing")).' : </span>';
 			if ($foundtemplate > 1) {
 				$sellyoursaasemail = $conf->global->SELLYOURSAAS_MAIN_EMAIL;
 				if (! empty($mythirdpartyaccount->array_options['options_domain_registration_page'])
@@ -576,7 +643,7 @@ if (count($listofcontractid) == 0) {				// If all contracts were removed
 				print '<span class="bold">'.$pricetoshow.'</span>';
 
 				// Discount and next invoice line
-				if ($foundtemplate == 0) {	// foundtemplate means there is at least one template invoice (so contract is a paying contract)
+				if ($foundtemplate == 0) {	// foundtemplate means there is at least one template invoice (so contract is a paying or validated contract)
 					if ($contract->array_options['options_date_endfreeperiod'] < $now) $color='orange';
 
 					print ' <span style="color:'.$color.'">';
@@ -587,7 +654,9 @@ if (count($listofcontractid) == 0) {				// If all contracts were removed
 						if ($statuslabel == 'suspended') print ' - <span style="color: orange">'.$langs->trans("Suspended").'</span>';
 						//else print ' - <span style="color: orange">'.$langs->trans("SuspendWillBeDoneSoon").'</span>';
 					}
-					if ($statuslabel == 'suspended') {
+					if ($freemodeinstance) {
+						print ' - <a href="'.$_SERVER["PHP_SELF"].'?mode=instances&action=validatefreemode&contractid='.$contract->id.'#contractid'.$contract->id.'">'.$langs->trans("ConfirmInstanceValidation").'</a>';
+					} elseif ($statuslabel == 'suspended') {
 						if (empty($atleastonepaymentmode)) {
 							if ($contract->total_ht > 0) {
 								print ' - <a href="'.$_SERVER["PHP_SELF"].'?mode=registerpaymentmode&backtourl='.urlencode($_SERVER["PHP_SELF"].'?mode='.$mode).'">'.$langs->trans("AddAPaymentModeToRestoreInstance").'</a>';
@@ -638,36 +707,48 @@ if (count($listofcontractid) == 0) {				// If all contracts were removed
 
 							<!-- tab domain -->
 				            <div class="tab-pane" id="tab_domain_'.$contract->id.'">
-								<form class="form-group" action="'.$_SERVER["PHP_SELF"].'" method="POST">
+								<p class="opacitymedium" style="padding: 15px">'.$langs->trans("URLDesc").'...</p>
+								<form class="form-group" action="'.$_SERVER["PHP_SELF"].'" method="POST" role="form">
                                     <input type="hidden" name="token" value="'.newToken().'">
 									<input type="hidden" name="mode" value="instances"/>
 									<input type="hidden" name="action" value="updateurl" />
 									<input type="hidden" name="contractid" value="'.$contract->id.'" />
 									<input type="hidden" name="tab" value="domain_'.$contract->id.'" />
 
-								<div class="col-md-9">
-					                <div class="opacitymedium" style="padding-top: 5px">'.$langs->trans("TheURLDomainOfYourInstance").' :</div>
-									<input type="text" class="urlofinstance minwidth400" disabled="disabled" value="https://'.$contract->ref_customer.'">
+									<div class="form-body">
+    				                  <div class="form-group col-md-12 row">
+					                <label class="col-md-5 control-label">'.$langs->trans("TheURLDomainOfYourInstance").'</label>
+									<div class="col-md-5">
+										<div class="widthcentpercentminusx inline-block nowraponall">
+										<input type="text" class="urlofinstance minwidth400" disabled="disabled" value="https://'.$contract->ref_customer.'">
+										'.showValueWithClipboardCPButton('https://'.$contract->ref_customer, 0, 'none').'
+										</div>
+									</div>
 								';
 
 		if (! empty($contract->array_options['options_custom_url'])) {
 			$arrayofcustom = explode(' ', $contract->array_options['options_custom_url']);
 			foreach ($arrayofcustom as $customurl) {	// Loop on each custom url
 				print '
-										<br><br>
-										<div class="opacitymedium" style="padding-top: 5px">'.$langs->trans("YourCustomUrl").' :</div>
-										<input type="text" class="urlofinstancecustom minwidth400" disabled="disabled" value="https://'.$customurl.'">
+										<label class="col-md-5 control-label">'.$langs->trans("YourCustomUrl").'</label>
+										<div class="col-md-5">
+											<div class="widthcentpercentminusx inline-block nowraponall">
+											<input type="text" class="urlofinstancecustom minwidth400" disabled="disabled" value="https://'.$customurl.'">
+										'.showValueWithClipboardCPButton('https://'.$customurl, 0, 'none').'
+											</div>
+										</div>
 									';
 			}
 		}
 
 								//print '<input type="submit" class="btn btn-warning default change-domain-link" name="changedomain" value="'.$langs->trans("ChangeDomain").'">';
 								print '
-								</div>
+									</div></div>
 
 							  	</form>
 				            </div>
 
+							<!-- tab ssh/sftp -->
 				            <div class="tab-pane" id="tab_ssh_'.$contract->id.'">
 				                <p class="opacitymedium" style="padding: 15px">'.$langs->trans("SSHFTPDesc").' :</p>
                                 ';
@@ -680,23 +761,35 @@ if (count($listofcontractid) == 0) {				// If all contracts were removed
 
     				                <div class="form-body">
     				                  <div class="form-group col-md-12 row">
-    				                    <label class="col-md-3 control-label">'.$langs->trans("Hostname").'</label>
-    				                    <div class="col-md-3">
-    				                      <input type="text" disabled="disabled" class="form-control input-medium" value="'.$contract->array_options['options_hostname_os'].'">
+    				                    <label class="col-md-2 control-label">'.$langs->trans("Hostname").'</label>
+    				                    <div class="col-md-4">
+											<div class="widthcentpercentminusx inline-block nowraponall">
+    				                      <input type="text" id="hostname_os_'.$contract->id.'" disabled="disabled" class="form-control input-medium" value="'.$contract->array_options['options_hostname_os'].'">
+										'.showValueWithClipboardCPButton($contract->array_options['options_hostname_os'], 0, 'none').'
+											</div>
     				                    </div>
-    				                    <label class="col-md-3 control-label">'.$langs->trans("Port").'</label>
-    				                    <div class="col-md-3">
-    				                      <input type="text" disabled="disabled" class="form-control input-medium" value="'.$ssh_server_port.'">
+    				                    <label class="col-md-2 control-label">'.$langs->trans("Port").'</label>
+    				                    <div class="col-md-4 widthcentpercentminusxx inline-block nowraponall">
+											<div class="widthcentpercentminusx inline-block nowraponall">
+    				                      <input type="text" id="port_ssh_'.$contract->id.'" disabled="disabled" class="form-control input-medium" value="'.$ssh_server_port.'">
+										'.showValueWithClipboardCPButton($ssh_server_port, 0, 'none').'
+											</div>
     				                    </div>
     				                  </div>
     				                  <div class="form-group col-md-12 row">
-    				                    <label class="col-md-3 control-label">'.$langs->trans("SFTP Username").'</label>
-    				                    <div class="col-md-3">
-    				                      <input type="text" disabled="disabled" class="form-control input-medium" value="'.$contract->array_options['options_username_os'].'">
+    				                    <label class="col-md-2 control-label">'.$langs->trans("SFTP Username").'</label>
+    				                    <div class="col-md-4">
+											<div class="widthcentpercentminusx inline-block nowraponall">
+    				                      <input type="text" id="username_os_'.$contract->id.'" disabled="disabled" class="form-control input-medium" value="'.$contract->array_options['options_username_os'].'">
+										'.showValueWithClipboardCPButton($contract->array_options['options_username_os'], 0, 'none').'
+											</div>
     				                    </div>
-    				                    <label class="col-md-3 control-label">'.$langs->trans("Password").'</label>
-    				                    <div class="col-md-3">
-    				                      <input type="text" disabled="disabled" class="form-control input-medium" value="'.$contract->array_options['options_password_os'].'">
+    				                    <label class="col-md-2 control-label">'.$langs->trans("Password").'</label>
+    				                    <div class="col-md-4">
+											<div class="widthcentpercentminusx inline-block nowraponall">
+	   				                      <input type="text" id="password_os_'.$contract->id.'" disabled="disabled" class="form-control input-medium" value="'.$contract->array_options['options_password_os'].'">
+										'.showValueWithClipboardCPButton($contract->array_options['options_password_os'], 0, 'none').'
+											</div>
     				                    </div>
     				                  </div>
     				                </div>
@@ -718,6 +811,7 @@ if (count($listofcontractid) == 0) {				// If all contracts were removed
 		print '
 				              </div> <!-- END TAB SSH PANE -->
 
+							  <!-- tab db -->
 				              <div class="tab-pane" id="tab_db_'.$contract->id.'">
 				                <p class="opacitymedium" style="padding: 15px">'.$langs->trans("DBDesc").' :</p>
                                 ';
@@ -731,27 +825,42 @@ if (count($listofcontractid) == 0) {				// If all contracts were removed
     				                  <div class="form-group col-md-12 row">
     				                    <label class="col-md-3 control-label">'.$langs->trans("Hostname").'</label>
     				                    <div class="col-md-3">
-    				                      <input type="text" disabled="disabled" class="form-control input-medium" value="'.$contract->array_options['options_hostname_db'].'">
+											<div class="widthcentpercentminusx inline-block nowraponall">
+    				                      <input type="text" id="hostname_db_'.$contract->id.'" disabled="disabled" class="form-control input-medium" value="'.$contract->array_options['options_hostname_db'].'">
+										'.showValueWithClipboardCPButton($contract->array_options['options_hostname_db'], 0, 'none').'
+											</div>
     				                    </div>
     				                    <label class="col-md-3 control-label">'.$langs->trans("Port").'</label>
     				                    <div class="col-md-3">
-    				                      <input type="text" disabled="disabled" class="form-control input-medium" value="'.$contract->array_options['options_port_db'].'">
+											<div class="widthcentpercentminusx inline-block nowraponall">
+    				                      <input type="text" id="port_db_'.$contract->id.'" disabled="disabled" class="form-control input-medium" value="'.$contract->array_options['options_port_db'].'">
+										'.showValueWithClipboardCPButton($contract->array_options['options_port_db'], 0, 'none').'
+											</div>
     				                    </div>
     				                  </div>
     				                  <div class="form-group col-md-12 row">
     				                    <label class="col-md-3 control-label">'.$langs->trans("DatabaseName").'</label>
     				                    <div class="col-md-3">
-    				                      <input type="text" disabled="disabled" class="form-control input-medium" value="'.$contract->array_options['options_database_db'].'">
+											<div class="widthcentpercentminusx inline-block nowraponall">
+    				                      <input type="text" id="name_db_'.$contract->id.'" disabled="disabled" class="form-control input-medium" value="'.$contract->array_options['options_database_db'].'">
+										'.showValueWithClipboardCPButton($contract->array_options['options_database_db'], 0, 'none').'
+											</div>
     				                    </div>
     				                  </div>
     				                  <div class="form-group col-md-12 row">
     				                    <label class="col-md-3 control-label">'.$langs->trans("DatabaseLogin").'</label>
     				                    <div class="col-md-3">
-    				                      <input type="text" disabled="disabled" class="form-control input-medium" value="'.$contract->array_options['options_username_db'].'">
+											<div class="widthcentpercentminusx inline-block nowraponall">
+    				                      <input type="text" id="username_db_'.$contract->id.'" disabled="disabled" class="form-control input-medium" value="'.$contract->array_options['options_username_db'].'">
+										'.showValueWithClipboardCPButton($contract->array_options['options_username_db'], 0, 'none').'
+											</div>
     				                    </div>
     				                    <label class="col-md-3 control-label">'.$langs->trans("Password").'</label>
     				                    <div class="col-md-3">
-    				                      <input type="text" disabled="disabled" class="form-control input-medium" value="'.$contract->array_options['options_password_db'].'">
+											<div class="widthcentpercentminusx inline-block nowraponall">
+    				                      <input type="text" id="other_db_'.$contract->id.'" disabled="disabled" class="form-control input-medium" value="'.$contract->array_options['options_password_db'].'">
+										'.showValueWithClipboardCPButton($contract->array_options['options_password_db'], 0, 'none').'
+											</div>
     				                    </div>
     				                  </div>';
 
@@ -760,11 +869,17 @@ if (count($listofcontractid) == 0) {				// If all contracts were removed
 	    				                  <div class="form-group col-md-12 row">
 	    				                    <label class="col-md-3 control-label">'.$langs->trans("DatabaseLoginReadOnly").'</label>
 	    				                    <div class="col-md-3">
-	    				                      <input type="text" disabled="disabled" class="form-control input-medium" value="'.$contract->array_options['options_username_ro_db'].'">
+												<div class="widthcentpercentminusx inline-block nowraponall">
+	    				                      <input type="text" id="username_ro_db_'.$contract->id.'" disabled="disabled" class="form-control input-medium" value="'.$contract->array_options['options_username_ro_db'].'">
+										'.showValueWithClipboardCPButton($contract->array_options['options_username_ro_db'], 0, 'none').'
+												</div>
 	    				                    </div>
 	    				                    <label class="col-md-3 control-label">'.$langs->trans("PasswordReadOnly").'</label>
 	    				                    <div class="col-md-3">
-	    				                      <input type="text" disabled="disabled" class="form-control input-medium" value="'.$contract->array_options['options_password_ro_db'].'">
+												<div class="widthcentpercentminusx inline-block nowraponall">
+	    				                      <input type="text" id="other_ro_db_'.$contract->id.'" disabled="disabled" class="form-control input-medium" value="'.$contract->array_options['options_password_ro_db'].'">
+										'.showValueWithClipboardCPButton($contract->array_options['options_password_ro_db'], 0, 'none').'
+												</div>
 	    				                    </div>
 	    				                  </div>';
 			}
@@ -789,6 +904,7 @@ if (count($listofcontractid) == 0) {				// If all contracts were removed
 		print '
 				              </div> <!-- END TAB DB PANE -->
 
+							<!-- tab destroy -->
 				            <div class="tab-pane" id="tab_danger_'.$contract->id.'">
 
 							<form class="form-group" action="'.$_SERVER["PHP_SELF"].'" method="POST">
@@ -885,7 +1001,7 @@ if ($action == "confirmundeploy") {
 	$formquestion[] = array(
 		"type"=>"radio",
 		"values"=>array(
-			"PriceProblem"=>$langs->trans("PriceProblem")
+			"Price"=>$langs->trans("PriceProblem")
 		),
 		"name"=>"reasonundeploy",
 		"morecss"=>"hideothertag"
@@ -989,6 +1105,13 @@ if ($action == "confirmundeploy") {
     			jQuery("#formaddanotherinstance").toggle();
     		});
 
+			/* Code to toggle the show of the option section */
+			jQuery("#switchoptionpanel").click(function() {
+				console.log("We click on toggle see more options");
+				jQuery("#optionpanel").toggle();
+				return false;
+			});
+
             /* Apply constraints if sldAndSubdomain field is change */
             jQuery("#formaddanotherinstance").on("change keyup", "#sldAndSubdomain", function() {
                 console.log("Update sldAndSubdomain field in instances.tpl.php");
@@ -1042,10 +1165,15 @@ if ($action == "confirmundeploy") {
 	$MAXINSTANCESPERACCOUNT = ((empty($mythirdpartyaccount->array_options['options_maxnbofinstances']) && $mythirdpartyaccount->array_options['options_maxnbofinstances'] != '0') ? (empty($conf->global->SELLYOURSAAS_MAX_INSTANCE_PER_ACCOUNT) ? 4 : $conf->global->SELLYOURSAAS_MAX_INSTANCE_PER_ACCOUNT) : $mythirdpartyaccount->array_options['options_maxnbofinstances']);
 
 if ($MAXINSTANCESPERACCOUNT && count($listofcontractidopen) < $MAXINSTANCESPERACCOUNT) {
-	if (! empty($conf->global->SELLYOURSAAS_DISABLE_NEW_INSTANCES)) {
+	if (getDolGlobalInt('SELLYOURSAAS_DISABLE_NEW_INSTANCES') && !in_array(getUserRemoteIP(), explode(',', getDolGlobalString('SELLYOURSAAS_DISABLE_NEW_INSTANCES_EXCEPT_IP')))) {
 		print '<!-- RegistrationSuspendedForTheMomentPleaseTryLater -->'."\n";
 		print '<div class="alert alert-warning" style="margin-bottom: 0px">';
-		print $langs->trans("RegistrationSuspendedForTheMomentPleaseTryLater");
+		if (getDolGlobalString('SELLYOURSAAS_DISABLE_NEW_INSTANCES_MESSAGE')) {
+			print getDolGlobalString('SELLYOURSAAS_DISABLE_NEW_INSTANCES_MESSAGE');
+			print 'Note: '.getUserRemoteIP().' '.getDolGlobalString('SELLYOURSAAS_DISABLE_NEW_INSTANCES_EXCEPT_IP');
+		} else {
+			print $langs->trans("RegistrationSuspendedForTheMomentPleaseTryLater");
+		}
 		print '</div>';
 	} else {
 		print '<div class="group">';
@@ -1086,7 +1214,13 @@ if ($MAXINSTANCESPERACCOUNT && count($listofcontractidopen) < $MAXINSTANCESPERAC
 		$tldid=GETPOST('tldid', 'alpha');
 
 		$domainstosuggest = array();   // This is list of all sub domains to show into combo list. Can be: with1.mydomain.com,with2.mydomain.com:ondomain1.com+ondomain2.com,...
-		$listofdomain = explode(',', $conf->global->SELLYOURSAAS_SUB_DOMAIN_NAMES);
+		$domainstosuggestcountryfilter = array();
+		if (empty(getDolGlobalString('SELLYOURSAAS_OBJECT_DEPLOYMENT_SERVER_MIGRATION'))) {
+			$listofdomain = explode(',', getDolGlobalString('SELLYOURSAAS_SUB_DOMAIN_NAMES'));
+		} else {
+			$staticdeploymentserver = new Deploymentserver($db);
+			$listofdomain = $staticdeploymentserver->fetchAllDomains();
+		}
 		foreach ($listofdomain as $val) {
 			$newval=$val;
 			$reg = array();
@@ -1115,10 +1249,35 @@ if ($MAXINSTANCESPERACCOUNT && count($listofcontractidopen) < $MAXINSTANCESPERAC
 
 			// Restriction defined on package
 			// Managed later with the "optionvisible..." css
+			if (getDolGlobalString('SELLYOURSAAS_OBJECT_DEPLOYMENT_SERVER_MIGRATION')) {
+				$deploymentserver = new Deploymentserver($db);
+				$deploymentserver->fetch(0, $newval);
 
-			if (! preg_match('/^\./', $newval)) $newval='.'.$newval;
-
-			$domainstosuggest[] = $newval;
+				if (!empty($deploymentserver->servercountries)) {
+					$servercountries = explode(',', $deploymentserver->servercountries);
+					$ipuser = getUserRemoteIP();
+					$countryuser = dolGetCountryCodeFromIp($ipuser);
+					if (in_array($countryuser, $servercountries)) {
+						if (! preg_match('/^\./', $newval)) $newval='.'.$newval;
+						$domainstosuggestcountryfilter[] = $newval; // Servers with user country
+					} else {
+						print '<!-- '.$newval.' disabled. Server country range '.$deploymentserver->servercountries.' does not contain '.$countryuser.' -->';
+						continue;
+					}
+				} else {
+					if (! preg_match('/^\./', $newval)) $newval='.'.$newval;
+					$domainstosuggest[] = $newval;
+				}
+			} else {
+				if (! preg_match('/^\./', $newval)) $newval='.'.$newval;
+				$domainstosuggest[] = $newval;
+			}
+		}
+		if (!empty($domainstosuggestcountryfilter)) {
+			foreach ($domainstosuggest as $key => $value) {
+				print '<!-- '.$value.' disabled. Matching server found with user location -->';
+			}
+			$domainstosuggest = $domainstosuggestcountryfilter;
 		}
 
 		// Defined a preselected domain

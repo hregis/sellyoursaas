@@ -40,6 +40,11 @@ if (substr($sapi_type, 0, 3) == 'cgi') {
 	echo "Error: You are using PHP for CGI. To execute ".$script_file." from command line, you must use PHP for CLI mode.\n";
 	exit(-1);
 }
+if (0 == posix_getuid()) {
+	echo "Script must NOT be ran with root (but with the 'admin' sellyoursaas account).\n";
+	print "\n";
+	exit(-1);
+}
 
 // Global variables
 $version='1.0';
@@ -224,7 +229,13 @@ if (empty($dirroot) || empty($instance) || empty($mode)) {
 
 // Forge complete name of instance
 if (! empty($instance) && ! preg_match('/\./', $instance) && ! preg_match('/\.home\.lan$/', $instance)) {
-	$tmparray = explode(',', $conf->global->SELLYOURSAAS_SUB_DOMAIN_NAMES);
+	if (empty(getDolGlobalString('SELLYOURSAAS_OBJECT_DEPLOYMENT_SERVER_MIGRATION'))) {
+		$tmparray = explode(',', getDolGlobalString('SELLYOURSAAS_SUB_DOMAIN_NAMES'));
+	} else {
+		dol_include_once('sellyoursaas/class/deploymentserver.class.php');
+		$staticdeploymentserver = new Deploymentserver($db);
+		$tmparray = $staticdeploymentserver->fetchAllDomains();
+	}
 	$tmpstring = preg_replace('/:.*$/', '', $tmparray[0]);
 	$instance = $instance.".".$tmpstring;   // Automatically concat first domain name
 }
@@ -255,6 +266,7 @@ if ($num_rows > 1) {
 }
 
 dol_include_once('/sellyoursaas/class/sellyoursaascontract.class.php');
+
 $object = new SellYourSaasContract($dbmaster);
 $result=0;
 if ($idofinstancefound) {
@@ -268,8 +280,8 @@ if ($result <= 0) {
 }
 
 $object->instance        = $object->ref_customer;
-$object->username_web    = $object->array_options['options_username_os'];
-$object->password_web    = $object->array_options['options_password_os'];
+$object->username_os     = $object->array_options['options_username_os'];
+$object->password_os     = $object->array_options['options_password_os'];
 $object->hostname_db     = $object->array_options['options_hostname_db'];
 $object->port_db         = $object->array_options['options_port_db'];
 $object->username_db     = $object->array_options['options_username_db'];
@@ -279,7 +291,7 @@ $object->deployment_host = $object->array_options['options_deployment_host'];
 $object->latestbackup_date_ok = $object->array_options['options_latestbackup_date_ok'];
 $object->backup_frequency = $object->array_options['options_backup_frequency'];
 
-if (empty($object->instance) && empty($object->username_web) && empty($object->password_web) && empty($object->database_db)) {
+if (empty($object->instance) && empty($object->username_os) && empty($object->password_os) && empty($object->database_db)) {
 	print "Error: properties for instance ".$instance." was not registered into database.\n";
 	exit(-3);
 }
@@ -288,9 +300,9 @@ if (! is_dir($dirroot)) {
 	exit(-4);
 }
 
-$dirdb=preg_replace('/_([a-zA-Z0-9]+)/', '', $object->database_db);
-$login=$object->username_web;
-$password=$object->password_web;
+$dirdb = preg_replace('/_([a-zA-Z0-9]+)/', '', $object->database_db);
+$login = $object->username_os;
+$password = $object->password_os;
 
 $sourcedir=$conf->global->DOLICLOUD_INSTANCES_PATH.'/'.$login.'/'.$dirdb;
 $server=($object->deployment_host ? $object->deployment_host : $object->array_options['options_hostname_os']);
@@ -303,8 +315,6 @@ if (empty($login) || empty($dirdb)) {
 //$fromserver = (in_array($server, array('127.0.0.1','localhost')) ? $server : $login.'@'.$server.":");
 $fromserver = $login.'@'.$server.":";
 print 'Backup instance '.$instance.' from '.$fromserver.' to '.$dirroot.'/'.$login." (mode=".$mode.")\n";
-//print 'SFTP password '.$object->password_web."\n";
-//print 'Database password '.$object->password_db."\n";
 
 //$listofdir=array($dirroot.'/'.$login, $dirroot.'/'.$login.'/documents', $dirroot.'/'.$login.'/system', $dirroot.'/'.$login.'/htdocs', $dirroot.'/'.$login.'/scripts');
 if ($mode == 'confirm' || $mode == 'confirmrsync' || $mode == 'confirmdatabase') {
@@ -352,6 +362,8 @@ if ($mode == 'testrsync' || $mode == 'test' || $mode == 'confirmrsync' || $mode 
 		$param=array();
 		if ($mode != 'confirm' && $mode != 'confirmrsync') $param[]="-n";
 		//$param[]="-a";
+		$param[]="-4";
+		$param[]="--prune-empty-dirs";
 		$param[]="-rlt";
 		//$param[]="-vv";
 		$param[]="-v";
@@ -380,6 +392,7 @@ if ($mode == 'testrsync' || $mode == 'test' || $mode == 'confirmrsync' || $mode 
 		$param[]="--exclude '*/documents/admin/documents/'";	// Exclude backup of documents directory
 		$param[]="--exclude '*/documents/*/admin/backup/'";		// Exclude backup of database
 		$param[]="--exclude '*/documents/*/admin/documents/'";	// Exclude backup of documents directory
+		$param[]="--exclude '*/documents/installmodules.lock'";	// Exclude backup of installmodules.lock
 		$param[]="--exclude '*/htdocs/install/filelist-*.xml*'";
 		$param[]="--exclude '*/htdocs/includes/tecnickcom/tcpdf/font/ae_fonts_*'";
 		$param[]="--exclude '*/htdocs/includes/tecnickcom/tcpdf/font/dejavu-fonts-ttf-*'";

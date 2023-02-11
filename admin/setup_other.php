@@ -1,5 +1,5 @@
 <?php
-/* Copyright (C) 2012-2020 Laurent Destailleur  <eldy@users.sourceforge.net>
+/* Copyright (C) 2012-2022 Laurent Destailleur  <eldy@users.sourceforge.net>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,7 +17,7 @@
  */
 
 /**
- *     \file       htdocs/sellyoursaas/admin/setup.php
+ *     \file       htdocs/sellyoursaas/admin/setup_other.php
  *     \brief      Page administration module SellYourSaas
  */
 
@@ -47,6 +47,7 @@ require_once DOL_DOCUMENT_ROOT."/core/class/html.formother.class.php";
 require_once DOL_DOCUMENT_ROOT."/core/class/html.formticket.class.php";
 require_once DOL_DOCUMENT_ROOT."/categories/class/categorie.class.php";
 dol_include_once('/sellyoursaas/lib/sellyoursaas.lib.php');
+dol_include_once('sellyoursaas/class/deploymentserver.class.php');
 
 // Access control
 if (! $user->admin) accessforbidden();
@@ -63,7 +64,12 @@ $langs->loadLangs(array("admin", "errors", "install", "sellyoursaas@sellyoursaas
 $hookmanager->initHooks(array('sellyoursaas-setup'));
 
 $tmpservices=array();
-$tmpservicessub = explode(',', getDolGlobalString('SELLYOURSAAS_SUB_DOMAIN_NAMES'));
+$staticdeploymentserver = new Deploymentserver($db);
+if (empty(getDolGlobalString('SELLYOURSAAS_OBJECT_DEPLOYMENT_SERVER_MIGRATION'))) {
+	$tmpservicessub = explode(',', getDolGlobalString('SELLYOURSAAS_SUB_DOMAIN_NAMES'));
+} else {
+	$tmpservicessub = $staticdeploymentserver->fetchAllDomains();
+}
 foreach ($tmpservicessub as $key => $tmpservicesub) {
 	$tmpservicesub = preg_replace('/:.*$/', '', $tmpservicesub);
 	if ($key > 0) $tmpservices[$tmpservicesub]=getDomainFromURL($tmpservicesub, 1);
@@ -87,6 +93,11 @@ if ($action == 'set') {
 	$error=0;
 
 	if (! $error) {
+		if (GETPOSTISSET('SELLYOURSAAS_ENABLE_SEPA')) {
+			dolibarr_set_const($db, 'SELLYOURSAAS_ENABLE_SEPA', GETPOST("SELLYOURSAAS_ENABLE_SEPA", 'int'), 'chaine', 0, '', $conf->entity);
+		}
+		dolibarr_set_const($db, 'SELLYOURSAAS_ENABLE_SEPA_FOR_THIRDPARTYID', GETPOST("SELLYOURSAAS_ENABLE_SEPA_FOR_THIRDPARTYID", 'int'), 'chaine', 0, '', $conf->entity);
+
 		dolibarr_set_const($db, 'SELLYOURSAAS_MAX_MONTHLY_AMOUNT_OF_INVOICE', GETPOST("SELLYOURSAAS_MAX_MONTHLY_AMOUNT_OF_INVOICE", 'int'), 'chaine', 0, '', $conf->entity);
 
 		dolibarr_set_const($db, 'SELLYOURSAAS_INFRA_COST', GETPOST("SELLYOURSAAS_INFRA_COST", 'int'), 'chaine', 0, '', $conf->entity);
@@ -99,9 +110,10 @@ if ($action == 'set') {
 		dolibarr_set_const($db, "SELLYOURSAAS_AUTOMIGRATION_CODE", GETPOST("SELLYOURSAAS_AUTOMIGRATION_CODE", 'alphanohtml'), 'chaine', 0, '', $conf->entity);
 		dolibarr_set_const($db, "SELLYOURSAAS_AUTOUPGRADE_CODE", GETPOST("SELLYOURSAAS_AUTOUPGRADE_CODE", 'alphanohtml'), 'chaine', 0, '', $conf->entity);
 
-		if (GETPOSTISSET('SELLYOURSAAS_SUPPORT_URL')) {
-			dolibarr_set_const($db, "SELLYOURSAAS_SUPPORT_URL", GETPOST("SELLYOURSAAS_SUPPORT_URL", 'alphanohtml'), 'chaine', 0, '', $conf->entity);
+		foreach ($arrayofsuffixfound as $suffix) {
+			dolibarr_set_const($db, "SELLYOURSAAS_SUPPORT_URL".$suffix, GETPOST("SELLYOURSAAS_SUPPORT_URL".$suffix), 'chaine', 0, '', $conf->entity);
 		}
+
 		if (GETPOSTISSET('SELLYOURSAAS_SUPPORT_SHOW_MESSAGE')) {
 			dolibarr_set_const($db, "SELLYOURSAAS_SUPPORT_SHOW_MESSAGE", GETPOST("SELLYOURSAAS_SUPPORT_SHOW_MESSAGE", 'alphanohtml'), 'chaine', 0, '', $conf->entity);
 		}
@@ -110,6 +122,7 @@ if ($action == 'set') {
 
 		// Save images
 		$dirforimage=$conf->mycompany->dir_output.'/logos/';
+		$reg = array();
 		foreach ($_FILES as $postkey => $postvar) {
 			$suffix = '';
 			if (preg_match('/^logoblack/', $postkey, $reg)) {
@@ -181,17 +194,17 @@ if ($action == 'removelogo') {
 	require_once DOL_DOCUMENT_ROOT.'/core/lib/files.lib.php';
 
 	$constname='SELLYOURSAAS_LOGO'.GETPOST('suffix', 'aZ09');
-	$logofile=$conf->mycompany->dir_output.'/logos/'.$conf->global->$constname;
+	$logofile=$conf->mycompany->dir_output.'/logos/'.getDolGlobalString($constname);
 	if ($conf->global->$constname != '') dol_delete_file($logofile);
 	dolibarr_del_const($db, $constname, $conf->entity);
 
 	$constname='SELLYOURSAAS_LOGO_SMALL'.GETPOST('suffix', 'aZ09');
-	$logosmallfile=$conf->mycompany->dir_output.'/logos/thumbs/'.$conf->global->$constname;
+	$logosmallfile=$conf->mycompany->dir_output.'/logos/thumbs/'.getDolGlobalString($constname);
 	if ($conf->global->$constname != '') dol_delete_file($logosmallfile);
 	dolibarr_del_const($db, $constname, $conf->entity);
 
 	$constname='SELLYOURSAAS_LOGO_MINI'.GETPOST('suffix', 'aZ09');
-	$logominifile=$conf->mycompany->dir_output.'/logos/thumbs/'.$conf->global->$constname;
+	$logominifile=$conf->mycompany->dir_output.'/logos/thumbs/'.getDolGlobalString($constname);
 	if ($conf->global->$constname != '') dol_delete_file($logominifile);
 	dolibarr_del_const($db, $constname, $conf->entity);
 }
@@ -199,17 +212,17 @@ if ($action == 'removelogoblack') {
 	require_once DOL_DOCUMENT_ROOT.'/core/lib/files.lib.php';
 
 	$constname='SELLYOURSAAS_LOGO_BLACK'.GETPOST('suffix', 'aZ09');
-	$logofile=$conf->mycompany->dir_output.'/logos/'.$conf->global->$constname;
+	$logofile=$conf->mycompany->dir_output.'/logos/'.getDolGlobalString($constname);
 	if ($conf->global->$constname != '') dol_delete_file($logofile);
 	dolibarr_del_const($db, "$constname", $conf->entity);
 
 	$constname='SELLYOURSAAS_LOGO_SMALL_BLACK'.GETPOST('suffix', 'aZ09');
-	$logosmallfile=$conf->mycompany->dir_output.'/logos/thumbs/'.$conf->global->$constname;
+	$logosmallfile=$conf->mycompany->dir_output.'/logos/thumbs/'.getDolGlobalString($constname);
 	if ($conf->global->$constname != '') dol_delete_file($logosmallfile);
 	dolibarr_del_const($db, $constname, $conf->entity);
 
 	$constname='SELLYOURSAAS_LOGO_MINI_BLACK'.GETPOST('suffix', 'aZ09');
-	$logominifile=$conf->mycompany->dir_output.'/logos/thumbs/'.$conf->global->$constname;
+	$logominifile=$conf->mycompany->dir_output.'/logos/thumbs/'.getDolGlobalString($constname);
 	if ($conf->global->$constname != '') dol_delete_file($logominifile);
 	dolibarr_del_const($db, $constname, $conf->entity);
 }
@@ -338,9 +351,9 @@ print '</tr>';
 // Allow SEPA Payment for ?
 print '<tr class="oddeven"><td>'.$langs->trans("SELLYOURSAAS_ENABLE_SEPA_FOR_THIRDPARTYID").'</td>';
 print '<td>';
-print '<input class="maxwidth50" type="text" name="SELLYOURSAAS_ENABLE_SEPA_FOR_THIRDPARTYID" value="'.getDolGlobalString('SELLYOURSAAS_ENABLE_SEPA_FOR_THIRDPARTYID', '').'">';
+print '<input class="maxwidth200" type="text" name="SELLYOURSAAS_ENABLE_SEPA_FOR_THIRDPARTYID" value="'.getDolGlobalString('SELLYOURSAAS_ENABLE_SEPA_FOR_THIRDPARTYID', '').'">';
 print '</td>';
-print '<td><span class="opacitymedium small">12345</span></td>';
+print '<td><span class="opacitymedium small">12345,12346,...</span></td>';
 print '</tr>';
 
 // Allow Sepa
@@ -357,6 +370,22 @@ if ($conf->use_javascript_ajax) {
 }
 print '</td>';
 print '<td><span class="opacitymedium small">Set to yes to add Sepa as a Payment method.</td>';
+print '</tr>';
+
+// Activate free payment mode
+print '<tr class="oddeven"><td>'.$langs->trans("SELLYOURSAAS_ENABLE_FREE_PAYMENT_MODE").'</td>';
+print '<td>';
+if ($conf->use_javascript_ajax) {
+	print ajax_constantonoff('SELLYOURSAAS_ENABLE_FREE_PAYMENT_MODE', array(), null, 0, 0, 0);
+} else {
+	if (empty($conf->global->SELLYOURSAAS_ENABLE_FREE_PAYMENT_MODE)) {
+		print '<a href="'.$_SERVER['PHP_SELF'].'?action=SELLYOURSAAS_ENABLE_FREE_PAYMENT_MODE">'.img_picto($langs->trans("Disabled"), 'off').'</a>';
+	} else {
+		print '<a href="'.$_SERVER['PHP_SELF'].'?action=SELLYOURSAAS_ENABLE_FREE_PAYMENT_MODE">'.img_picto($langs->trans("Enabled"), 'on').'</a>';
+	}
+}
+print '</td>';
+print '<td><span class="opacitymedium small">Set to yes to enable the free mode.</td>';
 print '</tr>';
 
 print '<tr class="oddeven"><td>'.$langs->trans("SELLYOURSAAS_MAX_MONTHLY_AMOUNT_OF_INVOICE").'</td>';
@@ -432,23 +461,27 @@ print '</td>';
 print '<td></td>';
 print '</tr>';
 
-print '<tr class="oddeven"><td>';
-print $langs->trans("SELLYOURSAAS_SUPPORT_URL").'</td>';
-print '<td>';
-print '<input type="text" name="SELLYOURSAAS_SUPPORT_URL" class="quatrevingtpercent" value="'.getDolGlobalString('SELLYOURSAAS_SUPPORT_URL').'">';
-print '</td>';
-print '<td>';
-print '<span class="opacitymedium small">'.$langs->trans("FillOnlyToUseAnExternalTicketSystem").'</span>';
-print '</td>';
-print '</tr>';
-
-if (empty($conf->global->SELLYOURSAAS_SUPPORT_URL)) {
-	print '<tr class="oddeven"><td>'.$langs->trans("SELLYOURSAAS_SUPPORT_SHOW_MESSAGE").'</td>';
+foreach ($arrayofsuffixfound as $service => $suffix) {
+	print '<tr class="oddeven"><td>';
+	print ($service ? $service.' - ' : '').$langs->trans("SELLYOURSAAS_SUPPORT_URL").'</td>';
 	print '<td>';
-	print '<textarea name="SELLYOURSAAS_SUPPORT_SHOW_MESSAGE" class="quatrevingtpercent" rows="3">'.getDolGlobalString('SELLYOURSAAS_SUPPORT_SHOW_MESSAGE').'</textarea>';
+	print '<input type="text" name="SELLYOURSAAS_SUPPORT_URL'.$suffix.'" class="quatrevingtpercent" value="'.getDolGlobalString('SELLYOURSAAS_SUPPORT_URL'.$suffix).'">';
 	print '</td>';
-	print '<td></td>';
+	print '<td>';
+	print '<span class="opacitymedium small">'.$langs->trans("FillOnlyToUseAnExternalTicketSystem").'</span>';
+	print '</td>';
 	print '</tr>';
+
+	if (!getDolGlobalString('SELLYOURSAAS_SUPPORT_URL'.$suffix)) {
+		print '<tr class="oddeven"><td>';
+		print ($service ? $service.' - ' : '');
+		print $langs->trans("SELLYOURSAAS_SUPPORT_SHOW_MESSAGE").'</td>';
+		print '<td>';
+		print '<textarea name="SELLYOURSAAS_SUPPORT_SHOW_MESSAGE" class="quatrevingtpercent" rows="3">'.getDolGlobalString('SELLYOURSAAS_SUPPORT_SHOW_MESSAGE'.$suffix).'</textarea>';
+		print '</td>';
+		print '<td></td>';
+		print '</tr>';
+	}
 }
 
 print '<tr class="oddeven"><td>'.$langs->trans("SELLYOURSAAS_ASK_DESTROY_REASON").'</td>';
@@ -497,10 +530,17 @@ var_dump(DOL_MAIN_URL_ROOT);
 */
 
 $message = '';
-$url = '<a href="'.dol_buildpath('/sellyoursaas/public/spamreport.php', 3).'?key='.urlencode(getDolGlobalString('SELLYOURSAAS_SECURITY_KEY', 'KEYNOTDEFINED')).'&mode=test" target="_blank" rel="noopener">'.dol_buildpath('/sellyoursaas/public/spamreport.php', 3).'?key='.urlencode(getDolGlobalString('SELLYOURSAAS_SECURITY_KEY', 'KEYNOTDEFINED')).'[&mode=test]</a>';
+$url = dol_buildpath('/sellyoursaas/public/spamreport.php', 3).'?key='.urlencode(getDolGlobalString('SELLYOURSAAS_SECURITY_KEY', 'KEYNOTDEFINED')).'[&mode=test]';
 $message .= img_picto('', 'object_globe.png').' '.$langs->trans("EndPointFor", "SpamReport", '{s1}');
-$message = str_replace('{s1}', $url, $message);
-print $message;
+$message = str_replace('{s1}', '', $message);
+print $message.'<br>';
+print '<div class="urllink">';
+print '<input type="text" id="spamurl" class="quatrevingtpercent" value="'.$url.'">';
+print '<a href="'.dol_buildpath('/sellyoursaas/public/spamreport.php', 3).'?key='.urlencode(getDolGlobalString('SELLYOURSAAS_SECURITY_KEY', 'KEYNOTDEFINED')).'&mode=test" target="_blank" rel="noopener">';
+print img_picto('', 'download', 'class="paddingleft hideonsmartphone"');
+print '</a>';
+print '</div>';
+print ajax_autoselect("spamurl");
 
 print '<br><br>';
 

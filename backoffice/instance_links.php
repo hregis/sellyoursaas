@@ -38,12 +38,14 @@ if (! $res) die("Include of main fails");
 require_once DOL_DOCUMENT_ROOT."/comm/action/class/actioncomm.class.php";
 require_once DOL_DOCUMENT_ROOT."/contact/class/contact.class.php";
 require_once DOL_DOCUMENT_ROOT."/contrat/class/contrat.class.php";
+require_once DOL_DOCUMENT_ROOT."/projet/class/project.class.php";
 require_once DOL_DOCUMENT_ROOT."/core/lib/contract.lib.php";
 require_once DOL_DOCUMENT_ROOT."/core/lib/company.lib.php";
 require_once DOL_DOCUMENT_ROOT."/core/lib/date.lib.php";
 require_once DOL_DOCUMENT_ROOT."/core/lib/security2.lib.php";
 require_once DOL_DOCUMENT_ROOT."/core/class/html.formcompany.class.php";
 dol_include_once("/sellyoursaas/core/lib/dolicloud.lib.php");
+dol_include_once("/sellyoursaas/class/sellyoursaascontract.class.php");
 
 $langs->loadLangs(array("admin","companies","users","contracts","other","commercial","sellyoursaas@sellyoursaas"));
 
@@ -59,14 +61,17 @@ $refold     = GETPOST('refold', 'alpha');
 $error = 0;
 $errors=array();
 
-$object = new Contrat($db);
+$object = new SellYourSaasContract($db);
 
 // Initialize technical object to manage hooks of page. Note that conf->hooks_modules contains array of hook context
 $hookmanager->initHooks(array('contractcard','globalcard'));
 
 if ($id > 0 || $ref) {
 	$result=$object->fetch($id, $ref);
-	if ($result < 0) dol_print_error($db, $object->error);
+	if ($result < 0) {
+		setEventMessages('Failed to read remote customer instance: '.$object->error, null, 'warnings');
+		$error++;
+	}
 	$id = $object->id;
 }
 
@@ -80,7 +85,7 @@ $result = restrictedArea($user, 'sellyoursaas', 0, '', '');
  *	Actions
  */
 
-$parameters=array('id'=>$id, 'objcanvas'=>$objcanvas);
+$parameters=array('id'=>$id);
 $reshook=$hookmanager->executeHooks('doActions', $parameters, $object, $action);    // Note that $action and $object may have been modified by some hooks
 if ($reshook < 0) {
 	setEventMessages($hookmanager->error, $hookmanager->errors, 'errors');
@@ -283,7 +288,6 @@ if ($id > 0 && $action != 'edit' && $action != 'create') {
 	$object->hostname_os  = $hostname_os;
 	$object->username_web = $username_web;
 	$object->password_web = $password_web;
-	$object->hostname_web = $hostname_os;
 
 	$newdb = getDoliDBInstance($type_db, $hostname_db, $username_db, $password_db, $database_db, $port_db);
 	$newdb->prefix_db = $prefix_db;
@@ -299,6 +303,7 @@ if ($id > 0 && $action != 'edit' && $action != 'create') {
 
 		$fordolibarr = 1;
 		if (preg_match('/glpi.*\.cloud/', $object->ref_customer)) {
+			$fordolibarr = 0;
 			$forglpi = 1;
 		}
 
@@ -364,7 +369,8 @@ if ($id > 0 && $action != 'edit' && $action != 'create') {
 				$formula = $obj->version_formula;
 			}
 		} else {
-			dol_print_error($db);
+			setEventMessages('Failed to execute SQL: '.$db->lasterror(), null, 'warnings');
+			$error++;
 		}
 		if (preg_match('/SQL:/', $formula)) {
 			// Define $stringofversion
@@ -388,7 +394,8 @@ if ($id > 0 && $action != 'edit' && $action != 'create') {
 					$i++;
 				}
 			} else {
-				dol_print_error($newdb);
+				setEventMessages('Failed to execute SQL: '.$newdb->lasterror(), null, 'warnings');
+				$error++;
 			}
 		}
 
@@ -482,11 +489,10 @@ if ($id > 0 && $action != 'edit' && $action != 'create') {
 
 	$backupdir=$conf->global->DOLICLOUD_BACKUP_PATH;
 
-	$dirdb=preg_replace('/_([a-zA-Z0-9]+)/', '', $object->database_db);
-	$login=$object->username_web;
-	$password=$object->password_web;
-
-	$server=$object->ref_customer;
+	$dirdb = preg_replace('/_([a-zA-Z0-9]+)/', '', $object->database_db);
+	$login = $username_web;
+	$password = $password_web;
+	$server = $object->ref_customer;
 
 	// Barre d'actions
 	/*  if (! $user->societe_id)
@@ -672,7 +678,7 @@ if (empty($object->nbofusers)) {
 		}
 		else
 		{
-			setEventMessages('Failed to read remote customer instance: '.$newdb->lasterror(),'','warnings');
+			setEventMessages('Failed to read remote customer instance: '.$newdb->lasterror(), null, 'warnings');
 		}*/
 	}
 }
@@ -685,7 +691,7 @@ print '<div class="fichecenter">';
 print '<table class="noborder centpercent tableforfield">';
 
 // Nb of users
-print '<tr><td width="20%">'.$langs->trans("NbOfUsers").'</td><td><font size="+2">'.round($object->nbofusers).'</font></td>';
+print '<tr><td width="20%">'.$langs->trans("NbOfUsers").'</td><td><font size="+2">'.(isset($object->nbofusers) ? round($object->nbofusers) : '').'</font></td>';
 print '<td></td><td>';
 if (! $object->user_id && $user->rights->sellyoursaas->write) {
 	print ' <a href="'.$_SERVER["PHP_SELF"].'?id='.$object->id.'&action=refresh&token='.newToken().'">'.img_picto($langs->trans("Refresh"), 'refresh').'</a>';
@@ -699,7 +705,11 @@ print '<td>'.$langs->trans("Authorized_keyInstalled").'</td><td>'.($object->arra
 print ' &nbsp; (<a href="'.$_SERVER["PHP_SELF"].'?id='.$object->id.'&action=addauthorizedkey&token='.newToken().'">'.$langs->trans("Create").'</a>)';
 print ($object->array_options['options_fileauthorizekey']?' &nbsp; (<a href="'.$_SERVER["PHP_SELF"].'?id='.$object->id.'&action=delauthorizedkey&token='.newToken().'">'.$langs->trans("Delete").'</a>)':'');
 print '</td>';
-print '<td></td><td></td>';
+print '<td></td><td>';
+if (! $object->user_id && $user->rights->sellyoursaas->write) {
+	print ' <a href="'.$_SERVER["PHP_SELF"].'?id='.$object->id.'&action=refreshfilesonly&token='.newToken().'">'.img_picto($langs->trans("Refresh"), 'refresh').'</a>';
+}
+print '</td>';
 print '</tr>';
 
 // Install.lock file
@@ -774,7 +784,7 @@ foreach ($arraylistofinstances as $instance) {
 	print '<td class="nowraponall">'.$instance->getNomUrl(1).'</td>';
 	print '<td>'.$instance->getFormatedCustomerRef($instance->ref_customer).'</td>';
 	print '<td>'.$instance->array_options['options_cookieregister_counter'].'</td>';
-	print '<td>'.dol_print_ip($instance->array_options['options_deployment_ip']).'</td>';
+	print '<td>'.dol_print_ip($instance->array_options['options_deployment_ip'], 0).'</td>';
 	print '<td>'.$instance->array_options['options_deployment_vpn_proba'].'</td>';
 	print '<td class="nowraponall">'.dol_print_date($instance->array_options['options_deployment_date_start'], 'dayhour', 'tzuserrel').'</td>';
 	print '<td>'.$instance->getLibStatut(7).'</td>';

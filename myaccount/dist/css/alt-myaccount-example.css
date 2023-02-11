@@ -11,6 +11,9 @@ a{
 	color: #FFF;		
 }
 
+div.block header {
+	background-color: #4c4970;
+}
 div.block header h1 {
 	margin-bottom: 0; 
 }
@@ -27,7 +30,7 @@ div.block header h1 {
 
 .customregisterinformation{
     display: flex;
-    flex-direction:column;
+    flex-direction: column-reverse;
     justify-content: space-around;
     padding-left: 100px;
     padding-right: 100px;
@@ -35,6 +38,9 @@ div.block header h1 {
 .customregisterinformation > *{
     align-self: center;
     /* padding-left:200px; */
+}
+form#formregister {
+	padding-right: 100px;
 }
 .customcompanylogo{
     display:block;
@@ -44,9 +50,10 @@ div.block header h1 {
     display:flex
 }
 .customregisterheader > h1{
-    margin:auto;
+    margin: auto;
     margin-top: 7px;
-    padding-left:100px
+    padding-left: 100px;
+    padding-top: 10px !important;
 }
 .defaultheader{
 	display:none;
@@ -54,6 +61,11 @@ div.block header h1 {
 .page-header-top{
 	display:none;
 }
+
+.btnalreadyanaccount {
+    border: 1px solid #fff;
+}
+
 
 /* For other sizes */
 
@@ -74,11 +86,17 @@ div.block header h1 {
 	.customregisterinformation {
 	    padding-left: 10px;
     	padding-right: 10px;
+    	flex-direction: column;
 	}
     .customregisterinformation > *{
         max-width:90%;
         padding-left:0px;
     }
+    
+    form#formregister {
+		padding-right: unset;
+	}
+
     .customcompanylogo{
         -webkit-box-ordinal-group: 1;
         -moz-box-ordinal-group: 1;

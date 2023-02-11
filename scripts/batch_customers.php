@@ -38,6 +38,11 @@ if (substr($sapi_type, 0, 3) == 'cgi') {
 	echo "Error: You are using PHP for CGI. To execute ".$script_file." from command line, you must use PHP for CLI mode.\n";
 	exit(-1);
 }
+if (0 == posix_getuid()) {
+	echo "Script must NOT be ran with root (but with the 'admin' sellyoursaas account).\n";
+	print "\n";
+	exit(-1);
+}
 
 // Global variables
 $version='1.0';
@@ -74,11 +79,11 @@ include_once dol_buildpath("/sellyoursaas/backoffice/lib/refresh.lib.php");		// 
 
 // Global variables
 $FORCE=0;
-if ($argv[2] == '--force') {
+if (!empty($argv[2]) && $argv[2] == '--force') {
 	unset($argv[2]);
 	$FORCE=1;
 }
-if ($argv[3] == '--force') {
+if (!empty($argv[3]) && $argv[3] == '--force') {
 	$FORCE=1;
 }
 
@@ -89,6 +94,8 @@ $database='';
 $databaseuser='sellyoursaas';
 $databasepass='';
 $ipserverdeployment='';
+$emailfrom='';
+$emailsupervision='';
 $fp = @fopen('/etc/sellyoursaas.conf', 'r');
 // Add each line to an array
 if ($fp) {
@@ -113,11 +120,20 @@ if ($fp) {
 		if ($tmpline[0] == 'ipserverdeployment') {
 			$ipserverdeployment = $tmpline[1];
 		}
+		if ($tmpline[0] == 'emailfrom') {
+			$emailfrom = $tmpline[1];
+		}
+		if ($tmpline[0] == 'emailsupervision') {
+			$emailsupervision = $tmpline[1];
+		}
 	}
 } else {
 	print "Failed to open /etc/sellyoursaas.conf file\n";
 	exit(-1);
 }
+
+$sendcontext = 'emailing';
+//$sendcontext = 'standard';
 
 
 
@@ -128,6 +144,18 @@ if ($fp) {
 $dbmaster=getDoliDBInstance('mysqli', $databasehost, $databaseuser, $databasepass, $database, $databaseport);
 if ($dbmaster->error) {
 	dol_print_error($dbmaster, "host=".$databasehost.", port=".$databaseport.", user=".$databaseuser.", databasename=".$database.", ".$dbmaster->error);
+
+	$from = $emailfrom;
+	$to = $emailsupervision;
+	// Supervision tools are generic for all domain. No way to target a specific supervision email.
+
+	$msg = 'Error in '.$script_file." ".(empty($argv[1]) ? '' : $argv[1])." ".(empty($argv[2]) ? '' : $argv[2])." (finished at ".dol_print_date(dol_now('gmt'), "%Y%m%d-%H%M%S", 'gmt').")\n\n".$dbmaster->error;
+
+	include_once DOL_DOCUMENT_ROOT.'/core/class/CMailFile.class.php';
+	print 'Send email MAIN_MAIL_SENDMODE='.getDolGlobalString('MAIN_MAIL_SENDMODE').' MAIN_MAIL_SMTP_SERVER='.getDolGlobalString('MAIN_MAIL_SMTP_SERVER').' from='.$from.' to='.$to.' title=[Warning] Error(s) in backups - '.gethostname().' - '.dol_print_date(dol_now(), 'dayrfc')."\n";
+	$cmail = new CMailFile('[Warning] Error(s) in backups - '.gethostname().' - '.dol_print_date(dol_now(), 'dayrfc'), $to, $from, $msg, array(), array(), array(), '', '', 0, 0, '', '', '', '', $sendcontext);
+	$result = $cmail->sendfile();		// Use the $conf->global->MAIN_MAIL_SMTPS_PW_$SENDCONTEXT for password
+
 	exit(-1);
 }
 if ($dbmaster) {
@@ -205,7 +233,13 @@ $instancefiltercomplete=$instancefilter;
 
 // Forge complete name of instance
 if (! empty($instancefiltercomplete) && ! preg_match('/\./', $instancefiltercomplete) && ! preg_match('/\.home\.lan$/', $instancefiltercomplete)) {
-	$tmparray = explode(',', $conf->global->SELLYOURSAAS_SUB_DOMAIN_NAMES);
+	if (empty(getDolGlobalString('SELLYOURSAAS_OBJECT_DEPLOYMENT_SERVER_MIGRATION'))) {
+		$tmparray = explode(',', getDolGlobalString('SELLYOURSAAS_SUB_DOMAIN_NAMES'));
+	} else {
+		dol_include_once('sellyoursaas/class/deploymentserver.class.php');
+		$staticdeploymentserver = new Deploymentserver($db);
+		$tmparray = $staticdeploymentserver->fetchAllDomains();
+	}
 	$tmpstring = preg_replace('/:.*$/', '', $tmparray[0]);
 	$instancefiltercomplete = $instancefiltercomplete.".".$tmpstring;   // Automatically concat first domain name
 }
@@ -716,27 +750,28 @@ if ($action == 'updatestatsonly') {
 	}
 }
 
-$sendcontext = 'emailing';
-//$sendcontext = 'standard';
-
 if (! $nboferrors) {
 	print '--- end OK - '.dol_print_date(dol_now('gmt'), "%Y%m%d-%H%M%S", 'gmt')."\n";
 
 	if ($action == 'backup' || $action == 'backupdelete' ||$action == 'backuprsync' || $action == 'backupdatabase' || $action == 'backuptest' || $action == 'backuptestrsync' || $action == 'backuptestdatabase') {
 		if (empty($instancefilter)) {
-			$from = $conf->global->SELLYOURSAAS_NOREPLY_EMAIL;
-			$to = $conf->global->SELLYOURSAAS_SUPERVISION_EMAIL;
-			$msg = 'Backup done without errors on '.gethostname().' by '.$script_file." ".$argv[1]." ".$argv[2]." (finished at ".dol_print_date(dol_now('gmt'), "%Y%m%d-%H%M%S", 'gmt').")\n\n".$out;
+			$from = $emailfrom;
+			$to = $emailsupervision;
+			// Force to use local sending (MAIN_MAIL_SENDMODE is the one of the master server. It may be to an external SMTP server not allowed to the deployment server)
+			$conf->global->MAIN_MAIL_SENDMODE = 'mail';
+			$conf->global->MAIN_MAIL_SMTP_SERVER = 'localhost';
+
+			$msg = 'Backup done without errors on '.gethostname().' by '.$script_file." ".(empty($argv[1]) ? '' : $argv[1])." ".(empty($argv[2]) ? '' : $argv[2])." (finished at ".dol_print_date(dol_now('gmt'), "%Y%m%d-%H%M%S", 'gmt').")\n\n".$out;
 
 			$sellyoursaasname = $conf->global->SELLYOURSAAS_NAME;                 // exemple 'DoliCloud'
 			$sellyoursaasdomain = $conf->global->SELLYOURSAAS_MAIN_DOMAIN_NAME;   // exemple 'dolicloud.com'
 
-			$domainname=getDomainFromURL($_SERVER['SERVER_NAME'], 1);
+			/*$domainname=getDomainFromURL($_SERVER['SERVER_NAME'], 1);
 			$constforaltname = 'SELLYOURSAAS_NAME_FORDOMAIN-'.$domainname;
 			if (! empty($conf->global->$constforaltname)) {
 				$sellyoursaasdomain = $domainname;
 				$sellyoursaasname = $conf->global->$constforaltname;
-			}
+			}*/
 
 			include_once DOL_DOCUMENT_ROOT.'/core/class/CMailFile.class.php';
 			print 'Send email MAIN_MAIL_SENDMODE='.$conf->global->MAIN_MAIL_SENDMODE.' MAIN_MAIL_SMTP_SERVER='.$conf->global->MAIN_MAIL_SMTP_SERVER.' from='.$from.' to='.$to.' title=[Backup instances - '.gethostname().'] Backup of user instances succeed'."\n";
@@ -751,9 +786,13 @@ if (! $nboferrors) {
 
 	if ($action == 'backup' || $action == 'backupdelete' ||$action == 'backuprsync' || $action == 'backupdatabase' || $action == 'backuptest' || $action == 'backuptestrsync' || $action == 'backuptestdatabase') {
 		if (empty($instancefilter)) {
-			$from = $conf->global->SELLYOURSAAS_NOREPLY_EMAIL;
-			$to = $conf->global->SELLYOURSAAS_SUPERVISION_EMAIL;
-			// Supervision tools are generic for all domain. No way to target a specific supervision email.
+			$from = $emailfrom;
+			$to = $emailsupervision;
+			// Force to use local sending (MAIN_MAIL_SENDMODE is the one of the master server. It may be to an external SMTP server not allowed to the deployment server)
+			$conf->global->MAIN_MAIL_SENDMODE = 'mail';
+			$conf->global->MAIN_MAIL_SMTP_SERVER = '';
+
+			// Supervision tools are generic for all domains. No way to target a specific supervision email.
 
 			$msg = 'Error in '.$script_file." ".$argv[1]." ".$argv[2]." (finished at ".dol_print_date(dol_now('gmt'), "%Y%m%d-%H%M%S", 'gmt').")\n\n".$out;
 
@@ -777,15 +816,15 @@ if (! $nboferrors) {
 					//$arraytags=array('result'=>'ko');
 					//$statsd->increment('sellyoursaas.backup', 1, $arraytags);
 
-					$sellyoursaasname = $conf->global->SELLYOURSAAS_NAME;                 // exemple 'DoliCloud'
-					$sellyoursaasdomain = $conf->global->SELLYOURSAAS_MAIN_DOMAIN_NAME;   // exemple 'dolicloud.com'
+					$sellyoursaasname = $conf->global->SELLYOURSAAS_NAME;                 // exemple 'My SaaS Service'
+					$sellyoursaasdomain = $conf->global->SELLYOURSAAS_MAIN_DOMAIN_NAME;   // exemple 'mysaasdomain.com'
 
-					$domainname=getDomainFromURL($_SERVER['SERVER_NAME'], 1);
+					/*$domainname=getDomainFromURL($_SERVER['SERVER_NAME'], 1);
 					$constforaltname = 'SELLYOURSAAS_NAME_FORDOMAIN-'.$domainname;
 					if (! empty($conf->global->$constforaltname)) {
 						$sellyoursaasdomain = $domainname;
 						$sellyoursaasname = $conf->global->$constforaltname;
-					}
+					}*/
 
 					$titleofevent =  dol_trunc('[Warning] '.$sellyoursaasname.' - '.gethostname().' - Backup in error', 90);
 					$statsd->event($titleofevent,
@@ -796,8 +835,10 @@ if (! $nboferrors) {
 							'host'       => gethostname()
 							)
 						);
+
+					print "Event sent to DataDog\n";
 				} catch (Exception $e) {
-					print 'Failed to send event to datadog';
+					print "Failed to send event to datadog\n";
 				}
 			}
 		} else {

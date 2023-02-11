@@ -87,22 +87,22 @@ fi
 
 export DISTRIB_RELEASE=`lsb_release -r -s`
 
-export OPTIONS="-4 --stats -rlt --chmod=u=rwX";
-if [ "x$DISTRIB_RELEASE" == "x20.10" ]; then
-	# Version must be 20.10+ on both side !
+export OPTIONS="-4 --prune-empty-dirs --stats -rlt --chmod=u=rwX";
+if [ "x$DISTRIB_RELEASE" == "x20.10" -o "x$DISTRIB_RELEASE" == "x22.04" ]; then
+	# Version must be > 20.10 on both side to allow --open-noatime !
 	#export OPTIONS="$OPTIONS --open-noatime" 
 	export OPTIONS="$OPTIONS"
 else 
 	export OPTIONS="$OPTIONS --noatime"
 fi
 if [ "x$2" == "x--delete" ]; then
-	export OPTIONS="$OPTIONS --delete"
+	export OPTIONS="$OPTIONS --delete --delete-excluded"
 fi
 if [ "x$3" == "x--delete" ]; then
-	export OPTIONS="$OPTIONS --delete"
+	export OPTIONS="$OPTIONS --delete --delete-excluded"
 fi
 if [ "x$4" == "x--delete" ]; then
-	export OPTIONS="$OPTIONS --delete"
+	export OPTIONS="$OPTIONS --delete --delete-excluded"
 fi
 
 

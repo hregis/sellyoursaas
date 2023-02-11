@@ -88,12 +88,13 @@ require_once DOL_DOCUMENT_ROOT.'/contrat/class/contrat.class.php';
 require_once DOL_DOCUMENT_ROOT.'/product/class/product.class.php';
 dol_include_once('/sellyoursaas/lib/sellyoursaas.lib.php');
 dol_include_once('/sellyoursaas/class/packages.class.php');
+dol_include_once('/sellyoursaas/class/deploymentserver.class.php');
 dol_include_once('/sellyoursaas/class/sellyoursaasutils.class.php');
 dol_include_once('/sellyoursaas/class/blacklistip.class.php');
 dol_include_once('/sellyoursaas/class/whitelistip.class.php');
 
 // Re set variables specific to new environment
-$conf->global->SYSLOG_FILE_ONEPERSESSION=1;
+$conf->global->SYSLOG_FILE_ONEPERSESSION='register';
 
 
 //$langs=new Translate('', $conf);
@@ -123,6 +124,7 @@ if (empty($user->id)) {
 
 $action = GETPOST('action', 'alpha');
 $orgname = dol_trunc(ucfirst(trim(GETPOST('orgName', 'alpha'))), 250, 'right', 'UTF-8', 1);
+$phone   = dol_trunc(ucfirst(trim(GETPOST('phone', 'alpha'))), 20, 'right', 'UTF-8', 1);
 $email = dol_trunc(trim(GETPOST('username', 'alpha')), 255, 'right', 'UTF-8', 1);
 $domainemail = preg_replace('/^.*@/', '', $email);
 $password = dol_trunc(trim(GETPOST('password', 'alpha')), 128, 'right', 'UTF-8', 1);
@@ -131,7 +133,7 @@ $country_code = trim(GETPOST('address_country', 'alpha'));
 $sldAndSubdomain = trim(GETPOST('sldAndSubdomain', 'alpha'));
 $tldid = trim(GETPOST('tldid', 'alpha'));
 $optinmessages = (GETPOST('optinmessages', 'aZ09') == '1' ? 1 : 0);
-$checkbosnonprofitorga = (GETPOST('checkbosnonprofitorga', 'aZ09') == '1' ? 1 : 0);
+$checkboxnonprofitorga = (GETPOSTISSET('checkboxnonprofitorga') ? GETPOST('checkboxnonprofitorga', 'aZ09') : '');
 
 $origin = GETPOST('origin', 'aZ09');
 $partner=GETPOST('partner', 'int');
@@ -148,6 +150,11 @@ $productid=GETPOST('service', 'int');
 $plan=GETPOST('plan', 'alpha');
 $productref=(GETPOST('productref', 'alpha')?GETPOST('productref', 'alpha'):($plan?$plan:''));
 $extcss=GETPOST('extcss', 'alpha');
+if (empty($extcss)) {
+	$extcss = getDolGlobalString('SELLYOURSAAS_EXTCSS', 'dist/css/myaccount.css');
+} elseif ($extcss == 'generic') {
+	$extcss = 'dist/css/myaccount.css';
+}
 
 // If ran from command line
 if (substr($sapi_type, 0, 3) == 'cli') {
@@ -261,6 +268,7 @@ if ($reusecontractid) {		// When we use the "Restart deploy" after error from ac
 	if (! preg_match('/partnerkey/i', $newurl)) $newurl.='&partnerkey='.urlencode($partnerkey);		// md5 of partner name alias
 	if (! preg_match('/origin/i', $newurl)) $newurl.='&origin='.urlencode($origin);
 	if (! preg_match('/disablecustomeremail/i', $newurl)) $newurl.='&disablecustomeremail='.urlencode($disablecustomeremail);
+	if (! preg_match('/checkboxnonprofitorga/i', $newurl)) $newurl.='&checkboxnonprofitorga='.urlencode($checkboxnonprofitorga);
 
 	if ($reusesocid < 0) { // -1, the thirdparty was not selected
 		// Return to dashboard, the only page where the customer is requested.
@@ -334,6 +342,7 @@ if ($reusecontractid) {		// When we use the "Restart deploy" after error from ac
 
 	if (! preg_match('/\?/', $newurl)) $newurl.='?';
 	if (! preg_match('/orgName/i', $newurl)) $newurl.='&orgName='.urlencode($orgname);
+	if (! preg_match('/phone/i', $newurl)) $newurl.='&phone='.urlencode($phone);
 	if (! preg_match('/username/i', $newurl)) $newurl.='&username='.urlencode($email);
 	if (! preg_match('/address_country/i', $newurl)) $newurl.='&address_country='.urlencode($country_code);
 	if (! preg_match('/sldAndSubdomain/i', $sldAndSubdomain)) $newurl.='&sldAndSubdomain='.urlencode($sldAndSubdomain);
@@ -342,6 +351,7 @@ if ($reusecontractid) {		// When we use the "Restart deploy" after error from ac
 	if (! preg_match('/partner/i', $newurl)) $newurl.='&partner='.urlencode($partner);
 	if (! preg_match('/partnerkey/i', $newurl)) $newurl.='&partnerkey='.urlencode($partnerkey);		// md5 of partner name alias
 	if (! preg_match('/origin/i', $newurl)) $newurl.='&origin='.urlencode($origin);
+	if (! preg_match('/checkboxnonprofitorga/i', $newurl)) $newurl.='&checkboxnonprofitorga='.urlencode($checkboxnonprofitorga);
 
 	$parameters = array('tldid' => $tldid, 'username' => $email, 'sldAndSubdomain' => $sldAndSubdomain);
 	$reshook = $hookmanager->executeHooks('doActions', $parameters, $object, $action); // Note that $action and $object may have been modified by some hooks
@@ -375,6 +385,11 @@ if ($reusecontractid) {		// When we use the "Restart deploy" after error from ac
 		setEventMessages($langs->trans("ErrorFieldMustHaveXChar", $langs->transnoentitiesnoconv("NameOfCompany"), 2), null, 'errors');
 		header("Location: ".$newurl);
 		exit(-25);
+	}
+	if (! empty($phone) && ! isValidPhone($phone)) {
+		setEventMessages($langs->trans("ErrorBadPhone", $langs->transnoentitiesnoconv("Phone"), 2), null, 'errors');
+		header("Location: ".$newurl);
+		exit(-30);
 	}
 	if (empty($email)) {
 		setEventMessages($langs->trans("ErrorFieldRequired", $langs->transnoentitiesnoconv("Email")), null, 'errors');
@@ -547,9 +562,22 @@ if (is_numeric($tmparraywhitelist) && $tmparraywhitelist < 0) {
 $whitelisted = false;
 if (!empty($tmparraywhitelist)) {
 	foreach ($tmparraywhitelist as $val) {
-		if ($val->content == $remoteip) {
-			$whitelisted = true;
-			break;
+		if (strpos($val->content, '*') !== false) {
+			// An IP with a wild card
+			$tmpval = str_replace('*', '__STAR__', $val->content);
+			$tmpval = '^'.preg_quote($tmpval, '/').'$';
+			$tmpval = str_replace('__STAR__', '.*', $tmpval);
+
+			if (preg_match('/'.$tmpval.'/', $remoteip)) {
+				$whitelisted = true;
+				break;
+			}
+		} else {
+			// A simple IP
+			if ($val->content == $remoteip) {
+				$whitelisted = true;
+				break;
+			}
 		}
 	}
 }
@@ -921,6 +949,7 @@ if ($reusecontractid) {
 	$password_crypted = dol_hash($password);
 
 	$tmpthirdparty->name = $orgname;
+	$tmpthirdparty->phone = $phone;
 	$tmpthirdparty->email = $email;
 	$tmpthirdparty->client = 2;
 	$tmpthirdparty->tva_assuj = 1;
@@ -931,7 +960,7 @@ if ($reusecontractid) {
 	$tmpthirdparty->array_options['options_source_utm'] = (empty($_COOKIE['utm_source_cookie']) ? '' : $_COOKIE['utm_source_cookie']);
 	$tmpthirdparty->array_options['options_password'] = $password;
 	$tmpthirdparty->array_options['options_optinmessages'] = $optinmessages;
-	//$tmpthirdparty->array_options['options_checkbosnonprofitorga'] = $checkbosnonprofitorga;		// For the moment we don't save this info
+	$tmpthirdparty->array_options['options_checkboxnonprofitorga'] = $checkboxnonprofitorga;
 
 	if ($productref == 'none') {	// If reseller
 		$tmpthirdparty->fournisseur = 1;
@@ -1072,7 +1101,6 @@ if ($reusecontractid) {
 		$tmp=explode('.', $contract->ref_customer, 2);
 		$sldAndSubdomain=$tmp[0];
 		$domainname=$tmp[1];
-
 		$sellyoursaasutils = new SellYourSaasUtils($db);
 		$onlyifopen = 1;
 		if (GETPOST('forcesubdomain')) {
@@ -1085,16 +1113,19 @@ if ($reusecontractid) {
 			dol_print_error_email('BADDOMAIN', 'Trying to deploy on a not valid domain '.$domainname.' (not exists or closed).', null, 'alert alert-error');
 			exit(-94);
 		}
+		//$deploymentserver = new Deploymentserver($db);
+		//$deploymentserver->fetch(null, $domainname);
 
 		$contract->array_options['options_plan'] = $productref;
 		$contract->array_options['options_deployment_status'] = 'processing';
+		//$contract->array_options['options_deployment_server'] = $deploymentserver->id;
+		$contract->array_options['options_deployment_host'] = $serverdeployement;
 		$contract->array_options['options_deployment_date_start'] = $now;
 		$contract->array_options['options_deployment_init_email'] = $email;
 		$contract->array_options['options_deployment_init_adminpass'] = $password;
 		$contract->array_options['options_date_endfreeperiod'] = $date_end;
 		$contract->array_options['options_undeployment_date'] = '';
 		$contract->array_options['options_undeployment_ip'] = '';
-		$contract->array_options['options_deployment_host'] = $serverdeployement;
 		$contract->array_options['options_hostname_os'] = $generatedunixhostname;
 		$contract->array_options['options_username_os'] = $generatedunixlogin;
 		$contract->array_options['options_password_os'] = $generatedunixpassword;
@@ -1508,9 +1539,9 @@ if (! empty($conf->global->MAIN_FAVICON_URL)) $favicon=$conf->global->MAIN_FAVIC
 
 $head = '';
 if ($favicon) $head.='<link rel="icon" href="img/'.$favicon.'">'."\n";
-$head.='<!-- Bootstrap core CSS -->
-<link href="dist/css/bootstrap.css" type="text/css" rel="stylesheet">
-<link href="dist/css/myaccount.css" type="text/css" rel="stylesheet">';
+$head .= '<!-- Bootstrap core CSS -->';
+$head .= '<link href="dist/css/bootstrap.css" type="text/css" rel="stylesheet">';
+$head .= '<link href="'.$extcss.'" type="text/css" rel="stylesheet">';
 
 $title = $langs->trans("Registration").($tmpproduct->label?' ('.$tmpproduct->label.')':'');
 

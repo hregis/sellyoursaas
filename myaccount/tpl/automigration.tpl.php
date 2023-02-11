@@ -25,11 +25,11 @@ if (empty($conf) || ! is_object($conf)) {
 <!-- BEGIN PHP TEMPLATE automigration.tpl.php -->
 <?php
 
-$upload_dir = $conf->sellyoursaas->dir_temp."/automigration_".$mythirdpartyaccount->id.'.tmp';
+$upload_dir = $conf->sellyoursaas->dir_temp."/automigration_".$mythirdpartyaccount->id.'.tmp';	// @TODO LMR Use id of contract instead of ID of thirdparty
 $filenames = array();
 $fileverification = array();
 $stepautomigration = 0;
-$backtopagesupport = $_SERVER["PHP_SELF"].'?action=presend&mode=support&backfromautomigration=backfromautomigration&token='.newToken().'&contractid='.GETPOST('contractid', 'alpha').'&supportchannel='.GETPOST('supportchannel', 'alpha').'&ticketcategory_child_id='.(GETPOST('ticketcategory_child_id_back', 'alpha')?:GETPOST('ticketcategory_child_id', 'alpha')).'&ticketcategory='.(GETPOST('ticketcategory_back', 'alpha')?:GETPOST('ticketcategory', 'alpha')).'&subject'.(GETPOST('subject_back', 'alpha')?:GETPOST('subject', 'alpha'));
+$backtopagesupport = $_SERVER["PHP_SELF"].'?action=presend&mode=support&backfromautomigration=backfromautomigration&token='.newToken().'&contractid='.GETPOST('contractid', 'alpha').'&supportchannel='.GETPOST('supportchannel', 'alpha').'&ticketcategory_child_id='.(GETPOST('ticketcategory_child_id_back', 'alpha')?GETPOST('ticketcategory_child_id', 'alpha'):'').'&ticketcategory='.(GETPOST('ticketcategory_back', 'alpha')?GETPOST('ticketcategory', 'alpha'):'').'&subject'.(GETPOST('subject_back', 'alpha')?GETPOST('subject', 'alpha'):'').'#supportform';
 
 print '<form action="'.$_SERVER["PHP_SELF"].'" method="POST" id="migrationFormbacksupport">';
 	print '<input type="hidden" name="action" value="presend">';
@@ -40,9 +40,11 @@ print '<form action="'.$_SERVER["PHP_SELF"].'" method="POST" id="migrationFormba
 	print '<input type="hidden" name="ticketcategory_child_id" value="'.(GETPOST('ticketcategory_child_id_back', 'alpha')?:GETPOST('ticketcategory_child_id', 'alpha')).'">';
 	print '<input type="hidden" name="ticketcategory" value="'.(GETPOST('ticketcategory_back', 'alpha')?:GETPOST('ticketcategory', 'alpha')).'">';
 	print '<input type="hidden" name="subject" value="'.(GETPOST('subject_back', 'alpha')?:GETPOST('subject', 'alpha')).'">';
-	print '</form>';
+print '</form>';
 if ($action == 'redirectautomigrationget') {
+	// @TODO LMR Why not just changing the url in <form action="url" with <form action="url#step4" instead of making a post that do a js get redirect just after being loaded ?
 	print '<script>
+	console.log("Reload page with another url...");
 	window.location.href = "'.$_SERVER["PHP_SELF"].'?mode='.GETPOST("mode", 'alpha').'&action=view'.(GETPOST("instanceselect")?'&instanceselect='.GETPOST("instanceselect"):"").'&contractid='.GETPOST('contractid', 'alpha').'&supportchannel='.GETPOST('supportchannel', 'alpha').'&backfromautomigration=backfromautomigration&ticketcategory_child_id='.GETPOST('ticketcategory_child_id', 'alpha').'&ticketcategory='.GETPOST('ticketcategory', 'alpha').(GETPOST('subject', 'alpha')?'&subject='.GETPOST('subject', 'alpha'):"").'#Step4"
 	</script>';
 }
@@ -120,9 +122,9 @@ if ($action == 'fileverification') {
 		if (empty(preg_match('/'.preg_quote('-- Dump completed').'/i', $filecontent))) {
 			$error = array("error"=>array("errorcode" =>"ErrorOnSqlDumpForge"));
 		}
-		if (empty(preg_match('/llx_/i', $filecontent))) {
+		/*if (empty(preg_match('/llx_/i', $filecontent))) {
 			$error = array("error"=>array("errorcode" =>"ErrorOnSqlPrefix"));
-		}
+		}*/
 		if (!empty($error)) {
 			$fileverification[0]['error'][]=$error["error"];
 		}
@@ -168,72 +170,121 @@ if ($action == 'automigration') {
 	$object->hostname_os  = $hostname_os;
 	$object->username_web = $username_web;
 	$object->password_web = $password_web;
-	$object->hostname_web = $hostname_os;
 
 	$sqlfiletomigrate = GETPOST('sqlfilename', 'alpha');
 	$dirfiletomigrate = GETPOST('dirfilename', 'alpha');
 	$object->array_options['automigrationdocumentarchivename'] = $dirfiletomigrate;
 	$exitcode = 0;
 
-	//Backup old database
-	$mysqlbackupfilename=$upload_dir.'/mysqldump_'.$object->database_db.'_'.dol_print_date(dol_now(), 'dayhourlog').'.sql';
-	$mysqlbackupcommand='mysqldump -C -u '.$object->username_db.' -p\''.$object->password_db.'\' -h '.$object->hostname_db.' '.$object->database_db;
-	$result = $utils->executeCli($mysqlbackupcommand, "", 0, $mysqlbackupfilename);
-
-	if ($result["result"] != 0) {
-		if (empty($result["output"])) {
-			$result["output"] = $langs->trans("ErrorOnDatabaseBackup");
+	//Sql prefix process To test
+	$sqlfilepath = dol_sanitizePathName($upload_dir).'/'.dol_sanitizeFileName($sqlfiletomigrate);
+	$sqlcontent = file_get_contents($sqlfilepath);
+	$matches = array();
+	$result = array();
+	$result["result"] = preg_match('/table `([a-zA-Z0-9]+_)/i', $sqlcontent, $matches);
+	if ($result["result"] <= 0) {
+		setEventMessages($langs->trans("ErrorOnSqlPrefixProcess"), null, "errors");
+	} else {
+		if ($matches[1] != $prefix_db) {
+			$oldprefix = $matches[1];
+			$sqlcontentnew = preg_replace('/`'.$oldprefix.'/i', '`'.$prefix_db, $sqlcontent);
+			if (empty($sqlcontentnew) || $sqlcontentnew == $sqlcontent) {
+				$result["result"] = -1;
+				$result["output"] = $langs->trans("ErrorOnSqlPrefixProcessReplace");
+				setEventMessages($langs->trans("ErrorOnSqlPrefixProcessReplace"), null, "errors");
+			} else {
+				$fhandle = @fopen($sqlfilepath, 'w');
+				if ($fhandle) {
+					$result["result"] = fwrite($fhandle, $sqlcontentnew);
+					fclose($fhandle);
+				} else {
+					$result["result"] = -1;
+					$result["output"] = $langs->trans("ErrorOnSqlPrefixProcessWrite");
+					setEventMessages($langs->trans("ErrorOnSqlPrefixProcessWrite"), null, "errors");
+				}
+			}
 		}
-		setEventMessages($langs->trans("ErrorOnDatabaseBackup"), null, "errors");
-	}
+		//Backup old database
+		$mysqlbackupfilename=$upload_dir.'/mysqldump_'.$database_db.'_'.dol_print_date(dol_now(), 'dayhourlog').'.sql';
+		$param = array();
+		$command = "mysqldump";
+		$param[] = "--column-statistics=0"; // Remove a new flag with mysqldump v8
+		$param[] = "--no-tablespaces";
+		$param[] = "-C";
+		$param[] = "-h";
+		$param[] = $hostname_db;
+		$param[] = "-P";
+		$param[] = (! empty($port_db) ? $port_db : "3306");
+		$param[] = "-u";
+		$param[] = $username_db;
+		$param[] = '-p"'.str_replace(array('"','`'), array('\"','\`'), $password_db).'"';
+		$param[] = $database_db;
+		$mysqlbackupcommand=$command." ".join(" ", $param);
 
-	//Drop llx_accounting_system and llx_accounting_account to prevent load error
-	if ($result["result"] == 0) {
-		$mysqlcommand='echo "drop table llx_accounting_system;" | mysql -A -C -u '.$object->username_db.' -p\''.$object->password_db.'\' -h '.$object->hostname_db.' '.$object->database_db;
-		$result = $utils->executeCli($mysqlcommand, "", 0, null);
+		$result = $utils->executeCli($mysqlbackupcommand, "", 0, $mysqlbackupfilename);
+
 		if ($result["result"] != 0) {
 			if (empty($result["output"])) {
-				$result["output"] = $langs->trans("ErrorOnDropingTables");
+				$result["output"] = $langs->trans("ErrorOnDatabaseBackup");
 			}
-			setEventMessages($langs->trans("ErrorOnDropingTables"), null, "errors");
-		} else {
-			$mysqlcommand='echo "drop table llx_accounting_account;" | mysql -A -C -u '.$object->username_db.' -p\''.$object->password_db.'\' -h '.$object->hostname_db.' '.$object->database_db;
+		}
+
+		//Drop llx_accounting_system and llx_accounting_account to prevent load error
+		if ($result["result"] == 0) {
+			$mysqlcommand='echo "drop table llx_accounting_system;" | mysql -A -C -u '.$username_db.' -p\''.$password_db.'\' -h '.$hostname_db.' '.$database_db;
 			$result = $utils->executeCli($mysqlcommand, "", 0, null);
 			if ($result["result"] != 0) {
 				if (empty($result["output"])) {
-					$result["output"] = $langs->trans("ErrorOnDropingTables");
+					$result["output"] = $langs->trans("ErrorOnDatabaseBackup");
 				}
 				setEventMessages($langs->trans("ErrorOnDropingTables"), null, "errors");
+			} else {
+				$mysqlcommand='echo "drop table llx_accounting_account;" | mysql -A -C -u '.$username_db.' -p\''.$password_db.'\' -h '.$hostname_db.' '.$database_db;
+				$result = $utils->executeCli($mysqlcommand, "", 0, null);
+				if ($result["result"] != 0) {
+					if (empty($result["output"])) {
+						$result["output"] = $langs->trans("ErrorOnDropingTables");
+					}
+					setEventMessages($langs->trans("ErrorOnDropingTables"), null, "errors");
+				} else {
+					$mysqlcommand='echo "drop table llx_accounting_account;" | mysql -A -C -u '.$object->username_db.' -p\''.$object->password_db.'\' -h '.$object->hostname_db.' '.$object->database_db;
+					$result = $utils->executeCli($mysqlcommand, "", 0, null);
+					if ($result["result"] != 0) {
+						if (empty($result["output"])) {
+							$result["output"] = $langs->trans("ErrorOnDropingTables");
+						}
+						setEventMessages($langs->trans("ErrorOnDropingTables"), null, "errors");
+					}
+				}
+			}
+
+			if ($result["result"] == 0) {
+				$mysqlcommand='mysql -C -A -u '.$username_db.' -p\''.$password_db.'\' -h '.$hostname_db.' -D '.$database_db.' < '.escapeshellcmd(dol_sanitizePathName($upload_dir).'/'.dol_sanitizeFileName($sqlfiletomigrate));
+				$result = $utils->executeCli($mysqlcommand, "", 0, null, 1);
+				if ($result["result"] != 0) {
+					if (empty($result["output"])) {
+						$result["output"] = $langs->trans("ErrorOnDatabaseMigration");
+					}
+					setEventMessages($langs->trans("ErrorOnDatabaseMigration"), null, "errors");
+				}
+
+				if ($result["result"] == 0) {
+					$exitcode = $sellyoursaasutils->sellyoursaasRemoteAction("migrate", $object);
+					if ($exitcode < 0) {
+						$result["result"] = $exitcode;
+						$result["output"] = $langs->trans("ErrorOnDocumentMigration");
+						setEventMessages($langs->trans("ErrorOnDocumentMigration"), null, "errors");
+					}
+				}
+
+				if ($result["result"] != 0) {
+					$mysqlcommand='mysql -C -A -u '.$username_db.' -p\''.$password_db.'\' -h '.$hostname_db.' -D '.$database_db.' < '.$mysqlbackupfilename;
+					$utils->executeCli($mysqlcommand, "", 0, null, 1);
+				}
 			}
 		}
-	}
-
-	if ($result["result"] == 0) {
-		$mysqlcommand='mysql -C -A -u '.$object->username_db.' -p\''.$object->password_db.'\' -h '.$object->hostname_db.' -D '.$object->database_db.' < '.escapeshellcmd(dol_sanitizePathName($upload_dir).'/'.dol_sanitizeFileName($sqlfiletomigrate));
-		$result = $utils->executeCli($mysqlcommand, "", 0, null, 1);
-		if ($result["result"] != 0) {
-			if (empty($result["output"])) {
-				$result["output"] = $langs->trans("ErrorOnDatabaseMigration");
-			}
-			setEventMessages($langs->trans("ErrorOnDatabaseMigration"), null, "errors");
-		}
-	}
-
-	if ($result["result"] == 0) {
-		$exitcode = $sellyoursaasutils->sellyoursaasRemoteAction("migrate", $object);
-		if ($exitcode < 0) {
-			$result["result"] = $exitcode;
-			$result["output"] = $langs->trans("ErrorOnDocumentMigration");
-			setEventMessages($langs->trans("ErrorOnDocumentMigration"), null, "errors");
-		}
-	}
-
-	if ($result["result"] != 0) {
-		$mysqlcommand='mysql -C -A -u '.$object->username_db.' -p\''.$object->password_db.'\' -h '.$object->hostname_db.' -D '.$object->database_db.' < '.$mysqlbackupfilename;
-		$utils->executeCli($mysqlcommand, "", 0, null, 1);
 	}
 }
-
 $linkstep1img="img/sellyoursaas_automigration_step1.png";
 $linkstep2img="img/sellyoursaas_automigration_step2.png";
 print '
@@ -260,7 +311,7 @@ print'
 if ($action == 'fileverification') {
 	print '<!-- BEGIN STEP5-->';
 	print '<div class="portlet light" id="Step5">
-        <h2>'.$langs->trans("Step", 5).' - '.$langs->trans("FileVerification").'</small></h1><br>
+        <h2>'.$langs->trans("Step", 5).' - '.$langs->trans("FileVerification").'</h2><br>
         <div style="display:flex;justify-content:space-evenly;">';
 	for ($i=0; $i < 2; $i++) {
 		if ($i == 0) {
@@ -307,9 +358,9 @@ if ($action == 'fileverification') {
 		print '<input type="hidden" name="token" value="'.newToken().'">';
 
 		print '<br><div class="center">
-            <h3 style="color:red;"><strong>
+            <h4 style="color:red;"><strong>
             '.$langs->trans("AutomigrationStep3Warning").'
-            </strong></h3><br>
+            </strong></h4><br>
         <input id="confirmmigration" type="submit" class="btn green-haze btn-circle" value="'.$langs->trans("ConfirmMigration").'" onclick="applywaitMask()">
 		<a href="'.$backtopagesupport.'"><button type="button" class="btn green-haze btn-circle">'.$langs->trans("CancelAutomigrationAndBacktoSupportPage").'</button></a>
         </div>';
@@ -336,7 +387,7 @@ if ($action == 'fileverification') {
 		print '<form action="'.$_SERVER["PHP_SELF"].'" method="GET">';
 		print '<input type="hidden" name="action" value="presend">';
 		print '<div class="center">';
-		print '<h3 style="color:red;"><strong>'.$langs->trans("ErrorOnMigration").'</strong></h3><br>';
+		print '<h4 style="color:red;"><strong>'.$langs->trans("ErrorOnMigration").'</strong></h4><br>';
 		print '<input type="submit" class="btn green-haze btn-circle" value="'.$langs->trans("BackToSupport").'">';
 		print '<input type="hidden" name="backfromautomigration" value="backfromautomigration">';
 		print '<input type="hidden" name="subject" value="'.$langs->trans("MigrationErrorSubject").'">';
@@ -362,26 +413,25 @@ if ($action == 'view') {
 
 	print'<!-- BEGIN STEP1-->
         <div class="portlet light" id="step1">
-                <h2>'.$langs->trans("Step", 1).' - '.$langs->trans("BackupOldDatabase").'</small></h1><br>
+                <h2>'.$langs->trans("Step", 1).' - '.$langs->trans("BackupOldDatabase").'</h2><br>
                 <div>
-                    '.$langs->trans("AutomigrationStep1Text").'
+                    '.$langs->trans("AutomigrationStep1Text", $langs->transnoentitiesnoconv("Home"), $langs->transnoentitiesnoconv("Setup"), $langs->transnoentitiesnoconv("Backup"), $langs->transnoentitiesnoconv("GenerateBackup")).'
+					<br><br>
+					'.$langs->trans("DownloadThisFile").'.
                 </div>
                 <div class="center" style="padding-top:10px">
                     <img src="'.$linkstep1img.'">
                 </div>
+				<br>
                 <div class="note note-info"><small>
                 '.$langs->trans("AutomigrationStep1Note").'
                 <div class="portlet dark" style="margin-bottom:10px">
                     mysqldump -h ip_of_old_mysql_server -P port_of_old_mysql_server -u user_database -ppassword_database > mysqldump_YYYYMMDDHHMMSS.sql
                 </div>
-                '.$langs->trans("AutomigrationStep1Note2").'
-                <div class="portlet dark" style="color:green;margin-bottom:0px">
-                    -- Dump completed on YYYY-MM-DD HH:mm:
-                </div>
                 </small>
                 </div>
                 <div class="containerflexautomigration">
-					<div class="right" style="width:30%;margin-right:10px">
+					<div class="right" style="margin-right:10px">
 						<a href="'.$_SERVER["REQUEST_URI"].'#Step2"><button id="buttonstep_2" type="button" class="btn green-haze btn-circle btnstep">'.$langs->trans("NextStep").'</button></a>
 					</div>
 					<div>
@@ -394,16 +444,18 @@ if ($action == 'view') {
 		print '<!-- BEGIN STEP2-->
 		<div id="Step2"></div>
         <div class="portlet light divstep topmarginstep" id="step2">
-                <h2>'.$langs->trans("Step", 2).' - '.$langs->trans("BackupOldDocument").'</small></h1><br>
+                <h2>'.$langs->trans("Step", 2).' - '.$langs->trans("BackupOldDocument").'</h2><br>
                 <div>
-                    '.$langs->trans("AutomigrationStep2Text").'
+                    '.$langs->trans("AutomigrationStep2Text", $langs->transnoentitiesnoconv("Home"), $langs->transnoentitiesnoconv("Setup"), $langs->transnoentitiesnoconv("Backup"), $langs->transnoentitiesnoconv("GenerateBackup")).'
+					<br><br>
+					'.$langs->trans("DownloadThisFile").'
                 </div>
                 <div class="center" style="padding-top:10px">
                     <img src="'.$linkstep2img.'">
                 </div><br>
                 <div class="center">
                 <div class="containerflexautomigration">
-					<div class="right" style="width:30%;margin-right:10px">
+					<div class="right" style="margin-right:10px">
 						<a href="'.$_SERVER["REQUEST_URI"].'#Step3"><button id="buttonstep_3" type="button" class="btn green-haze btn-circle btnstep">'.$langs->trans("NextStep").'</button></a>
 					</div>
 					<div>
@@ -415,7 +467,7 @@ if ($action == 'view') {
 
 		print '<!-- BEGIN STEP3-->
         <div class="portlet light divstep topmarginstep" id="step3">
-                <h2 id="Step3">'.$langs->trans("Step", 3).' - '.$langs->trans("InstanceConfirmation").'</small></h1><br>
+                <h2 id="Step3">'.$langs->trans("Step", 3).' - '.$langs->trans("InstanceConfirmation").'</h2><br>
                 <div style="padding-left:25px">
                 '.$langs->trans("AutomigrationStep3Text").'<br><br>
                 </div>
@@ -433,7 +485,7 @@ if ($action == 'view') {
 			$statuslabel = $contract->array_options['options_deployment_status'];
 			$instancename = preg_replace('/\..*$/', '', $contract->ref_customer);
 
-			$dbprefix = $contract->array_options['options_db_prefix'];
+			$dbprefix = $contract->array_options['options_prefix_db'];
 			if (empty($dbprefix)) $dbprefix = 'llx_';
 
 			if ($statuslabel == 'undeployed') {
@@ -474,10 +526,10 @@ if ($action == 'view') {
 			if ($statuslabel == 'undeployed') { $color = 'grey'; }
 			if (preg_match('/^http/i', $contract->array_options['options_suspendmaintenance_message'])) { $color = 'lightgrey'; }
 
-			if ($tmpproduct->array_options['options_typesupport'] != 'none' && !preg_match('/^http/i', $contract->array_options['options_suspendmaintenance_message'])) {
+			if (!preg_match('/^http/i', $contract->array_options['options_suspendmaintenance_message'])) {
 				if (! $ispaid) {	// non paid instances
 					$priority = 'low';
-					$prioritylabel = '<span class="prioritylow">'.$langs->trans("Priority").' '.$langs->trans("Low").'</span> <span class="opacitymedium">'.$langs->trans("Trial").'</span>';
+					$prioritylabel = '<span class="opacitymedium">'.$langs->trans("Trial").'</span>';
 				} else {
 					if ($ispaid) {	// paid with level Premium
 						if ($tmpproduct->array_options['options_typesupport'] == 'premium') {
@@ -512,12 +564,12 @@ if ($action == 'view') {
 		print'</select><br><br>';
 		print'</div>
             <div class="center">
-            <h3 style="color:red;"><strong>
-            '.$langs->trans("AutomigrationStep3Warning").'
-            </strong></h3>
+            <h4><div class="note note-warning">
+			'.$langs->trans("AutomigrationStep3Warning").'
+			</div></h4>
             </div><br>
 			<div id="buttonstep4migration" class="containerflexautomigration" '.(!GETPOST('instanceselect', 'alpha') ?'style="display:none;"':'').'>
-				<div class="right" style="width:30%;margin-right:10px">
+				<div class="right" style="margin-right:10px">
 					<button id="buttonstep_4" type="submit" class="btn green-haze btn-circle btnstep">'.$langs->trans("NextStep").'</button>
 				</div>
 				<div>
@@ -527,30 +579,44 @@ if ($action == 'view') {
         </div>
         <!-- END STEP3-->';
 
+		// @TODO LMR Replace the upload of file with a simple form with
+		// flow.js + a PHP file called flowjs-server.php (to add inside Dolibarr) inspired from https://github.com/flowjs/flow.js/blob/master/samples/Backend%20on%20PHP.md (not the flow-php-server that is too heavy for our need)
+		// So we an upload very large files and stay on main page.
 		print '<!-- BEGIN STEP4-->
         <div class="portlet light divstep topmarginstep" id="step4">
             <h2 id="Step4">'.$langs->trans("Step", 4).' - '.$langs->trans("FileUpload").'</small></h1><br>
             <div class="grid-wrapper-automigration">
-                <div class="grid-boxes-automigration-left">
-                <h4>Upload here your database data :</h4>
+                <div class="grid-boxes-automigration-left valignmiddle">
+                	<span class="opacitymedium nobold">'.$langs->trans("UploadYourDatabaseDumpFile").' ('.$langs->trans('FileEndingWith').' .sql, .sql.bz2 '.$langs->trans("or").' .sql.gz):</span>
                 </div>
-                <div class="grid-boxes-automigration">
+                <div class="grid-boxes-automigration">';
+				$maxfilesizearray = getMaxFileSizeArray();
+				$maxmin = $maxfilesizearray['maxmin'];
+	if ($maxmin > 0) {
+		print '<input type="hidden" name="MAX_FILE_SIZE" value="'.($maxmin * 1024).'">';	// MAX_FILE_SIZE must precede the field type=file
+	}
+				print '
                     <input type="file" id="databasedumpfile" name="addedfile[]" accept=".sql,.sql.bz2,.sql.gz">
                 </div>
-                <div class="grid-boxes-automigration-left">
-                <h4>Upload here your document directory data :</h4>
+                <div class="grid-boxes-automigration-left valignmiddle">
+                	<span class="opacitymedium nobold">'.$langs->trans("UploadYourDocumentArchiveFile").' ('.$langs->trans('FileEndingWith').' .zip, .tar.gz '.$langs->trans("or").' .tar.bz2):</span>
                 </div>
-                <div class="grid-boxes-automigration">
+                <div class="grid-boxes-automigration">';
+				$maxmin = $maxfilesizearray['maxmin'];
+	if ($maxmin > 0) {
+		print '<input type="hidden" name="MAX_FILE_SIZE" value="'.($maxmin * 1024).'">';	// MAX_FILE_SIZE must precede the field type=file
+	}
+				print '
                     <input type="file" id="documentdumpfile" name="addedfile[]" accept=".zip,.tar.gz,.tar.bz2">
                 </div>
             </div><br>
 
 			<div id="sumbmitfiles" class="containerflexautomigration" style="display:none;">
-				<div class="right" style="width:30%;margin-right:10px">
+				<div class="right containerflexautomigrationitem" style="margin-right:10px">
                 	<input type="submit" name="addfile" value="'.$langs->trans("SubmitFiles").'" class="btn green-haze btn-circle margintop marginbottom marginleft marginright">
 				</div>
-				<div>
-					<a href="'.$backtopagesupport.'"><button type="button" class="btn green-haze btn-circle">'.$langs->trans("CancelAutomigrationAndBacktoSupportPage").'</button></a>
+				<div class="left containerflexautomigrationitem">
+					<a href="'.$backtopagesupport.'"><button type="button" class="btn green-haze btn-circle margintop marginbottom marginleft marginright">'.$langs->trans("CancelAutomigrationAndBacktoSupportPage").'</button></a>
 				</div>
 			</div>
         </div>
@@ -593,19 +659,24 @@ if ($action == 'view') {
                 let i = 1;
                 while(i<=hash){
                     step = "step"+i;
-                    console.log($("#"+step).attr("id"));
+                    console.log("Show "+$("#"+step).attr("id"));
                     $("#"+step).show();
                     i++;
                 }
             }
         }
+
         $(".btnstep").on("click",function(){
 			hash = $(this).attr("id").split("_")[1];
+			console.log("We click on button "+hash);
             showStepAnchor(hash);
         })
+
 		$("#sumbmitfiles").on("click",function(){
+			console.log("We click on sumbmitfiles, we replace the action=redirectautomigrationget by action=fileverification");
 			$("#actionautomigration").val(\'fileverification\');
 		})
+
         var hash = $(location).attr("hash").substr(5);
         if(hash != "4"){
 			$(".divstep").hide();
@@ -625,6 +696,10 @@ if ($action == 'view') {
 	.containerflexautomigration {
 		display: flex;
 		justify-content:center;
+		flex-wrap: wrap;
+	}
+	.containerflexautomigrationitem {
+		padding-bottom: 10px;
 	}
 	</style>";
 }
@@ -638,9 +713,11 @@ if ($action == "automigration") {
 		print '<div class="center">';
 
 		$migrationerrormessage = $langs->trans("MigrationErrorContent");
-		$migrationerrormessage .= "\n\nMysqldump: ".$sqlfiletomigrate;
+		$migrationerrormessage .= "\n";
+		$migrationerrormessage .= "\n-------------------";
+		$migrationerrormessage .= "\nMysqldump: ".$sqlfiletomigrate;
 		$migrationerrormessage .= "\nDocumentDump: ".$dirfiletomigrate;
-		$migrationerrormessage .= "\nTimestamp: ".dol_print_date(dol_now(), "%d/%m/%Y %H:%M:%S");
+		$migrationerrormessage .= "\nTimestamp: ".dol_print_date(dol_now(), "standard", 'gmt').' UTC';
 		$migrationerrormessage .= "\nErrors: ".(!empty($result["output"])?$result["output"]:$result["result"]);
 		print '<form action="'.$_SERVER["PHP_SELF"].'" method="POST" id="migrationFormbacksupport">';
 		print '<input type="submit" class="btn green-haze btn-circle" value="'.$langs->trans("BackToSupport").'">';

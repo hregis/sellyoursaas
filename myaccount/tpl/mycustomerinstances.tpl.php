@@ -105,7 +105,7 @@ if (count($listofcontractidreseller) == 0) {
 		$statuslabel = $contract->array_options['options_deployment_status'];
 		$instancename = preg_replace('/\..*$/', '', $contract->ref_customer);
 
-		$dbprefix = $contract->array_options['options_db_prefix'];
+		$dbprefix = $contract->array_options['options_prefix_db'];
 		if (empty($dbprefix)) $dbprefix = 'llx_';
 
 		// Get info about PLAN of Contract
@@ -279,7 +279,7 @@ if (count($listofcontractidreseller) == 0) {
     				      <div class="portlet-body" style="'.$displayforinstance.'">
 
     				        <div class="tabbable-custom nav-justified">
-    				          <ul class="nav nav-tabs nav-justified">
+    				          <ul class="nav nav-tabs nav-justified centpercent">
     				            <li><a id="a_tab_resource_'.$contract->id.'" href="#tab_resource_'.$contract->id.'" data-toggle="tab"'.(! in_array($action, array('updateurlxxx')) ? ' class="active"' : '').'>'.$langs->trans("ResourcesAndOptions").'</a></li>';
 		//print '<li><a id="a_tab_domain_'.$contract->id.'" href="#tab_domain_'.$contract->id.'" data-toggle="tab"'.($action == 'updateurlxxx' ? ' class="active"' : '').'>'.$langs->trans("Domain").'</a></li>';
 		if (in_array($statuslabel, array('done','suspended')) && $directaccess) print '<li><a id="a_tab_ssh_'.$contract->id.'" href="#tab_ssh_'.$contract->id.'" data-toggle="tab">'.$langs->trans("SSH").' / '.$langs->trans("SFTP").'</a></li>';
@@ -772,10 +772,14 @@ if ($form->result['nbofthirdparties'] == 0) {
 	//var_dump($arrayofplans);
 	//natcasesort($arrayofplans);
 
-if (! empty($conf->global->SELLYOURSAAS_DISABLE_NEW_INSTANCES)) {
+if (getDolGlobalInt('SELLYOURSAAS_DISABLE_NEW_INSTANCES') && !in_array(getUserRemoteIP(), explode(',', getDolGlobalString('SELLYOURSAAS_DISABLE_NEW_INSTANCES_EXCEPT_IP')))) {
 	print '<!-- RegistrationSuspendedForTheMomentPleaseTryLater -->'."\n";
 	print '<div class="alert alert-warning" style="margin-bottom: 0px">';
-	print $langs->trans("RegistrationSuspendedForTheMomentPleaseTryLater");
+	if (getDolGlobalInt('SELLYOURSAAS_DISABLE_NEW_INSTANCES') && !in_array(getUserRemoteIP(), explode(',', getDolGlobalString('SELLYOURSAAS_DISABLE_NEW_INSTANCES_EXCEPT_IP')))) {
+		print getDolGlobalString('SELLYOURSAAS_DISABLE_NEW_INSTANCES_MESSAGE');
+	} else {
+		print $langs->trans("RegistrationSuspendedForTheMomentPleaseTryLater");
+	}
 	print '</div>';
 } else {
 	print '<div class="group">';
@@ -817,7 +821,12 @@ if (! empty($conf->global->SELLYOURSAAS_DISABLE_NEW_INSTANCES)) {
 	$domainname = getDomainFromURL($_SERVER["SERVER_NAME"], 1);
 
 	// listofdomain can be:  with1.mydomain.com,with2.mydomain.com:ondomain1.com+ondomain2.com,...
-	$listofdomain = explode(',', $conf->global->SELLYOURSAAS_SUB_DOMAIN_NAMES);
+	if (empty(getDolGlobalString('SELLYOURSAAS_OBJECT_DEPLOYMENT_SERVER_MIGRATION'))) {
+		$listofdomain = explode(',', getDolGlobalString('SELLYOURSAAS_SUB_DOMAIN_NAMES'));
+	} else {
+		$staticdeploymentserver = new Deploymentserver($db);
+		$listofdomain = $staticdeploymentserver->fetchAllDomains();
+	}
 	foreach ($listofdomain as $val) {
 		$newval=$val;
 		$reg = array();

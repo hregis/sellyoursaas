@@ -1,9 +1,30 @@
 # CHANGELOG SELLYOURSAAS FOR <a href="https://www.dolibarr.org">DOLIBARR ERP CRM</a>
 
 
+## 2.0
+
+* FIX Renewal of letsencrypt wildcard certificate when we use more than 1 domain on the same server
+* FIX Email sent by sellyoursaas admin tools on deployment server are sent using local mail
+* NEW Can set the alternative style into config SELLYOURSAAS_EXTCSS instead of URL
+* NEW Add --prune-empty-dirs on backup scripts to save inodes
+* NEW Add a link to switch directly to the list of backup errors from the counter on list of deployment server
+* NEW Add a copy/paste picto after each field in the SSH/SFTP/Database info tabs 
+* NEW Can search on os or db username or db name from the quick search
+* NEW Powerfull users need to enter a password for sudo with new default setup
+* NEW Can use wildcard into list of whitelist IP (e.g. "1.2.3.*")
+* NEW Add test on user admin for scripts that must be launched as "admin".
+* NEW Save the choice "I am a non profit organization" of thirdparty creation.
+* NEW Add SELLYOURSAAS_DISABLE_NEW_INSTANCES_EXCEPT_IP to set a list of IPs allowed to register even when registrations are globally closed.
+* NEW Can set a message on the registration page (instead of generic message), when we disable globally creation of new instances.
+* NEW Remove some warnings to prepare compatibility with PHP 8.2
+
+
 ## 1.3
 
- * NEW Add script dis_used_per_instance.sh
+ * NEW Can set max number of emails per instance
+ * NEW Add count of backup and error backup into list of servers
+ * NEW Store list of deployment servers into a table
+ * NEW Add script disk_used_per_instance.sh
  * NEW Can send an email on sellyoursaas job error (need dolibarr 17+) 
  * NEW Can add a server and remove it from the Deployment tab. Need write permission of sellyoursaas. No more need for admin status.  
  * NEW Retreiving version of a deployed instance uses the SQL definition found into package instead of hardcoded SQL.

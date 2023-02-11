@@ -88,6 +88,7 @@ require_once DOL_DOCUMENT_ROOT.'/societe/class/companypaymentmode.class.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/geturl.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/stripe/class/stripe.class.php';
 dol_include_once('/sellyoursaas/class/packages.class.php');
+dol_include_once('/sellyoursaas/class/deploymentserver.class.php');
 dol_include_once('/sellyoursaas/lib/sellyoursaas.lib.php');
 dol_include_once('/sellyoursaas/class/sellyoursaasutils.class.php');
 
@@ -360,7 +361,9 @@ if (empty($welcomecid)) {
 }
 
 if ($cancel) {
-	if ($action == 'sendbecomereseller') $backtourl = 'index.php?mode=dashboard';
+	if ($action == 'sendbecomereseller') {
+		$backtourl = 'index.php?mode=dashboard';
+	}
 
 	$action = '';
 	if ($backtourl) {
@@ -559,6 +562,339 @@ if ($action == 'updateurl') {
 	}
 
 	setEventMessages($langs->trans("FeatureNotYetAvailable").'.<br>'.$langs->trans("ContactUsByEmail", $sellyoursaasemail), null, 'warnings');
+	$action = '';
+} elseif ($action == 'validatenonprofit') {
+	$sellyoursaasemail = $conf->global->SELLYOURSAAS_MAIN_EMAIL;
+	if ($mythirdpartyaccount->array_options['options_checkboxnonprofitorga'] == 'nonprofit'
+		|| getDolGlobalInt("SELLYOURSAAS_ENABLE_FREE_PAYMENT_MODE")) {
+		// Make renewals on contracts of customer
+		dol_syslog("--- Make renewals on contracts for thirdparty id=".$mythirdpartyaccount->id, LOG_DEBUG, 0);
+
+		$sellyoursaasutils = new SellYourSaasUtils($db);
+
+		$result = $sellyoursaasutils->doRenewalContracts($mythirdpartyaccount->id);		// A refresh is also done if renewal is done
+		if ($result != 0) {
+			$error++;
+			setEventMessages($sellyoursaasutils->error, $sellyoursaasutils->errors, 'errors');
+			dol_syslog("Failed to make renewal of contract ".$sellyoursaasutils->error, LOG_ERR);
+		}
+
+		// Create a recurring invoice (+real invoice + contract renewal) if there is no recurring invoice yet
+		if (! $error) {
+			$result = $contract->fetch(GETPOST('contractid', 'int'));
+			if ($result > 0) {
+				dol_syslog("--- Create recurring invoice on contract contract_id = ".$contract->id." if it does not have yet.", LOG_DEBUG, 0);
+
+				if ($contract->array_options['options_deployment_status'] != 'done') {
+					dol_syslog("--- Deployment status is not 'done', we discard this contract", LOG_DEBUG, 0);
+					setEventMessages("Deployment status is not 'done'", 'errors');
+					header("Location: ".$_SERVER['PHP_SELF']."?mode=instances#contractid".$contract->id);// This is a not valid contract (undeployed or not yet completely deployed), so we discard this contract to avoid to create template not expected
+				}
+
+				// Make a test to pass loop if there is already a template invoice
+				$result = $contract->fetchObjectLinked();
+				if ($result < 0) {
+					dol_syslog("--- Error during fetchObjectLinked, we discard this contract", LOG_ERR, 0);
+					setEventMessages("Error during fetchObjectLinked", 'errors');
+					header("Location: ".$_SERVER['PHP_SELF']."?mode=instances#contractid".$contract->id);// There is an error, so we discard this contract to avoid to create template twice
+				}
+				if (! empty($contract->linkedObjectsIds['facturerec'])) {
+					$templateinvoice = reset($contract->linkedObjectsIds['facturerec']);
+					if ($templateinvoice > 0) {			// There is already a template invoice, so we discard this contract to avoid to create template twice
+						dol_syslog("--- There is already a recurring invoice on the contract contract_id = ".$contract->id, LOG_DEBUG, 0);
+						setEventMessages("There is already a recurring invoice on the contract contract_id = ".$contract->id, 'errors');
+						header("Location: ".$_SERVER['PHP_SELF']."?mode=instances#contractid".$contract->id);
+					}
+				}
+
+				dol_syslog("--- No template invoice found linked to the contract contract_id = ".$contract->id." that is NOT null, so we refresh contract before creating template invoice + creating invoice (if template invoice date is already in past) + making contract renewal.", LOG_DEBUG, 0);
+
+				$comment = 'Refresh contract '.$contract->ref.' after entering a payment mode on dashboard, because we need to create a template invoice (case of STRIPE_USE_INTENT_WITH_AUTOMATIC_CONFIRMATION set)';
+				// First launch update of resources:
+				// This update qty of contract lines + qty into linked template invoice.
+				$result = $sellyoursaasutils->sellyoursaasRemoteAction('refreshmetrics', $contract, 'admin', '', '', '0', $comment);
+
+				dol_syslog("--- No template invoice found linked to the contract contract_id = ".$contract->id.", so we create it then we create real invoice (if template invoice date is already in past) then make contract renewal.", LOG_DEBUG, 0);
+
+				// Now create invoice draft
+				$dateinvoice = $contract->array_options['options_date_endfreeperiod'];
+				if ($dateinvoice < $now) $dateinvoice = $now;
+
+				$invoice_draft = new Facture($db);
+				$tmpproduct = new Product($db);
+
+				// Create empty invoice
+				if (! $error) {
+					$invoice_draft->socid				= $contract->socid;
+					$invoice_draft->type				= Facture::TYPE_STANDARD;
+					$invoice_draft->number				= '';
+					$invoice_draft->date				= $dateinvoice;
+
+					$invoice_draft->note_private		= 'Template invoice created after adding a payment mode for card/stripe';
+					$invoice_draft->mode_reglement_id	= dol_getIdFromCode($db, 'CB', 'c_paiement', 'code', 'id', 1);
+					$invoice_draft->cond_reglement_id	= dol_getIdFromCode($db, 'RECEP', 'c_payment_term', 'code', 'rowid', 1);
+
+					$invoice_draft->fetch_thirdparty();
+
+					$origin='contrat';
+					$originid=$contract->id;
+
+					$invoice_draft->origin = $origin;
+					$invoice_draft->origin_id = $originid;
+
+					// Possibility to add external linked objects with hooks
+					$invoice_draft->linked_objects[$invoice_draft->origin] = $invoice_draft->origin_id;
+
+					$idinvoice = $invoice_draft->create($user);      // This include class to add_object_linked() and add add_contact()
+					if (! ($idinvoice > 0)) {
+						setEventMessages($invoice_draft->error, $invoice_draft->errors, 'errors');
+						$error++;
+					}
+				}
+
+				$frequency=0;
+				$frequency_unit='m';
+				$discountcode = strtoupper(trim(GETPOST('discountcode', 'aZ09')));	// If a discount code was prodived on page
+				/* If a discount code exists on contract level, it was used to prefill the payment page, so it is received into the GETPOST('discountcode', 'int').
+				if (empty($discountcode) && ! empty($contract->array_options['options_discountcode'])) {	// If no discount code provided, but we find one on contract, we use this one
+					$discountcode = $contract->array_options['options_discountcode'];
+				}*/
+
+				$discounttype = '';
+				$discountval = 0;
+				$validdiscountcodearray = array();
+				$nbofproductapp = 0;
+
+				// Add lines on invoice
+				if (! $error) {
+					// Add lines of contract to template invoice
+					$srcobject = $contract;
+
+					$lines = $srcobject->lines;
+					if (empty($lines) && method_exists($srcobject, 'fetch_lines')) {
+						$srcobject->fetch_lines();
+						$lines = $srcobject->lines;
+					}
+
+					$date_start = false;
+					$fk_parent_line=0;
+					$num=count($lines);
+					for ($i=0; $i<$num; $i++) {
+						$label=(! empty($lines[$i]->label)?$lines[$i]->label:'');
+						$desc=(! empty($lines[$i]->desc)?$lines[$i]->desc:$lines[$i]->libelle);
+						if ($invoice_draft->situation_counter == 1) $lines[$i]->situation_percent =  0;
+
+						// Positive line
+						$product_type = ($lines[$i]->product_type ? $lines[$i]->product_type : 0);
+
+						// Date start
+						$date_start = false;
+						if ($lines[$i]->date_debut_prevue) $date_start = $lines[$i]->date_debut_prevue;
+						if ($lines[$i]->date_debut_reel) $date_start = $lines[$i]->date_debut_reel;
+						if ($lines[$i]->date_start) $date_start = $lines[$i]->date_start;
+
+						// Date end
+						$date_end = false;
+						if ($lines[$i]->date_fin_prevue) $date_end = $lines[$i]->date_fin_prevue;
+						if ($lines[$i]->date_fin_reel) $date_end = $lines[$i]->date_fin_reel;
+						if ($lines[$i]->date_end) $date_end = $lines[$i]->date_end;
+
+						// If date start is in past, we set it to now
+						$now = dol_now();
+						if ($date_start < $now) {
+							dol_syslog("--- Date start is in past, so we take current date as date start and update also end date of contract", LOG_DEBUG, 0);
+							$tmparray = sellyoursaasGetExpirationDate($srcobject, 0);
+							$duration_value = $tmparray['duration_value'];
+							$duration_unit = $tmparray['duration_unit'];
+
+							$date_start = $now;
+							$date_end = dol_time_plus_duree($now, $duration_value, $duration_unit) - 1;
+
+							// Because we update the end date planned of contract too
+							$sqltoupdateenddate = 'UPDATE '.MAIN_DB_PREFIX."contratdet SET date_fin_validite = '".$db->idate($date_end)."' WHERE fk_contrat = ".$srcobject->id;
+							$resqltoupdateenddate = $db->query($sqltoupdateenddate);
+						}
+
+						// Reset fk_parent_line for no child products and special product
+						if (($lines[$i]->product_type != 9 && empty($lines[$i]->fk_parent_line)) || $lines[$i]->product_type == 9) {
+							$fk_parent_line = 0;
+						}
+
+						// Discount
+						$discount = $lines[$i]->remise_percent;
+
+						// Extrafields
+						if (empty($conf->global->MAIN_EXTRAFIELDS_DISABLED) && method_exists($lines[$i], 'fetch_optionals')) {
+							$lines[$i]->fetch_optionals($lines[$i]->rowid);
+							$array_options = $lines[$i]->array_options;
+						}
+
+						$tva_tx = $lines[$i]->tva_tx;
+						if (! empty($lines[$i]->vat_src_code) && ! preg_match('/\(/', $tva_tx)) $tva_tx .= ' ('.$lines[$i]->vat_src_code.')';
+
+						// View third's localtaxes for NOW and do not use value from origin.
+						$localtax1_tx = get_localtax($tva_tx, 1, $invoice_draft->thirdparty);
+						$localtax2_tx = get_localtax($tva_tx, 2, $invoice_draft->thirdparty);
+
+						//$price_invoice_template_line = $lines[$i]->subprice * GETPOST('frequency_multiple','int');
+						$price_invoice_template_line = $lines[$i]->subprice;
+
+
+						// Get data from product (frequency, discount type and val)
+						$tmpproduct->fetch($lines[$i]->fk_product);
+
+						dol_syslog("--- Read frequency for product id=".$tmpproduct->id, LOG_DEBUG, 0);
+						if ($tmpproduct->array_options['options_app_or_option'] == 'app') {
+							// Protection to avoid to validate contract with several 'app' products.
+							$nbofproductapp++;
+							if ($nbofproductapp > 1) {
+								dol_syslog("--- Error: Bad definition of contract. There is more than 1 service with type 'app'", LOG_ERR);
+								$error++;
+								break;
+							}
+							$frequency = $tmpproduct->duration_value;
+							$frequency_unit = $tmpproduct->duration_unit;
+
+							if ($tmpproduct->array_options['options_register_discountcode']) {
+								$tmpvaliddiscountcodearray = explode(',', $tmpproduct->array_options['options_register_discountcode']);
+								foreach ($tmpvaliddiscountcodearray as $valdiscount) {
+									$valdiscountarray = explode(':', $valdiscount);
+									$tmpcode = strtoupper(trim($valdiscountarray[0]));
+									$tmpval = str_replace('%', '', trim($valdiscountarray[1]));
+									if (is_numeric($tmpval)) {
+										$validdiscountcodearray[$tmpcode] = array('code'=>$tmpcode, 'type'=>'percent', 'value'=>$tmpval);
+									} else {
+										dol_syslog("--- Error: Bad definition of discount for product id = ".$tmpproduct->id." with value ".$tmpproduct->array_options['options_register_discountcode'], LOG_ERR);
+									}
+								}
+								// If we entered a discountcode or get it from contract
+								if (! empty($validdiscountcodearray[$discountcode])) {
+									$discounttype = $validdiscountcodearray[$discountcode]['type'];
+									$discountval = $validdiscountcodearray[$discountcode]['value'];
+								} else {
+									$discountcode = '';
+								}
+								//var_dump($validdiscountcodearray); var_dump($discountcode); var_dump($discounttype); var_dump($discountval); exit;
+								if ($discounttype == 'percent') {
+									if ($discountval > $discount) {
+										$discount = $discountval;		// If discount with coupon code is higher than the one defined into contract.
+									}
+								}
+							}
+						}
+
+						// Insert the line
+						$price_invoice_template_line = 0;
+						$result = $invoice_draft->addline($desc, $price_invoice_template_line, $lines[$i]->qty, $tva_tx, $localtax1_tx, $localtax2_tx, $lines[$i]->fk_product, $discount, $date_start, $date_end, 0, $lines[$i]->info_bits, $lines[$i]->fk_remise_except, 'HT', 0, $product_type, $lines[$i]->rang, $lines[$i]->special_code, $invoice_draft->origin, $lines[$i]->rowid, $fk_parent_line, $lines[$i]->fk_fournprice, $lines[$i]->pa_ht, $label, $array_options, $lines[$i]->situation_percent, $lines[$i]->fk_prev_id, $lines[$i]->fk_unit);
+
+						if ($result > 0) {
+							$lineid = $result;
+						} else {
+							$lineid = 0;
+							$error++;
+							break;
+						}
+
+						// Defined the new fk_parent_line
+						if ($result > 0 && $lines[$i]->product_type == 9) {
+							$fk_parent_line = $result;
+						}
+					}
+				}
+
+				// Now we convert invoice into a template
+				if (! $error) {
+					$frequency = 0;	// read frequency of product app
+					$frequency_unit = (! empty($frequency_unit) ? $frequency_unit :'m');	// read frequency_unit of product app
+					$tmp=dol_getdate($date_start?$date_start:$now);
+					$reyear=$tmp['year'];
+					$remonth=$tmp['mon'];
+					$reday=$tmp['mday'];
+					$rehour=$tmp['hours'];
+					$remin=$tmp['minutes'];
+					$nb_gen_max=0;
+
+					$invoice_rec = new FactureRec($db);
+
+					$invoice_rec->titre = 'Template invoice for '.$contract->ref.' '.$contract->ref_customer;
+					$invoice_rec->title = 'Template invoice for '.$contract->ref.' '.$contract->ref_customer;
+					$invoice_rec->note_private = $contract->note_private;
+					$invoice_rec->note_public  = $contract->note_public;
+					$invoice_rec->mode_reglement_id = $invoice_draft->mode_reglement_id;
+					$invoice_rec->cond_reglement_id = $invoice_draft->cond_reglement_id;
+
+					$invoice_rec->usenewprice = 0;
+
+					$invoice_rec->frequency = $frequency;
+					$invoice_rec->unit_frequency = $frequency_unit;
+					$invoice_rec->nb_gen_max = $nb_gen_max;
+					$invoice_rec->auto_validate = 0;
+
+					$invoice_rec->fk_project = 0;
+
+					$date_next_execution = dol_mktime($rehour, $remin, 0, $remonth, $reday, $reyear);
+					$invoice_rec->date_when = $date_next_execution;
+
+					// Add discount into the template invoice (it was already added into lines)
+					if ($discountcode) {
+						$invoice_rec->array_options['options_discountcode'] = $discountcode;
+					}
+
+					// Get first contract linked to invoice used to generate template
+					if ($invoice_draft->id > 0) {
+						$srcObject = $invoice_draft;
+
+						$srcObject->fetchObjectLinked();
+
+						if (! empty($srcObject->linkedObjectsIds['contrat'])) {
+							$contractidid = reset($srcObject->linkedObjectsIds['contrat']);
+
+							$invoice_rec->origin = 'contrat';
+							$invoice_rec->origin_id = $contractidid;
+							$invoice_rec->linked_objects[$invoice_draft->origin] = $invoice_draft->origin_id;
+						}
+					}
+
+					$oldinvoice = new Facture($db);
+					$oldinvoice->fetch($invoice_draft->id);
+
+					$invoicerecid = $invoice_rec->create($user, $oldinvoice->id);
+					if ($invoicerecid > 0) {
+						$sql = 'UPDATE '.MAIN_DB_PREFIX.'facturedet_rec SET date_start_fill = 1, date_end_fill = 1 WHERE fk_facture = '.$invoice_rec->id;
+						$result = $db->query($sql);
+						if (! $error && $result < 0) {
+							$error++;
+							setEventMessages($db->lasterror(), null, 'errors');
+						}
+
+						$result=$oldinvoice->delete($user, 1);
+						if (! $error && $result < 0) {
+							$error++;
+							setEventMessages($oldinvoice->error, $oldinvoice->errors, 'errors');
+						}
+					} else {
+						$error++;
+						setEventMessages($invoice_rec->error, $invoice_rec->errors, 'errors');
+					}
+
+					// Make renewals on contracts of customer
+					if (! $error) {
+						dol_syslog("--- Now we make renewal of contracts for thirdpartyid=".$mythirdpartyaccount->id." if payments were ok and contract are not unsuspended", LOG_DEBUG, 0);
+
+						$sellyoursaasutils = new SellYourSaasUtils($db);
+
+						$result = $sellyoursaasutils->doRenewalContracts($mythirdpartyaccount->id);		// A refresh is also done if renewal is done
+						if ($result != 0) {
+							$error++;
+							setEventMessages($sellyoursaasutils->error, $sellyoursaasutils->errors, 'errors');
+						}
+					}
+					header("Location: ".$_SERVER['PHP_SELF']."?mode=instances#contractid".$contract->id);
+				}
+			}
+		}
+	}
+
 	$action = '';
 } elseif ($action == 'send' && !GETPOST('addfile') && !GETPOST('removedfile')) {
 	// Send support ticket
@@ -839,12 +1175,16 @@ if ($action == 'updateurl') {
 		$db->begin();	// Start transaction
 
 		$mythirdpartyaccount->oldcopy = dol_clone($mythirdpartyaccount);
-		$mythirdpartyaccount->email = $email;
+
 		$mythirdpartyaccount->phone = $phone;
 		$mythirdpartyaccount->array_options['options_firstname'] = $firstname;
 		$mythirdpartyaccount->array_options['options_lastname'] = $lastname;
 		$mythirdpartyaccount->array_options['options_optinmessages'] = GETPOST('optinmessages', 'aZ09') == '1' ? 1 : 0;
 		$mythirdpartyaccount->array_options['options_emailccinvoice'] = $emailccinvoice;
+
+		$mythirdpartyaccount->array_options['options_email_temp'] = $email;
+		// TODO Disable this, and instead then later an email to ask confirmation
+		$mythirdpartyaccount->email = $email;
 
 		$result = $mythirdpartyaccount->update($mythirdpartyaccount->id, $user);
 
@@ -852,6 +1192,8 @@ if ($action == 'updateurl') {
 			setEventMessages($langs->trans("RecordSaved"), null, 'mesgs');
 
 			$db->commit();
+
+			// TODO Send email to ask to confirm email to validate its change
 
 			header("Location: ".$_SERVER['PHP_SELF']."?mode=myaccount#updatemythirdpartylogin");
 			exit;
@@ -882,6 +1224,7 @@ if ($action == 'updateurl') {
 	$mythirdpartyaccount->oldcopy = dol_clone($mythirdpartyaccount);
 
 	$mythirdpartyaccount->array_options['options_password'] = $password;
+	$mythirdpartyaccount->array_options['flagdelsessionsbefore'] = dol_now() - 5;
 
 	$result = $mythirdpartyaccount->update($mythirdpartyaccount->id, $user);
 
@@ -2627,7 +2970,7 @@ if ($action == 'updateurl') {
 	}
 } elseif ($action == 'deleteaccount') {
 	if (! GETPOST('accounttodestroy', 'alpha')) {
-		setEventMessages($langs->trans("ErrorFieldRequired", $langs->transnoentitiesnoconv("AccountToDelete")), '', 'errors');
+		setEventMessages($langs->trans("ErrorFieldRequired", $langs->transnoentitiesnoconv("AccountToDelete")), null, 'errors');
 	} else {
 		if (GETPOST('accounttodestroy', 'alpha') != $mythirdpartyaccount->email) {
 			setEventMessages($langs->trans("ErrorEmailMustMatch"), null, 'errors');
@@ -2917,12 +3260,39 @@ if ($welcomecid > 0) {
 		'.$langs->trans("URL").' : <a href="https://'.$contract->ref_customer.'" target="_blank" rel="noopener">'.$contract->ref_customer.'</a>';
 
 		print '<br> '.$langs->trans("Username").' : '.($_SESSION['initialapplogin']?'<strong>'.$_SESSION['initialapplogin'].'</strong>':'NA').'
-		<br> '.$langs->trans("Password").' : '.($_SESSION['initialapppassword']?'<strong>'.$_SESSION['initialapppassword'].'</strong>':'NA').'
+		<br> '.$langs->trans("Password").' : ';
+		if (!empty($_SESSION['initialapppassword'])) {
+			print '<strong id="initialpasswordinstance" data-pass="hidden">'.str_repeat("*", strlen($_SESSION['initialapppassword'])).'</strong>';
+			print '&nbsp; &nbsp;';
+			print '<i id="initialpasswordinstanceshow" class="fa fa-eye initialpasswordinstancebutton"></i>';
+			print '<i id="initialpasswordinstancehide" class="fa fa-eye-slash initialpasswordinstancebutton" style="display:none"></i>';
+		} else {
+			print 'NA';
+		}
+		print '
 		</p>
 		<p>
 		<a class="btn btn-primary wordbreak" target="_blank" rel="noopener" href="https://'.$contract->ref_customer.'?username='.urlencode($_SESSION['initialapplogin']).'">'.$langs->trans("TakeMeTo", $productlabel).' <span class="fa fa-external-link-alt"></span></a>
 		</p>
-
+		<script>
+		jQuery(document).ready(function() {
+			$(".initialpasswordinstancebutton").on("click", function(){
+				if($("#initialpasswordinstance").attr("data-pass") == "hidden") {
+					console.log("We show the password");
+					$("#initialpasswordinstanceshow").hide();
+					$("#initialpasswordinstancehide").show();
+					$("#initialpasswordinstance").html("'.$_SESSION['initialapppassword'].'");
+					$("#initialpasswordinstance").attr("data-pass","show");
+				} else {
+					console.log("We hide the password");
+					$("#initialpasswordinstanceshow").show();
+					$("#initialpasswordinstancehide").hide();
+					$("#initialpasswordinstance").html("'.str_repeat("*", strlen($_SESSION['initialapppassword'])).'");
+					$("#initialpasswordinstance").attr("data-pass","hidden");
+				}
+			})
+		})
+		</script>
 		</div>';
 	}
 
@@ -2939,10 +3309,29 @@ $showannoucefordomain = array();
 if (! empty($conf->global->SELLYOURSAAS_ANNOUNCE_ON) && ! empty($conf->global->SELLYOURSAAS_ANNOUNCE)) {
 	$showannoucefordomain['_global_'] = 'SELLYOURSAAS_ANNOUNCE';
 }
-// Detect local announce
+// Detect local announce (per server)
 foreach ($listofcontractidopen as $tmpcontract) {
 	$tmpdomainname = getDomainFromURL($tmpcontract->ref_customer, 2);
-	if (getDolGlobalString('SELLYOURSAAS_ANNOUNCE_ON_'.$tmpdomainname)) {
+	$deploymentserver = new Deploymentserver($db);
+	$deploymentserver->fetch(null, $tmpdomainname);
+	if (!empty($deploymentserver->servercustomerannouncestatus) && !empty($deploymentserver->servercustomerannounce)) {
+		//$datemessage = $db->jdate();
+		print '<div class="note note-warning">';
+		print '<b>'.dol_print_date($deploymentserver->date_modification, 'dayhour').'</b>';
+		if ($tmpdomainname != '_global_') {
+			print ' - '.$langs->trans("InfoForDomain").' <b>*.'.$tmpdomainname.'</b>';
+		}
+		print ' : ';
+		print '<h4 class="block">';
+		$reg=array();
+		if (preg_match('/^\((.*)\)$/', $deploymentserver->servercustomerannounce, $reg)) {
+			print $langs->trans($reg[1]);
+		} else {
+			print $deploymentserver->servercustomerannounce;
+		}
+		print '</h4>';
+		print '</div>';
+	} elseif (getDolGlobalString('SELLYOURSAAS_ANNOUNCE_ON_'.$tmpdomainname)) {
 		$showannoucefordomain[$tmpdomainname] = 'SELLYOURSAAS_ANNOUNCE_'.$tmpdomainname;
 	}
 }
@@ -3127,9 +3516,11 @@ if ($mythirdpartyaccount->isareseller) {
 		print '</th>';
 		print '<th>';
 		print $langs->trans("FixPrice");
+		print ' ('.$langs->trans("HT").')';
 		print '</th>';
 		print '<th>';
 		print $langs->trans("PricePerUsers");
+		print ' ('.$langs->trans("HT").')';
 		print '</th>';
 		for ($i=0; $i < $maxcptoptions; $i++) {
 			print '<th>';
@@ -3320,7 +3711,7 @@ $atleastonepaymentinerroronopeninvoice = 0;
 // Show warnings
 
 
-if (empty($welcomecid)) {
+if (empty($welcomecid) && ! in_array($action, array('instanceverification', 'autoupgrade'))) {
 	$companypaymentmode = new CompanyPaymentMode($db);
 	$result = $companypaymentmode->fetch(0, null, $mythirdpartyaccount->id);
 
@@ -3329,6 +3720,7 @@ if (empty($welcomecid)) {
 		if ($mode == 'mycustomerinstances') continue;
 		if ($contract->array_options['options_deployment_status'] == 'undeployed') continue;
 
+		$delaybeforeendoftrial = 0;
 		$isAPayingContract = sellyoursaasIsPaidInstance($contract);		// At least one template or final invoice
 		$isASuspendedContract = sellyoursaasIsSuspended($contract);		// Is suspended or not ?
 		$tmparray = sellyoursaasGetExpirationDate($contract, 1);
@@ -3351,14 +3743,27 @@ if (empty($welcomecid)) {
 							<!-- XDaysBeforeEndOfTrial -->
 							<div class="note note-warning">
 							<h4 class="block">'.str_replace('{s1}', '<span class="wordbreak">'.$contract->ref_customer.'</span>', $langs->trans("XDaysBeforeEndOfTrial", abs($delayindays), '{s1}')).' !</h4>';
-						if ($mode != 'registerpaymentmode' && $contract->total_ht > 0) {
-							print '<p class="pforbutton">
-								<a href="'.$_SERVER["PHP_SELF"].'?mode=registerpaymentmode&backtourl='.urlencode($_SERVER["PHP_SELF"].'?mode='.$mode).'" class="btn btn-warning wordbreak">';
-							print $langs->trans("AddAPaymentMode");
-							print '</a>';
-
-							print ' &nbsp; <a class="btn btn-primary wordbreak" target="_blank" rel="noopener" href="https://'.$contract->ref_customer.'">'.$langs->trans("TakeMeToApp").' <span class="fa fa-external-link-alt"></span></a>';
-
+						if ($mode != 'registerpaymentmode') {
+							print '<p class="pforbutton">';
+							if ($contract->total_ht > 0) {
+								// Link to add payment and to swith to instance
+								print '<a href="'.$_SERVER["PHP_SELF"].'?mode=registerpaymentmode&backtourl='.urlencode($_SERVER["PHP_SELF"].'?mode='.$mode).'" class="btn btn-warning wordbreak">';
+								print $langs->trans("AddAPaymentMode");
+								print '</a>';
+								print ' &nbsp; ';
+							} elseif (getDolGlobalInt('SELLYOURSAAS_ENABLE_FREE_PAYMENT_MODE')) {
+								$daybeforeendoftrial = getDolGlobalInt('SELLYOURSAAS_NBDAYS_BEFORE_TRIAL_END_FOR_SOFT_ALERT');
+								if ($delaybeforeendoftrial <= (($daybeforeendoftrial + 1) * 3600 * 24)) {	// We add 1 to be sure that link is visible before we send the soft email remind
+									// Link to validate definitely instance
+									print '<a href="'.$_SERVER["PHP_SELF"].'?mode=instances&action=validatefreemode&contractid='.$contract->id.'#contractid'.$contract->id.'" class="btn btn-warning wordbreak">';
+									print $langs->trans("ConfirmInstanceValidation");
+									print '</a>';
+									print ' &nbsp; ';
+								} else {
+									print '<!-- Button to validate definitely instance will appears '.$daybeforeendoftrial.' days before end of trial -->';
+								}
+							}
+							print '<a class="btn btn-primary wordbreak" target="_blank" rel="noopener" href="https://'.$contract->ref_customer.'">'.$langs->trans("TakeMeToApp").' <span class="fa fa-external-link-alt"></span></a>';
 							print '</p>';
 						}
 						print '
@@ -3370,13 +3775,21 @@ if (empty($welcomecid)) {
 							<!-- TrialInstanceWasSuspended -->
 							<div class="note note-warning">
 							<h4 class="block">'.str_replace('{s1}', '<span class="wordbreak">'.$contract->ref_customer.'</span>', $langs->trans("TrialInstanceWasSuspended", '{s1}')).' !</h4>';
-						if ($mode != 'registerpaymentmode' && $contract->total_ht > 0) {
-							print '
-								<p>
-								<a href="'.$_SERVER["PHP_SELF"].'?mode=registerpaymentmode&backtourl='.urlencode($_SERVER["PHP_SELF"].'?mode='.$mode).'" class="btn btn-warning wordbreak">';
-							print $langs->trans("AddAPaymentModeToRestoreInstance");
-							print '</a>
-								</p>';
+						if ($mode != 'registerpaymentmode') {
+							if ($contract->total_ht > 0) {
+								print '<p>';
+								print '<a href="'.$_SERVER["PHP_SELF"].'?mode=registerpaymentmode&backtourl='.urlencode($_SERVER["PHP_SELF"].'?mode='.$mode).'" class="btn btn-warning wordbreak">';
+								print $langs->trans("AddAPaymentModeToRestoreInstance");
+								print '</a>';
+								print '</p>';
+							} elseif (getDolGlobalInt('SELLYOURSAAS_ENABLE_FREE_PAYMENT_MODE') && $delaybeforeendoftrial < 7) {
+								// Link to validate definitely instance
+								print '<p>';
+								print '<a href="'.$_SERVER["PHP_SELF"].'?mode=instances&action=validatefreemode&contractid='.$contract->id.'#contractid'.$contract->id.'" class="btn btn-warning wordbreak">';
+								print $langs->trans("ConfirmInstanceValidationToRestoreInstance");
+								print '</a>';
+								print '</p>';
+							}
 						}
 						print '
 							</div>
@@ -3457,7 +3870,7 @@ if (empty($welcomecid)) {
 				if (empty($contract->array_options['options_suspendmaintenance_message']) || !preg_match('/^http/i', $contract->array_options['options_suspendmaintenance_message'])) {
 					$delayafterexpiration = ($now - $expirationdate);
 					$delayindays = round($delayafterexpiration / 3600 / 24);
-					$delaybeforeundeployment = max(0, ($atleastonepaymentmode ? getDolGlobalString('SELLYOURSAAS_NBDAYS_AFTER_EXPIRATION_BEFORE_PAID_UNDEPLOYMENT') : getDolGlobalString('SELLYOURSAAS_NBDAYS_AFTER_EXPIRATION_BEFORE_TRIAL_UNDEPLOYMENT')) - $delayindays);
+					$delaybeforeundeployment = max(0, ($atleastonepaymentmode ? getDolGlobalInt('SELLYOURSAAS_NBDAYS_AFTER_EXPIRATION_BEFORE_PAID_UNDEPLOYMENT') : getDolGlobalInt('SELLYOURSAAS_NBDAYS_AFTER_EXPIRATION_BEFORE_TRIAL_UNDEPLOYMENT')) - $delayindays);
 
 					print '<!-- XDaysAfterEndOfPeriodInstanceSuspended '.$delayindays.' -->'."\n";
 					print '<div class="note note-warning">'."\n";
