@@ -77,6 +77,7 @@ include_once dol_buildpath("/sellyoursaas/class/blacklistdir.class.php");
 
 
 // Read /etc/sellyoursaas.conf file
+$domain='';
 $databasehost='localhost';
 $databaseport='3306';
 $database='';
@@ -91,6 +92,9 @@ if ($fp) {
 	$array = explode("\n", fread($fp, filesize('/etc/sellyoursaas.conf')));
 	foreach ($array as $val) {
 		$tmpline=explode("=", $val);
+		if ($tmpline[0] == 'domain') {
+			$domain = dol_string_nospecial($tmpline[1]);
+		}
 		if ($tmpline[0] == 'databasehost') {
 			$databasehost = $tmpline[1];
 		}
@@ -119,6 +123,12 @@ if ($fp) {
 } else {
 	print "Failed to open /etc/sellyoursaas.conf file\n";
 	exit(-1);
+}
+if (empty($emailfrom)) {
+	$emailfrom="noreply@".$domain;
+}
+if (empty($emailsupervision)) {
+	$emailsupervision="supervision@".$domain;
 }
 
 // Read /etc/sellyoursaas-public.conf file
@@ -546,7 +556,7 @@ print "We found ".count($instancestrial)." deployed trial + ".count($instances).
 
 
 
-print "----- Generate file mailquota for paid instances\n";
+print "----- Generate file ".$pathtospamdir."/mailquota for paid instances\n";
 
 file_put_contents($pathtospamdir.'/mailquota', "# File of paid instance with their quota\n");
 
@@ -672,7 +682,7 @@ foreach ($instancestrial as $instanceid => $instancearray) {
 	$error = 0;		// error for this instance
 
 	if ($datefilter && $instancearray['deployment_date_start'] < (dol_now() - $datefilter)) {
-		print 'Discard '.$instancearray['instance']." - too old (< now - ".$datefilter.")\n";
+		print 'Discard '.$instancearray['instance']." - deployment date too old (< now - ".$datefilter.")\n";
 		continue;
 	} else {
 		print 'Process '.$instancearray['instance']."\n";
@@ -748,9 +758,9 @@ foreach ($instancestrial as $instanceid => $instancearray) {
 				}
 			}
 
-			$nbmissing = (is_array($file_list['missing']) ? count($file_list['missing']) : 0);
-			$nbupdated = (is_array($file_list['updated']) ? count($file_list['updated']) : 0);
-			$nbadded = (is_array($file_list['added']) ? count($file_list['added']) : 0);
+			$nbmissing = ((!empty($file_list['missing']) && is_array($file_list['missing'])) ? count($file_list['missing']) : 0);
+			$nbupdated = ((!empty($file_list['updated']) && is_array($file_list['updated'])) ? count($file_list['updated']) : 0);
+			$nbadded = ((!empty($file_list['added']) && is_array($file_list['added'])) ? count($file_list['added']) : 0);
 
 			$s = 'Missing: '.$nbmissing;
 			$s .= ' - Updated: '.$nbupdated;
@@ -820,7 +830,8 @@ if ($nboferrors) {
 		$to = $emailsupervision;
 		// Force to use local sending (MAIN_MAIL_SENDMODE is the one of the master server. It may be to an external SMTP server not allowed to the deployment server)
 		$conf->global->MAIN_MAIL_SENDMODE = 'mail';
-		$conf->global->MAIN_MAIL_SMTP_SERVER = '';
+		$conf->global->MAIN_MAIL_SENDMODE_EMAILING = 'mail';
+		$conf->global->MAIN_MAIL_SMTP_SERVER = 'localhost';
 
 		// Supervision tools are generic for all domain. No way to target a specific supervision email.
 
@@ -830,6 +841,9 @@ if ($nboferrors) {
 		print 'Send email MAIN_MAIL_SENDMODE='.$conf->global->MAIN_MAIL_SENDMODE.' MAIN_MAIL_SMTP_SERVER='.$conf->global->MAIN_MAIL_SMTP_SERVER.' from='.$from.' to='.$to.' title=[Warning] Alert(s) in batch_detect_evil_instances - '.gethostname().' - '.dol_print_date(dol_now(), 'dayrfc')."\n";
 		$cmail = new CMailFile('[Alert] Alert(s) in batch_detect_evil_instances - '.gethostname().' - '.dol_print_date(dol_now(), 'dayrfc'), $to, $from, $msg, array(), array(), array(), '', '', 0, 0, '', '', '', '', $sendcontext);
 		$result = $cmail->sendfile();
+		if (!$result) {
+			print 'Failed to send email. See dolibarr.log file'."\n";
+		}
 	}
 }
 

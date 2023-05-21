@@ -51,6 +51,10 @@ body.bodywebsite { margin: 0; }
 
 .navbar-brand { margin-left: 15px; }
 
+.passwordmessagedesc {
+	font-size: 0.85em;
+}
+
 .opacitymedium { opacity: 0.5; }
 .opacityhigh { opacity: 0.2; }
 /* input[type='text'],input[type='password'] { width: 250px; } */
@@ -212,6 +216,10 @@ address {display: block;margin-bottom: 20px;font-style: normal;line-height: 20px
 	vertical-align: bottom;
 }
 
+.width300 {
+	width: 300px;
+}
+
 @media (min-width: 980px) {
 	.nav-collapse.collapse {height: auto !important;overflow: visible !important;}
 }
@@ -276,7 +284,9 @@ color: #334;
 .signUpAlert {width: 90%;margin: 0 auto;}
 header.inverse  h1 { padding-top: 5px; }
 .center { text-align: center; }
+.taligncenter { text-align: center; }
 .valignmiddle { vertical-align: middle; }
+.valigntop { vertical-align: top; }
 
 #logo {
     text-align: center;	max-width:200px; max-height: 60px;
@@ -334,6 +344,9 @@ margin-top: 20px;
 }
 .marginbottom {
     margin-bottom: 5px;
+}
+.nomarginbottom {
+	margin-bottom: 0px;
 }
 
 div#waitMask {
@@ -466,6 +479,16 @@ input.input-field {
         text-align: center;	max-width:110px; max-height: 60px;
     }
 
+	.page-header-top {
+		padding-top: 10px;
+		padding-bottom: 10px;
+	}
+
+	header h1 {
+	    font-size: 20px;
+	    line-height: 20px;
+	}
+
 	.areaforresources {
 		padding-left: 0px;
 		padding-right: 0px;
@@ -492,7 +515,7 @@ input.input-field {
 	}
 
 	.register_text {
-		font-size: 0.85em;
+		font-size: 0.83em;
 	}
 }
 

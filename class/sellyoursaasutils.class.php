@@ -132,6 +132,9 @@ class SellYourSaasUtils
 								// Note: If suspended, when unsuspened, the remaining draft invoice will be generated
 								// Note: if undeployed, this should not happen, because templates invoice should be disabled when an instance is undeployed
 								if ($nbservice && $contract->array_options['options_deployment_status'] != 'undeployed') {
+									//$user->rights->facture->creer = 1;		// Force permission to user to validate invoices
+									//$user->rights->facture->invoice_advance->validate = 1;
+
 									if (! empty($conf->global->SELLYOURSAAS_INVOICE_FORCE_DATE_VALIDATION)) {
 										$conf->global->FAC_FORCE_DATE_VALIDATION = 1;
 									}
@@ -845,7 +848,7 @@ class SellYourSaasUtils
 
 	/**
 	 * doTakePaymentStripeForThirdparty
-	 * Take payment/send email. Unsuspend if it was suspended (done by trigger BILL_CANCEL or BILL_PAYED).
+	 * Take payment/send email for a given thirdparty ID. Unsuspend if it was suspended (done by trigger BILL_CANCEL or BILL_PAYED).
 	 *
 	 * @param	int		             $service					'StripeTest' or 'StripeLive'
 	 * @param	int		             $servicestatus				Service 0 or 1
@@ -909,7 +912,7 @@ class SellYourSaasUtils
 						$result = $invoice->fetch($obj->rowid);
 						if ($result > 0) {
 							if ($invoice->statut == Facture::STATUS_DRAFT) {
-								$user->rights->facture->creer = 1;		// Force permission to user to validate invoices
+								$user->rights->facture->creer = 1;		// Force permission to user to validate invoices because code may be executed by anonymous user
 								$user->rights->facture->invoice_advance->validate = 1;
 
 								if (! empty($conf->global->SELLYOURSAAS_INVOICE_FORCE_DATE_VALIDATION)) {
@@ -1098,7 +1101,8 @@ class SellYourSaasUtils
 						if (!$error && empty($nocancelifpaymenterror)) {	// If we are not in a mode that ask to avoid cancelation, we cancel payment.
 							// Test if last AC_PAYMENT_STRIPE_KO event is an old error lower than $nbhoursbetweentries hours.
 							$recentfailedpayment = false;
-							$sqlonevents = 'SELECT COUNT(*) as nb FROM '.MAIN_DB_PREFIX.'actioncomm WHERE fk_soc = '.$thirdparty->id." AND code ='AC_PAYMENT_STRIPE_KO' AND datep > '".$this->db->idate($now - ($nbhoursbetweentries * 3600))."'";
+							$sqlonevents = 'SELECT COUNT(*) as nb FROM '.MAIN_DB_PREFIX.'actioncomm';
+							$sqlonevents .= ' WHERE fk_soc = '.$thirdparty->id." AND code ='AC_PAYMENT_STRIPE_KO' AND datep > '".$this->db->idate($now - ($nbhoursbetweentries * 3600))."'";
 							$resqlonevents = $this->db->query($sqlonevents);
 							if ($resqlonevents) {
 								$obj = $this->db->fetch_object($resqlonevents);
@@ -1302,7 +1306,7 @@ class SellYourSaasUtils
 									$paiement->note_public = 'SellYourSaas payment '.dol_print_date($now, 'standard').' using '.$paymentmethod.($ipaddress?' from ip '.$ipaddress:'').' - Transaction ID = '.$TRANSACTIONID;
 									$paiement->note_private = 'SellYourSaas payment '.dol_print_date($now, 'standard').' using '.$paymentmethod.($ipaddress?' from ip '.$ipaddress:'').' - Transaction ID = '.$TRANSACTIONID;
 									$paiement->ext_payment_id = $charge->id.':'.$customer->id.'@'.$stripearrayofkeys['publishable_key'];
-									$paiement->ext_payment_site = 'stripe';
+									$paiement->ext_payment_site = $service;
 
 									if (! $errorforinvoice) {
 										dol_syslog('* Record payment for invoice id '.$invoice->id.'. It includes closing of invoice and regenerating document');
@@ -1676,13 +1680,15 @@ class SellYourSaasUtils
 		$mode = 'paid';
 		$delayindaysshort = 2;	// So we update the resources 2 days before the invoice is generated
 		$enddatetoscan = dol_time_plus_duree($now, abs($delayindaysshort), 'd');		// $enddatetoscan = yesterday
+		$enddateoflastupdate = dol_time_plus_duree($now, -1, 'd');						// If a refresh was done recently we do not do it again
 
 		$error = 0;
 		$this->output = '';
-		$this->error='';
+		$this->error = '';
 
 		$contractprocessed = array();
 		$contractignored = array();
+		$contractcanceled = array();
 		$contracterror = array();
 
 		dol_syslog(__METHOD__, LOG_DEBUG);
@@ -1698,8 +1704,10 @@ class SellYourSaasUtils
 		$sql.= " AND cd.statut = 4";
 		$sql.= " AND c.fk_soc = se.fk_object AND se.dolicloud = 'yesv2'";
 		$sql.= " AND (ce.suspendmaintenance_message IS NULL OR ce.suspendmaintenance_message NOT LIKE 'http%')";	// Exclude instance of type redirect
-
 		if ($thirdparty_id > 0) $sql.=" AND c.fk_soc = ".((int) $thirdparty_id);
+		$sql.= " AND ce.latestresupdate_date < '".$this->db->idate($enddateoflastupdate)."'";
+		$sql.= " ORDER BY rowid";
+
 		//print $sql;
 
 		$resql = $this->db->query($sql);
@@ -1713,7 +1721,7 @@ class SellYourSaasUtils
 				$obj = $this->db->fetch_object($resql);
 				if ($obj) {
 					// Check if this contract was already processed (because loop is on lines of contract)
-					if (! empty($contractprocessed[$obj->rowid]) || ! empty($contractignored[$obj->rowid]) || ! empty($contracterror[$obj->rowid])) continue;
+					if (! empty($contractprocessed[$obj->rowid]) || ! empty($contractignored[$obj->rowid]) || ! empty($contractcanceled[$obj->rowid]) || ! empty($contracterror[$obj->rowid])) continue;
 
 					// Test if this is a paid or not instance
 					$object = new Contrat($this->db);
@@ -1740,7 +1748,7 @@ class SellYourSaasUtils
 						continue;											// Discard if this is a test instance when we are in paid mode
 					}
 
-					// Update expiration date of instance
+					// Get expiration date of instance (the min of end date among all lines)
 					dol_syslog('Call sellyoursaasGetExpirationDate start', LOG_DEBUG, 1);
 					$tmparray = sellyoursaasGetExpirationDate($object, 0);				// This loop on $object->lines
 					dol_syslog('Call sellyoursaasGetExpirationDate end', LOG_DEBUG, -1);
@@ -1754,21 +1762,22 @@ class SellYourSaasUtils
 
 					// Test if there is at least 1 open invoice
 					dol_syslog('Search if there is at least one open invoice', LOG_DEBUG);
-					if (is_array($object->linkedObjects['facture']) && count($object->linkedObjects['facture']) > 0) {
-						usort($object->linkedObjects['facture'], "cmp");	// function cmp compare objects on ->date and is defined into sellyoursaas.lib.php.
+					if (isset($object->linkedObjects['facture']) && is_array($object->linkedObjects['facture']) && count($object->linkedObjects['facture']) > 0) {
+						usort($object->linkedObjects['facture'], "cmp");	// function cmp compares objects on ->date and is defined into sellyoursaas.lib.php.
 
 						//dol_sort_array($contract->linkedObjects['facture'], 'date');
 						$someinvoicenotpaid=0;
 						foreach ($object->linkedObjects['facture'] as $idinvoice => $invoice) {
-							if ($invoice->statut == Facture::STATUS_DRAFT) continue;	// Draft invoice are not unpaid invoices
+							if ($invoice->statut == Facture::STATUS_DRAFT) {
+								continue;	// Draft invoice are not unpaid invoices
+							}
 
 							if (empty($invoice->paye)) {
 								$someinvoicenotpaid++;
 							}
 						}
 						if ($someinvoicenotpaid) {
-							$this->output .= 'Contract '.$object->ref.' is qualified for refresh but there is '.$someinvoicenotpaid.' invoice(s) unpayed so we cancel refresh'."\n";
-							$contractignored[$object->id]=$object->ref;
+							$contractcanceled[$object->id] = array('ref'=>$object->ref, 'someinvoicenotpaid'=>$someinvoicenotpaid);
 							continue;
 						}
 					}
@@ -1824,7 +1833,19 @@ class SellYourSaasUtils
 			$this->error = $this->db->lasterror();
 		}
 
-		$this->output .= count($contractprocessed).' paying contract(s) with end date before '.dol_print_date($enddatetoscan, 'day').' were refreshed'.(count($contractprocessed)>0 ? ' : '.join(',', $contractprocessed) : '').' (search done on contracts of SellYourSaas customers only)';
+		$this->output = count($contractprocessed).' paying contract(s) with end date before '.dol_print_date($enddatetoscan, 'day').' were refreshed'.(count($contractprocessed)>0 ? ' : '.join(',', $contractprocessed) : '')."\n".$this->output;
+		//$this->output .= "\n".count($contractignored).' contract(s) not qualified.';
+		$this->output .= "\n".count($contractcanceled).' paying contract(s) with end date before '.dol_print_date($enddatetoscan, 'day').' were qualified for refresh but there is at least 1 invoice(s) unpayed so we cancel refresh : ';
+		$i = 0;
+		foreach ($contractcanceled as $tmpval) {
+			if ($i) {
+				$this->output .= ', ';
+			}
+			$this->output .= $tmpval['ref'].' ('.$tmpval['someinvoicenotpaid'].')';
+			$i++;
+		}
+		$this->output .= "\n";
+		$this->output .= "\n".'Search has been done on deployed contracts of SellYourSaas customers only with sql = '.$sql;
 
 		$conf->global->SYSLOG_FILE = $savlog;
 
@@ -1838,7 +1859,7 @@ class SellYourSaasUtils
 	 * Action executed by scheduler
 	 * CAN BE A CRON TASK
 	 * Loop on each contract.
-	 * If it is a paid contract, and there is no unpaid invoice for contract, and lines are not suspended and end date < today + 2 days (so expired or soon expired),
+	 * If it is a paid/confirmed contract, and there is no unpaid invoice for contract, and lines are not suspended and end date < today + 2 days (so expired or soon expired),
 	 * we make a refresh (update qty of contract + qty of linked template invoice) + we set the running contract service end date to end at next period.
 	 *
 	 * @param	int		$thirdparty_id			Thirdparty id
@@ -1865,6 +1886,7 @@ class SellYourSaasUtils
 
 		$contractprocessed = array();
 		$contractignored = array();
+		$contractcanceled = array();
 		$contracterror = array();
 
 		dol_syslog(__METHOD__, LOG_DEBUG);
@@ -1892,7 +1914,7 @@ class SellYourSaasUtils
 			while ($i < $num) {
 				$obj = $this->db->fetch_object($resql);
 				if ($obj) {
-					if (! empty($contractprocessed[$obj->rowid]) || ! empty($contractignored[$obj->rowid]) || ! empty($contracterror[$obj->rowid])) {
+					if (! empty($contractprocessed[$obj->rowid]) || ! empty($contractignored[$obj->rowid]) || ! empty($contractcanceled[$obj->rowid]) || ! empty($contracterror[$obj->rowid])) {
 						continue;
 					}
 
@@ -1946,8 +1968,7 @@ class SellYourSaasUtils
 							}
 						}
 						if ($someinvoicenotpaid) {
-							$this->output .= 'Contract '.$object->ref.' is qualified for renewal but there is '.$someinvoicenotpaid.' invoice(s) unpayed so we cancel renewal'."\n";
-							$contractignored[$object->id]=$object->ref;
+							$contractcanceled[$object->id] = array('ref'=>$object->ref, 'someinvoicenotpaid'=>$someinvoicenotpaid);
 							continue;
 						}
 					}
@@ -2040,7 +2061,20 @@ class SellYourSaasUtils
 			$this->error = $this->db->lasterror();
 		}
 
-		$this->output .= count($contractprocessed).' contract(s) with end date before '.dol_print_date($enddatetoscan, 'day').' were renewed'.(count($contractprocessed)>0 ? ' : '.join(',', $contractprocessed) : '').' (search done on contracts of SellYourSaas customers only, including redirect contracts)';
+		$this->output .= count($contractprocessed).' contract(s) with end date before '.dol_print_date($enddatetoscan, 'day').' were renewed'.(count($contractprocessed)>0 ? " :\n".join(', ', $contractprocessed) : '')."\n".$this->output;
+		//$this->output .= "\n".count($contractignored).' contract(s) not qualified.';
+		$this->output .= "\n".count($contractcanceled).' contract(s) were qualified for renewal but there is at least 1 invoice(s) unpayed so we cancel renewal : ';
+		$i = 0;
+		foreach ($contractcanceled as $tmpval) {
+			if ($i) {
+				$this->output .= ', ';
+			}
+			$this->output .= $tmpval['ref'].' ('.$tmpval['someinvoicenotpaid'].')';
+			$i++;
+		}
+		$this->output .= "\n";
+		$this->output .= "\n".'Search has been done on deployed contracts of SellYourSaas customers only, including redirect contracts, with sql = '.$sql;
+
 
 		$conf->global->SYSLOG_FILE = $savlog;
 
@@ -2108,7 +2142,7 @@ class SellYourSaasUtils
 	/**
 	 * Called by batch only: doSuspendExpiredTestInstances or doSuspendExpiredRealInstances
 	 * It sets the status of services to "offline" and send an email to the customer.
-	 * Note: An instance can also be suspended from backoffice by setting service to "offline". In such a case, no email is sent.
+	 * Note: An instance can also be suspended from backoffice by setting service to "Offline". In such a case, no email is sent.
 	 *
 	 * @param	string	$mode				'test' or 'paid'
 	 * @param	int   	$noapachereload		0=Reload apache after remote action, 1=Force no apache reload
@@ -2583,6 +2617,8 @@ class SellYourSaasUtils
 									$this->errors[] = $cmail->error;
 									if (is_array($cmail->errors) && count($cmail->errors) > 0) $this->errors += $cmail->errors;
 								}
+
+								sleep(1);
 							}
 						}
 
@@ -2920,7 +2956,7 @@ class SellYourSaasUtils
 			$this->error = $this->db->lasterror();
 		}
 
-		$this->output = count($contractprocessed).' contract(s), in mode '.$mode.', suspended, with a planned end date before '.dol_print_date($datetotest, 'dayrfc').', undeployed'.(count($contractprocessed)>0 ? ' : '.join(',', $contractprocessed) : '');
+		$this->output = count($contractprocessed).' contract(s), in mode '.$mode.', suspended, with a planned end date before '.dol_print_date($datetotest, 'dayrfc').', undeployed'.(count($contractprocessed)>0 ? " :\n".join(', ', $contractprocessed) : '');
 
 		return ($error ? 1: 0);
 	}
@@ -3242,7 +3278,7 @@ class SellYourSaasUtils
 			// Note remote action 'undeployall' is used to undeploy test instances
 			// Note remote action 'undeploy' is used to undeploy paying instances
 			$doremoteaction = 0;
-			if (in_array($remoteaction, array('backup', 'deploy', 'deployall', 'rename', 'suspend', 'suspendmaintenance', 'unsuspend', 'undeploy', 'undeployall', 'migrate', 'upgrade')) &&
+			if (in_array($remoteaction, array('backup', 'deploy', 'deployall', 'rename', 'suspend', 'suspendmaintenance', 'unsuspend', 'undeploy', 'undeployall', 'migrate', 'upgrade', 'deploywebsite')) &&
 				($producttmp->array_options['options_app_or_option'] == 'app')) {
 					$doremoteaction = 1;
 			}
@@ -3339,18 +3375,22 @@ class SellYourSaasUtils
 
 				$SSLON='On';	// Is SSL enabled on the custom url virtual host ?
 
-				$CERTIFFORCUSTOMDOMAIN =$customurl;
-				if ($CERTIFFORCUSTOMDOMAIN) {
-					// Kept for backward compatibility
-					if (preg_match('/on\.dolicloud\.com$/', $CERTIFFORCUSTOMDOMAIN)) {
-						$CERTIFFORCUSTOMDOMAIN='on.dolicloud.com';
+				$CERTIFFORCUSTOMDOMAIN = "";
+				if ($customurl) {
+					include_once DOL_DOCUMENT_ROOT.'/core/lib/geturl.lib.php';
+					$pooldomainname = getDomainFromURL($customurl, 2);
+
+					// Check if SSL certificate for $customurl exists into master crt directory.
+					if (file_exists($conf->sellyoursaas->dir_output.'/crt/'.$customurl.'.crt')) {
+						$CERTIFFORCUSTOMDOMAIN = $customurl;
+					} elseif (file_exists($conf->sellyoursaas->dir_output.'/crt/'.$pooldomainname.'.crt')) {
+						$CERTIFFORCUSTOMDOMAIN = $pooldomainname;
 					} else {
-						// Check if SSL certificate for $customurl exists. If it does not exist, return an error to ask to upload certificate first.
-						if (! file_exists($conf->sellyoursaas->dir_output.'/crt/'.$CERTIFFORCUSTOMDOMAIN.'.crt')) {
-							// TODO Return error to ask to upload a certificate first.
-							$CERTIFFORCUSTOMDOMAIN=getDomainFromURL($customurl, 2);
-							$SSLON='Off';
-						}
+						// If it does not exist, return an error to ask to upload certificate first.
+						/* $CERTIFFORCUSTOMDOMAIN=getDomainFromURL($customurl, 2);
+						 // TODO Show an error or warning to ask to upload a certificate first or let go and create with letsencrypt ?.
+						 */
+						$SSLON='Off';	// To avoid error of SSL certificate not found
 					}
 				}
 
@@ -3448,6 +3488,10 @@ class SellYourSaasUtils
 				$dirforexampleforsources = (empty($object->array_options["dirforexampleforsources"]) ? '' : $object->array_options["dirforexampleforsources"]);
 				$laststableupgradeversion = (empty($object->array_options["laststableupgradeversion"]) ? '' : $object->array_options["laststableupgradeversion"]);
 				$lastversiondolibarrinstance = (empty($object->array_options["lastversiondolibarrinstance"]) ? '' : $object->array_options["lastversiondolibarrinstance"]);
+
+				$websitenamedeploy = (empty($object->context["options_websitename"]) ? '' : $object->context["options_websitename"]);
+				$domainnamewebsite = (empty($object->context["options_domainnamewebsite"]) ? '' : $object->context["options_domainnamewebsite"]);
+
 				// get direct access value
 				$directaccess=0;
 				if ($producttmp->array_options['options_app_or_option'] == 'app') {
@@ -3513,7 +3557,8 @@ class SellYourSaasUtils
 				$commandurl.= '&'.str_replace(' ', '£', $dirforexampleforsources); //Param 43 in .sh
 				$commandurl.= '&'.str_replace(' ', '£', $laststableupgradeversion); //Param 44 in .sh
 				$commandurl.= '&'.str_replace(' ', '£', $lastversiondolibarrinstance); //Param 45 in .sh
-
+				$commandurl.= '&'.str_replace(' ', '£', $domainnamewebsite); //Param 46 in .sh
+				$commandurl.= '&'.str_replace(' ', '£', $websitenamedeploy); //Param 47 in .sh
 				//$outputfile = $conf->sellyoursaas->dir_temp.'/action-'.$remoteaction.'-'.dol_getmypid().'.out';
 
 
@@ -3612,20 +3657,22 @@ class SellYourSaasUtils
 					$customvirtualhostline= $contract->array_options['options_custom_virtualhostline'];
 					$SSLON='On';	// Is SSL enabled on the custom url virtual host ?
 
-					$CERTIFFORCUSTOMDOMAIN=$customurl;
-					if ($CERTIFFORCUSTOMDOMAIN) {
-						// Kept for backward compatibility
-						if (preg_match('/on\.dolicloud\.com$/', $CERTIFFORCUSTOMDOMAIN)) {
-							$CERTIFFORCUSTOMDOMAIN='on.dolicloud.com';
-						} else {
-							// Check if SSL certificate for $customurl exists. If it does not exist, return an error to ask to upload certificate first.
-							if (! file_exists($conf->sellyoursaas->dir_output.'/crt/'.$CERTIFFORCUSTOMDOMAIN.'.crt')) {
-								include_once DOL_DOCUMENT_ROOT.'/core/lib/geturl.lib.php';
-								$CERTIFFORCUSTOMDOMAIN=getDomainFromURL($customurl, 2);
-								$SSLON='Off';
+					$CERTIFFORCUSTOMDOMAIN = "";
+					if ($customurl) {
+						include_once DOL_DOCUMENT_ROOT.'/core/lib/geturl.lib.php';
+						$pooldomainname = getDomainFromURL($customurl, 2);
 
-								// TODO Show an error or warning to ask to upload a certificate first.
-							}
+						// Check if SSL certificate for $customurl exists into master crt directory.
+						if (file_exists($conf->sellyoursaas->dir_output.'/crt/'.$customurl.'.crt')) {
+							$CERTIFFORCUSTOMDOMAIN = $customurl;
+						} elseif (file_exists($conf->sellyoursaas->dir_output.'/crt/'.$pooldomainname.'.crt')) {
+							$CERTIFFORCUSTOMDOMAIN = $pooldomainname;
+						} else {
+							// If it does not exist, return an error to ask to upload certificate first.
+							/* $CERTIFFORCUSTOMDOMAIN=getDomainFromURL($customurl, 2);
+							 // TODO Show an error or warning to ask to upload a certificate first or let go and create with letsencrypt ?.
+							 */
+							$SSLON='Off';	// To avoid error of SSL certificate not found
 						}
 					}
 
@@ -3831,8 +3878,8 @@ class SellYourSaasUtils
 
 								if (function_exists('ssh2_disconnect')) {
 									if (empty($conf->global->SELLYOURSAAS_SSH2_DISCONNECT_DISABLED)) {
-										dol_syslog("If it hangs or core dump due to ssh2_disconnect, try to set SELLYOURSAAS_SSH2_DISCONNECT_DISABLED=1", LOG_NOTICE);
-										ssh2_disconnect($connection);     // Hang on some config
+										dol_syslog("If it hangs or core dump later due to ssh2_disconnect, try to set SELLYOURSAAS_SSH2_DISCONNECT_DISABLED=1", LOG_NOTICE);
+										ssh2_disconnect($connection);     // Hang on some config (ex: php7.0/ubuntu18.04.6 connecting to ubuntu 20.04 or 22.04.1
 									}
 									$connection = null;
 									unset($connection);

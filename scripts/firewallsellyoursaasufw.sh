@@ -24,6 +24,8 @@ if [[ "x$instanceserver" == "x" ]]; then
 	exit 3
 fi
 
+webserver=`grep '^webserver=' /etc/sellyoursaas.conf | cut -d '=' -f 2`
+
 allowed_hosts=`grep '^allowed_hosts=' /etc/sellyoursaas.conf | cut -d '=' -f 2`
 if [[ "x$allowed_hosts" == "x" && "x$instanceserver" != "x" && "x$instanceserver" != "x0" ]]; then
 	echo Parameter allowed_host not found or empty. This is not possible when the server is an instanceserver.
@@ -76,19 +78,20 @@ ufw allow out 143/tcp
 ufw allow out 993/tcp
 # DCC (anti spam public services)
 #ufw allow out 6277/tcp
-#ufw allow out 6277/udpvi /etc/
-# Rdate
-ufw allow out 37/tcp
+#ufw allow out 6277/udpvi
+# Rdate / NTP
+#ufw allow out 37/tcp deprecated
 ufw allow out 123/udp
 # Whois
 ufw allow out 43/tcp
 # DNS
 ufw allow out 53/tcp
 ufw allow out 53/udp
-# NFS (only 2049 is required in out, not 111)
+# NFS (only 2049/tcp is required for NFS)
 ufw allow out 2049/tcp
-ufw allow out 2049/udp
-
+# DHCP
+# TODO Allow DHCP client access ?
+# ufw allow out from $ipserver port 68 to any port 67 proto udp
 
 # From external source to local - In
 #-----------------------------------
@@ -97,7 +100,7 @@ ufw allow out 2049/udp
 # SSH
 export atleastoneipfound=0
 
-if [[ "x$masterserver" == "x2" || "x$instanceserver" == "x2" ]]; then
+if [[ "x$masterserver" == "x2" || "x$instanceserver" == "x2"  || "x$webserver" == "x2" ]]; then
 	# If value is 2, we want a restriction per user found into a file (Value = 1 means access to everybody)
 	for fic in `ls /etc/sellyoursaas.d/*-allowed-ip.conf /etc/sellyoursaas.d/*-allowed-ip-ssh.conf 2>/dev/null`
 	do
@@ -133,8 +136,10 @@ if [[ "x$masterserver" == "x2" || "x$instanceserver" == "x2" ]]; then
 	done
 	
 	# Allow SSH to myself (for example this is required with Scaleway)
-	echo Allow SSH to the restricted ip $ipserverdeployment
-	ufw allow from $ipserverdeployment to any port $port_ssh proto tcp
+	if [[ "x$ipserverdeployment" != "x" && "x$instanceserver" != "x" && "x$instanceserver" != "x0" ]]; then
+		echo Allow SSH to the restricted ip of deployment server $ipserverdeployment
+		ufw allow from $ipserverdeployment to any port $port_ssh proto tcp
+	fi
 fi
 
 if [[ "x$atleastoneipfound" == "x1" ]]; then
@@ -148,7 +153,7 @@ fi
 # MySQL
 export atleastoneipfound=0
 
-if [[ "x$masterserver" == "x2" || "x$instanceserver" == "x2" ]]; then
+if [[ "x$masterserver" == "x2" || "x$instanceserver" == "x2" || "x$webserver" == "x2" ]]; then
 	# If value is 2, we want a restriction per user found into a file (Value = 1 means access to everybody)
 	for fic in `ls /etc/sellyoursaas.d/*-allowed-ip.conf /etc/sellyoursaas.d/*-allowed-ip-mysql.conf 2>/dev/null`
 	do
@@ -180,8 +185,10 @@ if [[ "x$masterserver" == "x2" || "x$instanceserver" == "x2" ]]; then
 	done
 	
 	# Allow MySQL to myself (for example this is required with Scaleway)
-	echo Allow MySQL to the restricted ip $ipserverdeployment
-	ufw allow from $ipserverdeployment to any port 3306 proto tcp
+	if [[ "x$ipserverdeployment" != "x" && "x$instanceserver" != "x" && "x$instanceserver" != "x0" ]]; then
+		echo Allow MySQL to the restricted ip $ipserverdeployment
+		ufw allow from $ipserverdeployment to any port 3306 proto tcp
+	fi
 fi
 
 if [[ "x$atleastoneipfound" == "x1" ]]; then
@@ -211,10 +218,10 @@ ufw allow in 953/udp
 # To see master NFS server
 if [[ "x$masterserver" != "x0" ]]; then
 	echo Enable NFS entry to allow access to master from instance servers
-	ufw allow in 111/tcp
-	ufw allow in 111/udp
+	#ufw allow in 111/tcp
+	#ufw allow in 111/udp
 	ufw allow in 2049/tcp
-	ufw allow in 2049/udp
+	#ufw allow in 2049/udp
 else
 	ufw delete allow in 111/tcp
 	ufw delete allow in 111/udp
@@ -238,6 +245,7 @@ else
 	ufw delete allow in 8080/tcp
 fi
 
+# At end, after all allow
 ufw default deny incoming
 ufw default deny outgoing
 

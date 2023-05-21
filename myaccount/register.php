@@ -212,7 +212,8 @@ if (!empty($_GET["utm_source"]) || !empty($_GET["origin"]) || !empty($_GET["part
 	$cookievalue = empty($_GET["utm_source"]) ? (empty($_GET["origin"]) ? 'partner'.$_GET["partner"] : $_GET["origin"]) : $_GET["utm_source"];
 	if (empty($_COOKIE[$cookiename]) && $domainname) {
 		$domain = $domainname;
-		setcookie($cookiename, empty($cookievalue) ? '' : $cookievalue, empty($cookievalue) ? 0 : (time() + (86400 * 60)), '/', $domain, false, true); // keep cookie 60 days and add tag httponly
+		$cookievalue .= '-'.date("Ymd-His").'-register';
+		setcookie($cookiename, empty($cookievalue) ? '' : $cookievalue, empty($cookievalue) ? 0 : (time() + (86400 * 90)), '/', $domain, false, true); // keep cookie 90 days and add tag httponly
 	}
 }
 
@@ -442,7 +443,10 @@ llxHeader($head, $title, '', '', 0, 0, $arrayofjs, array(), '', 'register');
 			  <input type="hidden" name="reusesocid" value="<?php echo dol_escape_htmltag($reusesocid); ?>" />
 			  <input type="hidden" name="reusecontractid" value="<?php echo dol_escape_htmltag($reusecontractid); ?>" />
 			  <input type="hidden" name="fromsocid" value="<?php echo dol_escape_htmltag($fromsocid); ?>" />
-			  <input type="hidden" name="origin" value="<?php echo dol_escape_htmltag($origin); ?>" />
+
+			  <input type="hidden" name="origin" value="<?php echo dol_escape_htmltag($origin); ?>" /><!-- wil be saved into options_source -->
+			  <!-- the utm_source_cookie=<?php echo dol_escape_htmltag($_COOKIE["utm_source_cookie"]); ?> will be saved into options_source_utm -->
+
 			  <input type="hidden" name="disablecustomeremail" value="<?php echo dol_escape_htmltag($disablecustomeremail); ?>" />
 			  <!-- _SESSION['dol_loginsellyoursaas'] = <?php echo empty($_SESSION['dol_loginsellyoursaas']) ? '' : $_SESSION['dol_loginsellyoursaas']; ?> -->
 
@@ -513,6 +517,7 @@ llxHeader($head, $title, '', '', 0, 0, $arrayofjs, array(), '', 'register');
 				<?php
 			}
 			if (empty($reusecontractid)) {
+				$langs->load("sellyoursaas@sellyoursaas");
 				?>
 			<div class="group">
 				<div class="horizontal-fld">
@@ -521,7 +526,7 @@ llxHeader($head, $title, '', '', 0, 0, $arrayofjs, array(), '', 'register');
 					<label class="control-label" for="password" trans="1"><span class="fa fa-lock opacityhigh"></span> <?php echo $langs->trans("Password") ?></label>
 					<div class="controls">
 
-						<input<?php echo $disabled; ?> name="password" type="password" maxlength="128" required />
+						<input<?php echo $disabled; ?> title="<?php echo dol_escape_htmltag($langs->trans("RuleForPassword", 8)) ?>" pattern="(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{8,}" name="password" type="password" minlength="8" maxlength="128" required autocomplete="new-password" spellcheck="false" autocapitalize="off" />
 
 					</div>
 				</div>
@@ -531,7 +536,7 @@ llxHeader($head, $title, '', '', 0, 0, $arrayofjs, array(), '', 'register');
 				  <div class="control-group required">
 					<label class="control-label" for="password2" trans="1"><span class="fa fa-lock opacityhigh"></span> <?php echo $langs->trans("PasswordRetype") ?></label>
 					<div class="controls">
-					  <input<?php echo $disabled; ?> name="password2" type="password" maxlength="128" required />
+					  <input<?php echo $disabled; ?> title="<?php echo dol_escape_htmltag($langs->trans("RuleForPassword", 8)) ?>" pattern="(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{8,}" name="password2" type="password" minlength="8" maxlength="128" required autocomplete="new-password" spellcheck="false" autocapitalize="off" />
 					</div>
 				  </div>
 				</div>
@@ -544,14 +549,17 @@ llxHeader($head, $title, '', '', 0, 0, $arrayofjs, array(), '', 'register');
 				?>
 
 			<div class="control-group  ">
-				<label class="control-label" for="address_country"><span class="fa fa-globe opacityhigh"></span> <?php echo $langs->trans("Country") ?></label>
+				<label class="control-label" for="country"><span class="fa fa-globe opacityhigh"></span> <?php echo $langs->trans("Country") ?></label>
 				<div class="controls">
 				<?php
-				$countryselected=strtoupper(dolGetCountryCodeFromIp(getUserRemoteIP()));
-				print '<!-- Autodetected IP/Country: '.dol_escape_htmltag(getUserRemoteIP()).'/'.$countryselected.' -->'."\n";
-				if (empty($countryselected)) $countryselected='US';
-				if (GETPOST('address_country', 'alpha')) $countryselected=GETPOST('address_country', 'alpha');
-				print $form->select_country($countryselected, 'address_country', 'optionsValue="name"'.$disabled, 0, ($conf->dol_optimize_smallscreen ? 'minwidth200' : 'minwidth300'), 'code2', 1, 1);
+				$countryuser=strtoupper(dolGetCountryCodeFromIp(getUserRemoteIP()));
+				print '<!-- Autodetected IP/Country: '.dol_escape_htmltag(getUserRemoteIP()).'/'.$countryuser.' -->'."\n";
+				if (GETPOST('country')) {	// Can force a country instead of default autodetected value
+					$countryuser = GETPOST('country');
+				}
+				if (empty($countryuser)) $countryuser='US';
+				$countryuser = strtoupper($countryuser);
+				print $form->select_country($countryuser, 'country', 'optionsValue="name"'.$disabled, 0, ($conf->dol_optimize_smallscreen ? 'minwidth200' : 'minwidth300'), 'code2', 1, 1);
 				?>
 				</div>
 			</div>
@@ -635,6 +643,12 @@ llxHeader($head, $title, '', '', 0, 0, $arrayofjs, array(), '', 'register');
 									$servercountries = explode(',', $deploymentserver->servercountries);
 									$ipuser = getUserRemoteIP();
 									$countryuser = dolGetCountryCodeFromIp($ipuser);
+									if (GETPOST('country')) {	// Can force a country instead of default autodetected value
+										$countryuser = GETPOST('country');
+									}
+									if (empty($countryuser)) $countryuser='US';
+									$countryuser = strtolower($countryuser);
+
 									if (in_array($countryuser, $servercountries)) {
 										if (! preg_match('/^\./', $newval)) $newval='.'.$newval;
 										$domainstosuggestcountryfilter[] = $newval; // Servers with user country
@@ -701,12 +715,11 @@ llxHeader($head, $title, '', '', 0, 0, $arrayofjs, array(), '', 'register');
 				<?php
 			}
 			?>
-
-
-
-			<!-- Selection of domain to create instance -->
-			<?php if (! empty($conf->global->SELLYOURSAAS_ENABLE_OPTINMESSAGES)) { ?>
 			<br>
+
+
+			<?php if (getDolGlobalInt('SELLYOURSAAS_ENABLE_OPTINMESSAGES')) { ?>
+			<!-- checkbox for optin messages -->
 			<section id="optinmessagesid">
 				<input type="checkbox" id="optinmessages" name="optinmessages" class="valignmiddle inline" style="margin-top: 0" value="1">
 				<label for="optinmessages" class="valignmiddle small inline opacitymedium"><?php echo $langs->trans("OptinForCommercialMessagesOnMyAccount", $sellyoursaasname); ?></label>
@@ -715,10 +728,9 @@ llxHeader($head, $title, '', '', 0, 0, $arrayofjs, array(), '', 'register');
 
 			<?php if (getDolGlobalInt('SELLYOURSAAS_ONLY_NON_PROFIT_ORGA')) { ?>
 			<!-- Checkbox for non profit orga -->
-			<br>
 			<section id="checkboxnonprofitorgaid">
 			<div class="group required">
-				<input type="checkbox" id="checkboxnonprofitorga" name="checkboxnonprofitorga" class="valignmiddle inline" style="margin-top: 0" value="1" required=""<?php echo (GETPOST('checkboxnonprofitorga') ? ' checked="checked"' : ''); ?>>
+				<input type="checkbox" id="checkboxnonprofitorga" name="checkboxnonprofitorga" class="valignmiddle inline" style="margin-top: 0" value="nonprofit" required=""<?php echo (GETPOST('checkboxnonprofitorga') ? ' checked="checked"' : ''); ?>>
 				<label for="checkboxnonprofitorga" class="valignmiddle small inline"><?php
 					echo $langs->trans("ConfirmNonProfitOrga", $sellyoursaasname);
 					echo '. ';
@@ -729,12 +741,27 @@ llxHeader($head, $title, '', '', 0, 0, $arrayofjs, array(), '', 'register');
 			</div>
 			</section>
 			<?php } ?>
+
+			<?php if (getDolGlobalString('SELLYOURSAAS_TERMSANDCONDITIONS')) { ?>
+			<!-- mandatory checkbox for terms and conditions -->
+			<section id="checkboxtermsandconditions">
+				<div class="group required">
+					<input type="checkbox" id="checkboxtermsandconditions" name="checkboxtermsandconditions" class="valignmiddle inline" style="margin-top: 0" value="1" required="1"<?php echo (GETPOST('checkboxtermsandconditions') ? ' checked="checked"' : ''); ?>>
+					<label for="checkboxtermsandconditions" class="valignmiddle small inline"><?php
+						$urlfortermofuse = 'https://www.'.getDolGlobalString('SELLYOURSAAS_MAIN_DOMAIN_NAME').'/'.getDolGlobalString('SELLYOURSAAS_TERMSANDCONDITIONS');
+						echo $langs->trans("WhenRegisteringYouAccept", $urlfortermofuse);
+					?></label>
+				</div>
+			</section>
+			<?php } ?>
+
 			<br>
 
 	   </div>
 
 		  <section id="formActions">
 			<?php
+			// TODO Remove this, we should be able to use SELLYOURSAAS_TERMSANDCONDITIONS instead
 			$urlfortermofuse = '';
 			if ($conf->global->SELLYOURSAAS_MAIN_DOMAIN_NAME == 'dolicloud.com') {
 				$urlfortermofuse = 'https://www.'.$conf->global->SELLYOURSAAS_MAIN_DOMAIN_NAME.'/en-terms-and-conditions.php';
@@ -760,6 +787,7 @@ llxHeader($head, $title, '', '', 0, 0, $arrayofjs, array(), '', 'register');
 				}
 				?>
 			  </div>
+			  <br>
 		  </section>
 
 

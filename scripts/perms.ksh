@@ -32,7 +32,6 @@ fi
 # Go into a safe dir
 cd /tmp
 
-
 #echo "Remplacement user apache par www-data"
 #find . -user apache -exec chown www-data {} \;
 
@@ -52,9 +51,13 @@ chown admin.admin /mnt/diskbackup;
 chown admin.admin /home/admin/backup; chown admin.admin /home/admin/backup/conf; chown admin.admin /home/admin/backup/mysql; 
 chown admin.admin /home/admin/wwwroot
 
-# Permissions on private key files
-[ -s /home/admin/.ssh/id_rsa ] && chmod go-rwx /home/admin/.ssh/id_rsa
-[ -s /home/admin/.ssh/id_rsa_sellyoursaas ] && chmod go-rwx /home/admin/.ssh/id_rsa_sellyoursaas
+# Permissions on SSH config and private key files
+echo "Set owner and permission on admin ssh files"
+[ -s /home/admin/.ssh/config ] && chmod go-rwx /home/admin/.ssh/config && chown admin.admin /home/admin/.ssh/config
+[ -s /home/admin/.ssh/id_rsa ] && chmod go-rwx /home/admin/.ssh/id_rsa && chown admin.admin /home/admin/.ssh/id_rsa
+[ -s /home/admin/.ssh/id_rsa.pub ] && chmod go-wx /home/admin/.ssh/id_rsa.pub && chown admin.admin /home/admin/.ssh/id_rsa.pub
+[ -s /home/admin/.ssh/id_rsa_sellyoursaas ] && chmod go-rwx /home/admin/.ssh/id_rsa_sellyoursaas && chown admin.admin /home/admin/.ssh/id_rsa_sellyoursaas 
+[ -s /home/admin/.ssh/id_rsa_sellyoursaas.pub ] && chmod go-wx /home/admin/.ssh/id_rsa_sellyoursaas.pub && chown admin.admin /home/admin/.ssh/id_rsa_sellyoursaas.pub 
 
 
 echo "Set owner and permission on /home/admin/wwwroot/dolibarr_documents/ (except sellyoursaas)"
@@ -119,25 +122,15 @@ if [ -f /home/admin/wwwroot/dolibarr/htdocs/conf/conf.php ]; then
 	chmod o-rwx /home/admin/wwwroot/dolibarr/htdocs/conf/conf.php
 fi
 
-echo Set owner and permission on SSL certificates /etc/apache2/*.key
+echo Set owner and permission on SSL certificates /etc/apache2/*.key and /etc/lestencrypt
 for fic in `ls /etc/apache2/ | grep '.key$'`; 
 do 
 	chown root.www-data /etc/apache2/$fic
 	chmod ug+r /etc/apache2/$fic
 	chmod o-rwx /etc/apache2/$fic
 done
-
-if [ "x$instanceserver" != "x0" -a "x$instanceserver" != "x" ]; then
-	IFS=$(echo -en "\n\b")
-	echo We are on a deployment server, so we clean log files 
-	echo "Clean web server _error logs"
-	for fic in `ls -Adp $targetdir/osu*/dbn*/*_error.log 2>/dev/null | grep -v '/$'`; do > "$fic"; done
-	echo "Clean applicative log files"
-	for fic in `ls -Adp $targetdir/osu*/dbn*/documents/dolibarr*.log 2>/dev/null | grep -v '/$'`; do > "$fic"; done
-	for fic in `ls -Adp $targetdir/osu*/dbn*/htdocs/files/_log/*.log 2>/dev/null | grep -v '/$'`; do > "$fic"; done
-	for fic in `ls -Adp $targetdir/osu*/dbn*/htdocs/files/_tmp/* 2>/dev/null | grep -v '/$'`; do rm "$fic"; done
-	for fic in `ls -Adp $targetdir/osu*/dbn*/glpi_files/_tmp/* 2>/dev/null | grep -v '/$'`; do rm "$fic"; done
-fi
+chmod go+x /etc/letsencrypt/archive
+chmod go+x /etc/letsencrypt/live
 
 if [[ "x$masterserver" == "x1" ]]; then
 	echo We are on a master server, so we clean old temp files 
@@ -169,9 +162,70 @@ chown -R admin.www-data /home/admin/wwwroot/dolibarr_documents/sellyoursaas_loca
 chmod a+rwx $pathtospamdir; chmod a+rw $pathtospamdir/*
 chown admin.www-data $pathtospamdir/*
 
+
+# Special actions...
+
+
+# Create some links
+echo "Create links for fail2ban conf"
+cd /etc/fail2ban/filter.d
+if [ ! -e /home/admin/wwwroot/dolibarr_sellyoursaas/etc/fail2ban/filter.d/email-dolibarr-ruleskoblacklist.conf ]; then
+	ln -fs /home/admin/wwwroot/dolibarr_sellyoursaas/etc/fail2ban/filter.d/email-dolibarr-ruleskoblacklist.conf
+fi
+if [ ! -e /home/admin/wwwroot/dolibarr_sellyoursaas/etc/fail2ban/filter.d/email-dolibarr-ruleskoquota.conf ]; then
+	ln -fs /home/admin/wwwroot/dolibarr_sellyoursaas/etc/fail2ban/filter.d/email-dolibarr-ruleskoquota.conf
+fi
+if [ ! -e /home/admin/wwwroot/dolibarr_sellyoursaas/etc/fail2ban/filter.d/email-dolibarr-rulesko.conf ]; then
+	ln -fs /home/admin/wwwroot/dolibarr_sellyoursaas/etc/fail2ban/filter.d/email-dolibarr-rulesko.conf
+fi
+if [ ! -e /home/admin/wwwroot/dolibarr_sellyoursaas/etc/fail2ban/filter.d/email-dolibarr-rulesall.conf ]; then
+	ln -fs /home/admin/wwwroot/dolibarr_sellyoursaas/etc/fail2ban/filter.d/email-dolibarr-rulesall.conf
+fi
+if [ ! -e /home/admin/wwwroot/dolibarr_sellyoursaas/etc/fail2ban/filter.d/email-dolibarr-rulesadmin.conf ]; then
+	ln -fs /home/admin/wwwroot/dolibarr_sellyoursaas/etc/fail2ban/filter.d/email-dolibarr-rulesadmin.conf
+fi
+if [ ! -e /home/admin/wwwroot/dolibarr_sellyoursaas/etc/fail2ban/filter.d/web-dolibarr-limit403.conf ]; then
+	ln -fs /home/admin/wwwroot/dolibarr_sellyoursaas/etc/fail2ban/filter.d/web-accesslog-limit403.conf
+fi
+if [ ! -e /home/admin/wwwroot/dolibarr_sellyoursaas/etc/fail2ban/filter.d/web-dolibarr-rulespassforgotten.conf ]; then
+	ln -fs /home/admin/wwwroot/dolibarr_sellyoursaas/etc/fail2ban/filter.d/web-dolibarr-rulespassforgotten.conf
+fi
+if [ ! -e /home/admin/wwwroot/dolibarr_sellyoursaas/etc/fail2ban/filter.d/web-dolibarr-rulesbruteforce.conf ]; then
+	ln -fs /home/admin/wwwroot/dolibarr_sellyoursaas/etc/fail2ban/filter.d/web-dolibarr-rulesbruteforce.conf
+fi
+if [ ! -e /home/admin/wwwroot/dolibarr_sellyoursaas/etc/fail2ban/filter.d/web-dolibarr-ruleslimitpublic.conf ]; then
+	ln -fs /home/admin/wwwroot/dolibarr_sellyoursaas/etc/fail2ban/filter.d/web-dolibarr-ruleslimitpublic.conf
+fi
+if [ ! -e /home/admin/wwwroot/dolibarr_sellyoursaas/etc/fail2ban/filter.d/web-dolibarr-rulesregisterinstance.conf ]; then
+	ln -fs /home/admin/wwwroot/dolibarr_sellyoursaas/etc/fail2ban/filter.d/web-dolibarr-rulesregisterinstance.conf
+fi
+
+# Clean some files
+echo "Clean some files"
+if [ "x$instanceserver" != "x0" -a "x$instanceserver" != "x" ]; then
+	IFS=$(echo -en "\n\b")
+	echo We are on a deployment server, so we clean log files 
+	echo "Clean web server _error logs"
+	for fic in `ls -Adp $targetdir/osu*/dbn*/*_error.log 2>/dev/null | grep -v '/$'`; do > "$fic"; done
+	echo "Clean applicative log files"
+	for fic in `ls -Adp $targetdir/osu*/dbn*/documents/dolibarr*.log 2>/dev/null | grep -v '/$'`; do > "$fic"; done
+	for fic in `ls -Adp $targetdir/osu*/dbn*/htdocs/files/_log/*.log 2>/dev/null | grep -v '/$'`; do > "$fic"; done
+	for fic in `ls -Adp $targetdir/osu*/dbn*/htdocs/files/_tmp/* 2>/dev/null | grep -v '/$'`; do rm "$fic"; done
+	for fic in `ls -Adp $targetdir/osu*/dbn*/glpi_files/_tmp/* 2>/dev/null | grep -v '/$'`; do rm "$fic"; done
+fi
+
 # Disabled: We prefer --prune-empty-dirs
 #if [ "x$instanceserver" != "x0" -a "x$instanceserver" != "x" ]; then
 #	IFS=$(echo -en "\n\b")
 #	echo "We are on a deployment server, so we try to delete empty dirs into backup directory under $backupdir/osu*"
 #	find $backupdir/osu*/ -type d -empty -ls -delete > /var/log/find_delete_empty_dir.log 2>&1
 #fi
+
+# TODO Try to change permission on this files to remove this ?
+touch /var/log/phpmail.log
+chown syslog.adm /var/log/phpmail.log
+chmod a+rw /var/log/phpmail.log
+touch /var/log/phpsendmail.log
+chown syslog.adm /var/log/phpsendmail.log
+chmod a+rw /var/log/phpsendmail.log
+

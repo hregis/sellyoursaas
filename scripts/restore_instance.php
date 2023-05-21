@@ -54,64 +54,18 @@ $mode=isset($argv[4])?$argv[4]:'';
 @set_time_limit(0);							// No timeout for this script
 define('EVEN_IF_ONLY_LOGIN_ALLOWED', 1);		// Set this define to 0 if you want to lock your script when dolibarr setup is "locked to admin user only".
 
-// Read /etc/sellyoursaas.conf file
-$databasehost='localhost';
-$databaseport='3306';
-$database='';
-$databaseuser='sellyoursaas';
-$databasepass='';
+// Read /etc/sellyoursaas.conf file just for $dolibarrdir
 $dolibarrdir='';
-$usecompressformatforarchive='gzip';
-$emailfrom='';
-$emailsupervision='';
 $fp = @fopen('/etc/sellyoursaas.conf', 'r');
 // Add each line to an array
 if ($fp) {
 	$array = explode("\n", fread($fp, filesize('/etc/sellyoursaas.conf')));
 	foreach ($array as $val) {
 		$tmpline=explode("=", $val);
-		if ($tmpline[0] == 'ipserverdeployment') {
-			$ipserverdeployment = $tmpline[1];
-		}
-		if ($tmpline[0] == 'instanceserver') {
-			$instanceserver = $tmpline[1];
-		}
-		if ($tmpline[0] == 'databasehost') {
-			$databasehost = $tmpline[1];
-		}
-		if ($tmpline[0] == 'databaseport') {
-			$databaseport = $tmpline[1];
-		}
-		if ($tmpline[0] == 'database') {
-			$database = $tmpline[1];
-		}
-		if ($tmpline[0] == 'databaseuser') {
-			$databaseuser = $tmpline[1];
-		}
-		if ($tmpline[0] == 'databasepass') {
-			$databasepass = $tmpline[1];
-		}
 		if ($tmpline[0] == 'dolibarrdir') {
-			$dolibarrdir = $tmpline[1];
-		}
-		if ($tmpline[0] == 'usecompressformatforarchive') {
-			$usecompressformatforarchive = $tmpline[1];
-		}
-		if ($tmpline[0] == 'emailfrom') {
-			$emailfrom = $tmpline[1];
-		}
-		if ($tmpline[0] == 'emailsupervision') {
-			$emailsupervision = $tmpline[1];
+			$dolibarrdir = preg_replace('/[^a-zA-Z0-9_\-\/]/', '', $tmpline[1]);
 		}
 	}
-} else {
-	print "Failed to open /etc/sellyoursaas.conf file\n";
-	exit(-1);
-}
-
-if (empty($dolibarrdir)) {
-	print "Failed to find 'dolibarrdir' entry into /etc/sellyoursaas.conf file\n";
-	exit(-1);
 }
 
 // Load Dolibarr environment
@@ -137,36 +91,67 @@ dol_include_once("/sellyoursaas/core/lib/dolicloud.lib.php");
 dol_include_once("/sellyoursaas/lib/sellyoursaas.lib.php");
 
 // Read /etc/sellyoursaas.conf file
+$domain='';
 $databasehost='localhost';
 $databaseport='3306';
 $database='';
 $databaseuser='sellyoursaas';
 $databasepass='';
+$usecompressformatforarchive='gzip';
+$emailfrom='';
+$emailsupervision='';
 $fp = @fopen('/etc/sellyoursaas.conf', 'r');
 // Add each line to an array
 if ($fp) {
 	$array = explode("\n", fread($fp, filesize('/etc/sellyoursaas.conf')));
 	foreach ($array as $val) {
 		$tmpline=explode("=", $val);
+		if ($tmpline[0] == 'domain') {
+			$domain = dol_string_nospecial($tmpline[1]);
+		}
+		if ($tmpline[0] == 'instanceserver') {
+			$instanceserver = (int) $tmpline[1];
+		}
 		if ($tmpline[0] == 'databasehost') {
-			$databasehost = $tmpline[1];
+			$databasehost = dol_string_nospecial($tmpline[1]);
 		}
 		if ($tmpline[0] == 'databaseport') {
-			$databaseport = $tmpline[1];
+			$databaseport = (int) $tmpline[1];
 		}
 		if ($tmpline[0] == 'database') {
-			$database = $tmpline[1];
+			$database = dol_string_nospecial($tmpline[1]);
 		}
 		if ($tmpline[0] == 'databaseuser') {
-			$databaseuser = $tmpline[1];
+			$databaseuser = dol_string_nospecial($tmpline[1]);
 		}
 		if ($tmpline[0] == 'databasepass') {
 			$databasepass = $tmpline[1];
 		}
+		if ($tmpline[0] == 'usecompressformatforarchive') {
+			$usecompressformatforarchive = dol_string_nospecial($tmpline[1]);
+		}
+		if ($tmpline[0] == 'emailfrom') {
+			$emailfrom = dol_sanitizeEmail($tmpline[1]);
+		}
+		if ($tmpline[0] == 'emailsupervision') {
+			$emailsupervision = dol_sanitizeEmail($tmpline[1]);
+		}
 	}
 } else {
 	print "Failed to open /etc/sellyoursaas.conf file\n";
-	exit;
+	exit(-1);
+}
+if (empty($emailfrom)) {
+	$emailfrom="noreply@".$domain;
+}
+if (empty($emailsupervision)) {
+	$emailsupervision="supervision@".$domain;
+}
+
+
+if (empty($dolibarrdir)) {
+	print "Failed to find 'dolibarrdir' entry into /etc/sellyoursaas.conf file\n";
+	exit(-1);
 }
 
 
@@ -500,7 +485,8 @@ if (empty($return_var) && empty($return_varmysql)) {
 		$to = $emailsupervision;
 		// Force to use local sending (MAIN_MAIL_SENDMODE is the one of the master server. It may be to an external SMTP server not allowed to the deployment server)
 		$conf->global->MAIN_MAIL_SENDMODE = 'mail';
-		$conf->global->MAIN_MAIL_SMTP_SERVER = '';
+		$conf->global->MAIN_MAIL_SENDMODE_EMAILING = 'mail';
+		$conf->global->MAIN_MAIL_SMTP_SERVER = 'localhost';
 
 		// Supervision tools are generic for all domain. No way to target a specific supervision email.
 
@@ -510,6 +496,9 @@ if (empty($return_var) && empty($return_varmysql)) {
 		print 'Send email MAIN_MAIL_SENDMODE='.$conf->global->MAIN_MAIL_SENDMODE.' MAIN_MAIL_SMTP_SERVER='.$conf->global->MAIN_MAIL_SMTP_SERVER.' from='.$from.' to='.$to.' title=[Restore instance - '.gethostname().'] Restore of user instance succeed.'."\n";
 		$cmail = new CMailFile('[Restore instance - '.gethostname().'] Restore of user instance succeed - '.dol_print_date(dol_now(), 'dayrfc'), $to, $from, $msg, array(), array(), array(), '', '', 0, 0, '', '', '', '', $sendcontext);
 		$result = $cmail->sendfile();		// Use the $conf->global->MAIN_MAIL_SMTPS_PW_$SENDCONTEXT for password
+		if (!$result) {
+			print 'Failed to send email. See dolibarr.log file'."\n";
+		}
 
 		// Send to DataDog (metric + event)
 		if (! empty($conf->global->SELLYOURSAAS_DATADOG_ENABLED)) {
@@ -539,7 +528,8 @@ if (empty($return_var) && empty($return_varmysql)) {
 		$to = $emailsupervision;
 		// Force to use local sending (MAIN_MAIL_SENDMODE is the one of the master server. It may be to an external SMTP server not allowed to the deployment server)
 		$conf->global->MAIN_MAIL_SENDMODE = 'mail';
-		$conf->global->MAIN_MAIL_SMTP_SERVER = '';
+		$conf->global->MAIN_MAIL_SENDMODE_EMAILING = 'mail';
+		$conf->global->MAIN_MAIL_SMTP_SERVER = 'localhost';
 
 		// Supervision tools are generic for all domain. No way to target a specific supervision email.
 
@@ -549,6 +539,9 @@ if (empty($return_var) && empty($return_varmysql)) {
 		print 'Send email MAIN_MAIL_SENDMODE='.$conf->global->MAIN_MAIL_SENDMODE.' MAIN_MAIL_SMTP_SERVER='.$conf->global->MAIN_MAIL_SMTP_SERVER.' from='.$from.' to='.$to.' title=[Warning] Error(s) in restoring - '.gethostname().' - '.dol_print_date(dol_now(), 'dayrfc')."\n";
 		$cmail = new CMailFile('[Warning] Error(s) in restore process - '.gethostname().' - '.dol_print_date(dol_now(), 'dayrfc'), $to, $from, $msg, array(), array(), array(), '', '', 0, 0, '', '', '', '', $sendcontext);
 		$result = $cmail->sendfile();		// Use the $conf->global->MAIN_MAIL_SMTPS_PW_$SENDCONTEXT for password
+		if (!$result) {
+			print 'Failed to send email. See dolibarr.log file'."\n";
+		}
 
 		// Send to DataDog (metric + event)
 		if (! empty($conf->global->SELLYOURSAAS_DATADOG_ENABLED)) {

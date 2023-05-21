@@ -5,7 +5,37 @@
 # ansible-playbook -K launch_install_check.yml -i hosts-xxx -e 'target=targethost'
 # ansible-playbook -K launch_install_check.yml -i hosts-xxx -e 'target=targethost php74=1 apache=1'
 # ansible-playbook -K launch_install_check.yml -i hosts-xxx -e 'target=targethost php80=1 apache=1'
+# ansible-playbook -K launch_install_check.yml -i hosts-xxx -e 'target=targethost php81=1 apache=1'
 #
+
+
+# The user admin must be into the group www-data (group of the SSL certificate so apache can read them)
+# TODO Remove the group www-data for the user admin ?
+# TODO Remove sshkey to user ubuntu
+- name: Check/Fix OS unix accounts
+  hosts: '{{target}}'
+  become: yes
+  become_method: sudo
+  become_user: root
+  tasks:
+  - name: Add user admin to the www-data group
+    user: 
+      name: "admin"
+      groups: www-data
+      append: yes     
+#  - name: Check/create file /home/admin/.ssh/authorized_keys.toallowmaster
+#    ansible.builtin.file:
+#      path: /home/ubuntu/.ssh/authorized_keys
+#      state: present
+#  - name: Remove user ubuntu from the sudo group
+#    command: "gpasswd -d ubuntu sudo"
+#    register: command_result
+#    changed_when: "not 'is not a member of' in command_result.stderr"
+#    failed_when: "'does not exist in /etc/group' in command_result.stderr"
+#  - name: Remove file /home/ubuntu/.ssh/authorized_keys
+#    ansible.builtin.file:
+#      path: /home/ubuntu/.ssh/authorized_keys
+#      state: absent
 
 
 - name: Apt install packages
@@ -14,7 +44,6 @@
   become_method: sudo
   become_user: root
   tasks:
-
 
   ##### Misc packages
   - name: Launch apt for misc packages
@@ -28,6 +57,7 @@
       - memcached 
       - ncdu
       - duc
+      - iotop
       - acl
       - snapd
     register: command_output
@@ -51,8 +81,43 @@
       var: command_output.stdout_lines
 
 
+
+  ##### For PHP 7.0
+  - name: Launch apt for php 7.0 packages
+    apt:
+      pkg:
+      - php7.0 
+      - php7.0-cli 
+      - libapache2-mod-php7.0 
+      #- php7.0-fpm 
+      - php7.0-gd 
+      - php7.0-imap 
+      - php7.0-json 
+      - php7.0-ldap 
+      - php7.0-mysql 
+      - php7.0-curl 
+      - php7.0-memcached 
+      - php7.0-imagick 
+      - php7.0-geoip 
+      - php7.0-intl 
+      - php7.0-xml 
+      - php7.0-zip 
+      - php7.0-bz2 
+      - php7.0-ssh2 
+      - php7.0-mbstring 
+      - php7.0-dev
+      - php7.0-mcrypt
+      - php7.0-soap
+    register: command_output
+    when: 
+      - php70 is defined
+
+  - debug:
+      var: command_output.stdout_lines
+      
+      
   ##### For PHP 7.4
-  - name: Launch apt for php packages
+  - name: Launch apt for php 7.4 packages
     apt:
       pkg:
       - php7.4 
@@ -75,6 +140,7 @@
       - php7.4-ssh2 
       - php7.4-mbstring 
       - php7.4-dev
+      - php7.4-soap
     register: command_output
     when: 
       - php74 is defined
@@ -95,7 +161,7 @@
       var: command_output.stdout_lines
 
   ##### For PHP 8.0
-  - name: Launch apt for php packages
+  - name: Launch apt for php 8.0 packages
     apt:
       pkg:
       - php8.0 
@@ -116,6 +182,7 @@
       - php8.0-ssh2 
       - php8.0-mbstring 
       - php8.0-dev
+      - php8.0-soap
     register: command_output
     when: 
       - php80 is defined
@@ -135,7 +202,225 @@
   - debug:
       var: command_output.stdout_lines
 
+     
+      
+  ##### For PHP 8.1
+  - name: Launch apt for php 8.1 packages
+    apt:
+      pkg:
+      - php8.1 
+      - php8.1-cli 
+      - libapache2-mod-php8.1 
+      #- php8.0-fpm 
+      - php8.1-gd 
+      - php8.1-imap 
+      - php8.1-ldap 
+      - php8.1-mysql 
+      - php8.1-curl 
+      - php8.1-memcached 
+      - php8.1-imagick 
+      - php8.1-intl 
+      - php8.1-xml 
+      - php8.1-zip 
+      - php8.1-bz2 
+      - php8.1-ssh2 
+      - php8.1-mbstring 
+      - php8.1-dev
+      - php8.1-soap
+    register: command_output
+    when: 
+      - php81 is defined
 
+  - debug:
+      var: command_output.stdout_lines
+
+  - name: Launch apt for GLPI packages
+    apt:
+      pkg:
+      - php8.1-readline
+      - php8.1-xmlrpc
+    register: command_output
+    when: 
+      - php81 is defined
+
+  - debug:
+      var: command_output.stdout_lines
+      
+      
+  ##### apache2/php.ini
+  - name: Check or update upload_max_filesize php.ini
+    ini_file:
+      path: /etc/php/7.0/apache2/php.ini
+      section: PHP
+      option: upload_max_filesize
+      value: 25M
+      backup: yes
+    when: 
+      - php70 is defined
+
+  - name: Check or update post_max_size php.ini
+    ini_file:
+      path: /etc/php/7.0/apache2/php.ini
+      section: PHP
+      option: post_max_size
+      value: 30M
+    when: 
+      - php70 is defined
+
+  - name: Check or update max_input_vars php.ini
+    ini_file:
+      path: /etc/php/7.0/apache2/php.ini
+      section: PHP
+      option: max_input_vars
+      value: '4000'
+    when: 
+      - php70 is defined
+
+  - name: Check or update memory_limit php.ini
+    ini_file:
+      path: /etc/php/7.0/apache2/php.ini
+      section: PHP
+      option: memory_limit
+      value: 256M
+    when: 
+      - php70 is defined
+
+  - name: Check or update disable_functions php.ini
+    ini_file:
+      path: /etc/php/7.0/apache2/php.ini
+      section: PHP
+      option: disable_functions
+      value: "pcntl_alarm,pcntl_fork,pcntl_waitpid,pcntl_wait,pcntl_wifexited,pcntl_wifstopped,pcntl_wifsignaled,pcntl_wifcontinued,pcntl_wexitstatus,pcntl_wtermsig,pcntl_wstopsig,pcntl_signal,pcntl_signal_get_handler,pcntl_signal_dispatch,pcntl_get_last_error,pcntl_strerror,pcntl_sigprocmask,pcntl_sigwaitinfo,pcntl_sigtimedwait,pcntl_exec,pcntl_getpriority,pcntl_setpriority,pcntl_async_signals,pcntl_unshare,passthru,shell_exec,system,proc_open,popen"
+    when: 
+      - php70 is defined
+
+  - name: Check or update session.gc_maxlifetime php.ini
+    ini_file:
+      path: /etc/php/7.0/apache2/php.ini
+      section: Session
+      option: session.gc_maxlifetime
+      value: '3600'
+    when: 
+      - php70 is defined
+
+  - name: Check or update session.use_strict_mode php.ini
+    ini_file:
+      path: /etc/php/7.0/apache2/php.ini
+      section: Session
+      option: session.use_strict_mode
+      value: '1'
+    when: 
+      - php70 is defined
+
+  - name: Check or update session.use_only_cookies php.ini
+    ini_file:
+      path: /etc/php/7.0/apache2/php.ini
+      section: Session
+      option: session.use_only_cookies
+      value: '1'
+    when: 
+      - php70 is defined
+
+  - name: Check or update session.cookie_httponly php.ini
+    ini_file:
+      path: /etc/php/7.0/apache2/php.ini
+      section: Session
+      option: session.cookie_httponly
+      value: '1'
+    when: 
+      - php70 is defined
+
+  - name: Check or update session.cookie_samesite php.ini
+    ini_file:
+      path: /etc/php/7.0/apache2/php.ini
+      section: Session
+      option: session.cookie_samesite
+      value: Lax
+    when: 
+      - php70 is defined
+
+  - name: Check or update auto_prepend_file php.ini
+    ini_file:
+      path: /etc/php/7.0/apache2/php.ini
+      section: PHP
+      option: auto_prepend_file
+      value: /usr/local/bin/phpsendmailprepend.php
+    when: 
+      - php70 is defined
+
+  - name: Check or update sendmail_path php.ini
+    ini_file:
+      path: /etc/php/7.0/apache2/php.ini
+      section: 'mail function'
+      option: sendmail_path
+      value: /usr/local/bin/phpsendmail.php
+    when: 
+      - php70 is defined
+
+  - name: Check or update mail.log php.ini
+    ini_file:
+      path: /etc/php/7.0/apache2/php.ini
+      section: 'mail function'
+      option: mail.log
+      value: /var/log/phpmail.log
+    when: 
+      - php70 is defined
+
+  - name: Check or update opcache.memory_consumption php.ini
+    ini_file:
+      path: /etc/php/7.0/apache2/php.ini
+      section: opcache
+      option: opcache.memory_consumption
+      value: '1024'
+    when: 
+      - php70 is defined
+
+  - name: Check or update opcache.max_accelerated_files php.ini
+    ini_file:
+      path: /etc/php/7.0/apache2/php.ini
+      section: opcache
+      option: opcache.max_accelerated_files
+      value: '100000'
+    when: 
+      - php70 is defined
+
+  ##### cli/php.ini
+  - name: Check or update auto_prepend_file cli/php.ini
+    ini_file:
+      path: /etc/php/7.0/cli/php.ini
+      section: PHP
+      option: auto_prepend_file
+      value: /usr/local/bin/phpsendmailprepend.php
+      backup: yes
+    when: 
+      - php70 is defined
+
+  - name: Check or update sendmail_path cli/php.ini
+    ini_file:
+      path: /etc/php/7.0/cli/php.ini
+      section: PHP
+      option: sendmail_path
+      value: /usr/local/bin/phpsendmail.php
+    when: 
+      - php70 is defined
+
+  - name: Check or update mail.log cli/php.ini
+    ini_file:
+      path: /etc/php/7.0/cli/php.ini
+      section: PHP
+      option: mail.log
+      value: /var/log/phpmail.log
+    when: 
+      - php70 is defined
+
+  - name: Set PHP version for CLI
+    community.general.alternatives:
+      name: php
+      path: /usr/bin/php7.0
+    when: 
+      - php70 is defined
+      
+      
   ##### apache2/php.ini
   - name: Check or update upload_max_filesize php.ini
     ini_file:
@@ -496,6 +781,194 @@
     when: 
       - php80 is defined
 
+
+  ##### apache2/php.ini
+  - name: Check or update upload_max_filesize php.ini
+    ini_file:
+      path: /etc/php/8.1/apache2/php.ini
+      section: PHP
+      option: upload_max_filesize
+      value: 25M
+      backup: yes
+    when: 
+      - php81 is defined
+
+  - name: Check or update post_max_size php.ini
+    ini_file:
+      path: /etc/php/8.1/apache2/php.ini
+      section: PHP
+      option: post_max_size
+      value: 30M
+    when: 
+      - php81 is defined
+
+  - name: Check or update max_input_vars php.ini
+    ini_file:
+      path: /etc/php/8.1/apache2/php.ini
+      section: PHP
+      option: max_input_vars
+      value: '4000'
+    when: 
+      - php81 is defined
+
+  - name: Check or update memory_limit php.ini
+    ini_file:
+      path: /etc/php/8.1/apache2/php.ini
+      section: PHP
+      option: memory_limit
+      value: 256M
+    when: 
+      - php81 is defined
+
+  - name: Check or update disable_functions php.ini
+    ini_file:
+      path: /etc/php/8.1/apache2/php.ini
+      section: PHP
+      option: disable_functions
+      value: "pcntl_alarm,pcntl_fork,pcntl_waitpid,pcntl_wait,pcntl_wifexited,pcntl_wifstopped,pcntl_wifsignaled,pcntl_wifcontinued,pcntl_wexitstatus,pcntl_wtermsig,pcntl_wstopsig,pcntl_signal,pcntl_signal_get_handler,pcntl_signal_dispatch,pcntl_get_last_error,pcntl_strerror,pcntl_sigprocmask,pcntl_sigwaitinfo,pcntl_sigtimedwait,pcntl_exec,pcntl_getpriority,pcntl_setpriority,pcntl_async_signals,pcntl_unshare,passthru,shell_exec,system,proc_open,popen"
+    when: 
+      - php81 is defined
+
+  - name: Check or update session.gc_maxlifetime php.ini
+    ini_file:
+      path: /etc/php/8.1/apache2/php.ini
+      section: Session
+      option: session.gc_maxlifetime
+      value: '3600'
+    when: 
+      - php81 is defined
+
+  - name: Check or update session.use_strict_mode php.ini
+    ini_file:
+      path: /etc/php/8.1/apache2/php.ini
+      section: Session
+      option: session.use_strict_mode
+      value: '1'
+    when: 
+      - php81 is defined
+
+  - name: Check or update session.use_only_cookies php.ini
+    ini_file:
+      path: /etc/php/8.0/apache2/php.ini
+      section: Session
+      option: session.use_only_cookies
+      value: '1'
+    when: 
+      - php80 is defined
+
+  - name: Check or update session.cookie_httponly php.ini
+    ini_file:
+      path: /etc/php/8.1/apache2/php.ini
+      section: Session
+      option: session.cookie_httponly
+      value: '1'
+    when: 
+      - php81 is defined
+
+  - name: Check or update session.cookie_samesite php.ini
+    ini_file:
+      path: /etc/php/8.1/apache2/php.ini
+      section: Session
+      option: session.cookie_samesite
+      value: Lax
+    when: 
+      - php81 is defined
+
+  - name: Check or update auto_prepend_file php.ini
+    ini_file:
+      path: /etc/php/8.0/apache2/php.ini
+      section: PHP
+      option: auto_prepend_file
+      value: /usr/local/bin/phpsendmailprepend.php
+    when: 
+      - php80 is defined
+
+  - name: Check or update sendmail_path php.ini
+    ini_file:
+      path: /etc/php/8.1/apache2/php.ini
+      section: 'mail function'
+      option: sendmail_path
+      value: /usr/local/bin/phpsendmail.php
+    when: 
+      - php81 is defined
+
+  - name: Check or update mail.log php.ini
+    ini_file:
+      path: /etc/php/8.1/apache2/php.ini
+      section: 'mail function'
+      option: mail.log
+      value: /var/log/phpmail.log
+    when: 
+      - php81 is defined
+
+  - name: Check or update opcache.memory_consumption php.ini
+    ini_file:
+      path: /etc/php/8.1/apache2/php.ini
+      section: opcache
+      option: opcache.memory_consumption
+      value: '1024'
+    when: 
+      - php81 is defined
+
+  - name: Check or update opcache.max_accelerated_files php.ini
+    ini_file:
+      path: /etc/php/8.1/apache2/php.ini
+      section: opcache
+      option: opcache.max_accelerated_files
+      value: '100000'
+    when: 
+      - php81 is defined
+
+  ##### cli/php.ini
+  - name: Check or update auto_prepend_file cli/php.ini
+    ini_file:
+      path: /etc/php/8.1/cli/php.ini
+      section: PHP
+      option: auto_prepend_file
+      value: /usr/local/bin/phpsendmailprepend.php
+      backup: yes
+    when: 
+      - php81 is defined
+
+  - name: Check or update sendmail_path cli/php.ini
+    ini_file:
+      path: /etc/php/8.1/cli/php.ini
+      section: PHP
+      option: sendmail_path
+      value: /usr/local/bin/phpsendmail.php
+    when: 
+      - php81 is defined
+
+  - name: Check or update mail.log cli/php.ini
+    ini_file:
+      path: /etc/php/8.1/cli/php.ini
+      section: PHP
+      option: mail.log
+      value: /var/log/phpmail.log
+    when: 
+      - php81 is defined
+      
+  - name: Disable old PHP on Apache
+    command: a2dismod php7.0 php7.2 php7.3 php7.4 php8.0
+    ignore_errors: true
+    when: 
+      - php81 is defined
+      
+  - name: Activates PHP on Apache
+    command: a2enmod php8.1
+    when: 
+      - php81 is defined
+
+  - name: Set PHP version for CLI
+    community.general.alternatives:
+      name: php
+      path: /usr/bin/php8.1
+    register: phpversionmodified
+    notify: restart-apache
+    when: 
+      - php81 is defined
+
+
   - debug:
       var: phpversionmodified.changed
 
@@ -526,14 +999,14 @@
         state: restarted
 
 
-  ##### check/complete the sshd_config file
-- name: Add a section into the sshd_config, after passing validation with sshd -T
+  ##### Setup files
+- name: Check setup files
   hosts: '{{target}}'
   become: yes
   become_method: sudo
   become_user: root
   tasks:
-    - name: sshd_config
+    - name: Add a section into the sshd_config
       ansible.builtin.blockinfile:
         path: /etc/ssh/sshd_config
         marker: "# {mark} Block for SellYourSaas"
@@ -549,15 +1022,45 @@
           #  ChrootDirectory %h
           Match User osu*
             PasswordAuthentication=yes
-    
-  ##### Set permissions by calling perms.ksh
-- name: Call perms.ksh
+
+    - name: Update PrivateTmp property into /etc/systemd/system/multi-user.target.wants/apache2.service
+      lineinfile:
+        path: /etc/systemd/system/multi-user.target.wants/apache2.service
+        regexp: '^PrivateTmp='
+        line: 'PrivateTmp=false'
+        
+    - name: Set datadog config files /etc/datadog-agent/conf.d/disk.d/conf.yaml
+      ansible.builtin.template:
+        src: ../../etc/datadog-agent/conf.d/disk.d/conf.yaml
+        dest: /etc/datadog-agent/conf.d/disk.d/conf.yaml
+        owner: dd-agent
+        group: dd-agent
+        mode: '0644'
+
+    - name: Set datadog config files /etc/datadog-agent/conf.d/mcache.d/conf.yaml
+      ansible.builtin.template:
+        src: ../../etc/datadog-agent/conf.d/mcache.d/conf.yaml
+        dest: /etc/datadog-agent/conf.d/mcache.d/conf.yaml
+        owner: dd-agent
+        group: dd-agent
+        mode: '0644'
+
+    - name: Set datadog config files /etc/datadog-agent/conf.d/postfix.d/conf.yaml
+      ansible.builtin.template:
+        src: ../../etc/datadog-agent/conf.d/postfix.d/conf.yaml
+        dest: /etc/datadog-agent/conf.d/postfix.d/conf.yaml
+        owner: dd-agent
+        group: dd-agent
+        mode: '0644'
+
+  ##### Set permissions, create some dirs and files by calling perms.ksh
+- name: Call perms.ksh to set permissions, create some dirs and files
   hosts: '{{target}}'
   become: yes
   become_method: sudo
   become_user: root
   tasks:
-  - name: Launch perms.sh
+  - name: Launch perms.sh to set permissions, create some dirs and files
     command: "/home/admin/wwwroot/dolibarr_sellyoursaas/scripts/perms.ksh confirm"
     register: command_output
 

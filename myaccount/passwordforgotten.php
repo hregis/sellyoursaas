@@ -186,8 +186,12 @@ if (empty($reshook)) {
 			$thirdparty = new Societe($db);
 			$result = $thirdparty->fetch(0, '', '', '', '', '', '', '', '', '', $username);
 
+			// The message to show if user found or not.
+			$messagegenericresult = '<div class="warning">'.$langs->trans("IfEmailExistPasswordRequestSent").'</div>';
+
 			if ($result <= 0) {
-				$message = '<div class="error">'.$langs->trans("ErrorLoginDoesNotExists", $username).'</div>';
+				usleep(50000);	// Wait 50ms to have a similar delay when user not found and found
+				$message = $messagegenericresult;
 				$username='';
 			} else {
 				include_once DOL_DOCUMENT_ROOT.'/core/lib/security2.lib.php';
@@ -210,7 +214,7 @@ if (empty($reshook)) {
 						if (! empty($conf->global->$newnamekey)) $sellyoursaasaccounturl = $conf->global->$newnamekey;
 					}
 
-					$url=$sellyoursaasaccounturl.'/passwordforgotten.php?id='.$thirdparty->id.'&hashreset='.$hashreset;
+					$url = $sellyoursaasaccounturl.'/passwordforgotten.php?id='.$thirdparty->id.'&hashreset='.$hashreset;
 
 					$trackid='thi'.$thirdparty->id;
 
@@ -221,8 +225,6 @@ if (empty($reshook)) {
 
 					$arraydefaultmessage=$formmail->getEMailTemplate($db, 'thirdparty', $user, $langs, 0, 1, '(PasswordAssistance)');
 
-					//$mesg.='You may find more information on all different user/password reset process onto <a href="https://www.dolicloud.com/en-faq-i-forgot-my-login-or-password">the following page</a>';
-
 					$substitutionarray = getCommonSubstitutionArray($langs, 0, null, $thirdparty);
 					complete_substitutions_array($substitutionarray, $langs, $thirdparty);
 
@@ -231,10 +233,10 @@ if (empty($reshook)) {
 					$subject = make_substitutions($arraydefaultmessage->topic, $substitutionarray, $langs);
 					$mesg = make_substitutions($arraydefaultmessage->content, $substitutionarray, $langs);
 
-					$newemail = new CMailFile($subject, $username, $conf->global->SELLYOURSAAS_MAIN_EMAIL, $mesg, array(), array(), array(), '', '', 0, -1, '', '', $trackid, '', 'standard');
+					$newemail = new CMailFile($subject, $username, $conf->global->SELLYOURSAAS_NOREPLY_EMAIL, $mesg, array(), array(), array(), '', '', 0, -1, '', '', $trackid, '', 'standard');
 
 					if ($newemail->sendfile() > 0) {
-						$message = '<div class="ok">'.$langs->trans("PasswordChangeRequestSent", $username, $username).'</div>';
+						$message = $messagegenericresult;
 						$username='';
 					} else {
 						$message.= '<div class="error">'.$newemail->error.'</div>';
@@ -293,28 +295,28 @@ $sellyoursaasdomain = $conf->global->SELLYOURSAAS_MAIN_DOMAIN_NAME;
 
 $domainname=getDomainFromURL($_SERVER['SERVER_NAME'], 1);
 $constforaltname = 'SELLYOURSAAS_NAME_FORDOMAIN-'.$domainname;
-if (! empty($conf->global->$constforaltname)) {
+if (getDolGlobalString($constforaltname)) {
 	$sellyoursaasdomain = $domainname;
 	$sellyoursaasname = $conf->global->$constforaltname;
 	$constlogo.='_'.strtoupper(str_replace('.', '_', $sellyoursaasdomain));
 	$constlogosmall.='_'.strtoupper(str_replace('.', '_', $sellyoursaasdomain));
 }
 
-if (empty($urllogo) && ! empty($conf->global->$constlogosmall)) {
-	if (is_readable($conf->mycompany->dir_output.'/logos/thumbs/'.$conf->global->$constlogosmall)) {
-		$urllogo=DOL_URL_ROOT.'/viewimage.php?cache=1&amp;modulepart=mycompany&amp;file='.urlencode('logos/thumbs/'.$conf->global->$constlogosmall);
+if (empty($urllogo) && getDolGlobalString($constlogosmall)) {
+	if (is_readable($conf->mycompany->dir_output.'/logos/thumbs/'.getDolGlobalString($constlogosmall))) {
+		$urllogo = DOL_URL_ROOT.'/viewimage.php?cache=1&amp;modulepart=mycompany&amp;file='.urlencode('logos/thumbs/'.getDolGlobalString($constlogosmall));
 	}
 } elseif (empty($urllogo) && ! empty($conf->global->$constlogo)) {
-	if (is_readable($conf->mycompany->dir_output.'/logos/'.$conf->global->$constlogo)) {
-		$urllogo=DOL_URL_ROOT.'/viewimage.php?cache=1&amp;modulepart=mycompany&amp;file='.urlencode('logos/'.$conf->global->$constlogo);
+	if (is_readable($conf->mycompany->dir_output.'/logos/'.getDolGlobalString($constlogo))) {
+		$urllogo = DOL_URL_ROOT.'/viewimage.php?cache=1&amp;modulepart=mycompany&amp;file='.urlencode('logos/'.getDolGlobalString($constlogo));
 		$width=128;
 	}
 } elseif (empty($urllogo) && is_readable(DOL_DOCUMENT_ROOT.'/theme/'.$conf->theme.'/img/dolibarr_logo.png')) {
-	$urllogo=DOL_URL_ROOT.'/theme/'.$conf->theme.'/img/dolibarr_logo.png';
+	$urllogo = DOL_URL_ROOT.'/theme/'.$conf->theme.'/img/dolibarr_logo.png';
 } elseif (empty($urllogo) && is_readable(DOL_DOCUMENT_ROOT.'/theme/dolibarr_logo.png')) {
-	$urllogo=DOL_URL_ROOT.'/theme/dolibarr_logo.png';
+	$urllogo = DOL_URL_ROOT.'/theme/dolibarr_logo.png';
 } else {
-	$urllogo=DOL_URL_ROOT.'/theme/login_logo.png';
+	$urllogo = DOL_URL_ROOT.'/theme/login_logo.png';
 }
 
 // Security graphical code

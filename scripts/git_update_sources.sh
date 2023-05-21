@@ -23,7 +23,7 @@ if [ "$(id -u)" == "0" ]; then
    exit 1
 fi
 
-echo "Update git dirs found into $1 and generate the tgz image."
+echo "Update git dirs found into $1 and generate the archive file (.zst or .tgz)"
 
 for dir in $(find "$1" -mindepth 1 -maxdepth 1 -type d)
 do
@@ -57,11 +57,14 @@ do
 	    fi
 	   
 		echo "Clean some dirs to save disk spaces"
+		has_install_lock=''
+		if [[ -f documents/install.lock ]]; then has_install_lock='1'; fi
 		rm -fr documents/*
 		rm -fr dev/ test/ doc/ htdocs/includes/ckeditor/ckeditor/adapters htdocs/includes/ckeditor/ckeditor/samples
 		rm -fr htdocs/public/test
 		rm -fr htdocs/includes/sabre/sabre/*/tests htdocs/includes/stripe/tests htdocs/includes/stripe/stripe-php/tests
 		rm -fr htdocs/includes/tecnickcom/tcpdf/fonts/dejavu-fonts-ttf-* htdocs/includes/tecnickcom/tcpdf/fonts/freefont-* htdocs/includes/tecnickcom/tcpdf/fonts/ae_fonts_*
+		rm -fr htdocs/install/doctemplates/websites/website_template-restaurant*
 		#rm -fr vendor/tecnickcom/tcpdf/fonts/dejavu-fonts-ttf-* vendor/tecnickcom/tcpdf/fonts/freefont-* vendor/tecnickcom/tcpdf/fonts/ae_fonts_*
 		rm -fr files/_cache/*
 		# We remove subdir of build. We need files into build root only.
@@ -77,18 +80,21 @@ do
 	
 		# Create a deployment tar file
 		if [[ -x /usr/bin/zstd && "x$usecompressformatforarchive" == "xzstd" ]]; then
-			echo "Compress the repository into an archive $gitdir.tar.zst"$dir/../$gitdir.tar.zst
+			echo "Compress the repository into an archive $dir/../$gitdir.tar.zst"
 			tar c -I zstd --exclude-vcs --exclude-from=$currentpath/git_update_sources.exclude -f $dir/../$gitdir.tar.zst .
 			# Delete archive in other format
 			rm $dir/../$gitdir.tgz 2>/dev/null
 		else
-			echo "Compress the repository into an archive $gitdir.tgz"
+			echo "Compress the repository into an archive $dir/../$gitdir.tgz"
 			tar c -I gzip --exclude-vcs --exclude-from=$currentpath/git_update_sources.exclude -f $dir/../$gitdir.tgz .
 			# Delete archive in other format
 			rm $dir/../$gitdir.tar.zst 2>/dev/null
 		fi
-	
-	    cd -
+
+		# restore previously deleted install.lock
+		if [[ -n "$has_install_lock" ]]; then touch 'documents/install.lock'; fi
+
+		cd -
 	fi
 done
 

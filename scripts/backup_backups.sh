@@ -2,7 +2,7 @@
 # Copy all backups on other locations (on a remote backup server)
 #
 # Put the following entry into your root cron
-#40 4 4 * * /home/admin/wwwroot/dolibarr_sellyoursaas/scripts/backup_backups.sh confirm [m|w] [osuX]
+#40 4 4 * * /home/admin/wwwroot/dolibarr_sellyoursaas/scripts/backup_backups.sh confirm [month|week|none] [osuX]
 
 #set -e
 
@@ -20,9 +20,11 @@ if [ "$(id -u)" != "0" ]; then
 fi
 
 if [ "x$1" == "x" ]; then
-	echo "Usage: ${0} (test|confirm) [m|w] [osuX] [--delete]"
-	echo "Where m (default) is to keep 1 month of backup, and w is to keep 1 week of backup"
-	echo "You can also set a group of 4 first letter on username to backup the backup of a limited number of users."
+	echo "Usage: ${0} (test|confirm) [month|week|none] [osuX] [--delete]"
+	echo "With  month (default) is to keep 1 month of backup using --backup option of rsync"
+	echo "      week is to keep 1 week of backup using --backup option of rsync"
+	echo "      none is to not archive old versions using the --backup option of rsync. For example when you already do it using snapshots on backup server (recommended)."
+	echo "You can also set a group of 4 first letters on username to backup the backup of a limited number of users."
 	exit 101
 fi
 
@@ -47,9 +49,13 @@ export backupdir=`grep '^backupdir=' /etc/sellyoursaas.conf | cut -d '=' -f 2`
 export remotebackupdir=`grep '^remotebackupdir=' /etc/sellyoursaas.conf | cut -d '=' -f 2`
 
 export testorconfirm=$1
+
 export HISTODIR=`date +%d`
-if [ "x$2" == "xw" ]; then
+if [ "x$2" == "xw" -o "x$2" == "xweek" ]; then
 	HISTODIR=`date +%u`
+fi
+if [ "x$2" == "xn" -o "x$2" == "xnone" ]; then
+	HISTODIR=""
 fi
 
 if [ "x$homedir" == "x" ]; then
@@ -153,6 +159,8 @@ export errstring=""
 export atleastoneerror=0
 declare -A ret1
 declare -A ret2
+totalinstancessaved=0
+totalinstancesfailed=0
 
 
 # the following line is to have an empty dir to clear the last incremental directories
@@ -176,7 +184,11 @@ do
 	echo `date +'%Y-%m-%d %H:%M:%S'`" Do rsync of $DIRSOURCE1 to remote $USER@$SERVDESTICURSOR:$DIRDESTI1..."
 	
 	export RSYNC_RSH="ssh -p $SERVPORTDESTI"
-	export command="rsync $TESTN -x --exclude-from=$scriptdir/backup_backups.exclude $OPTIONS --backup --backup-dir=$DIRDESTI1/backupold_$HISTODIR $DIRSOURCE1/* $USER@$SERVDESTICURSOR:$DIRDESTI1";
+	if [ "x$HISTODIR" == "x" ]; then
+		export command="rsync $TESTN -x --exclude-from=$scriptdir/backup_backups.exclude $OPTIONS $DIRSOURCE1/* $USER@$SERVDESTICURSOR:$DIRDESTI1";
+	else
+		export command="rsync $TESTN -x --exclude-from=$scriptdir/backup_backups.exclude $OPTIONS --backup --backup-dir=$DIRDESTI1/backupold_$HISTODIR $DIRSOURCE1/* $USER@$SERVDESTICURSOR:$DIRDESTI1";
+	fi
 	echo `date +'%Y-%m-%d %H:%M:%S'`" $command";
 	
 	
@@ -192,9 +204,9 @@ do
     
     sleep 2
 done
- 
-	
-# Loop on each target server to make backup of SOURCE2 (if no error during backup of SOURCE1)
+
+
+# Loop on each target server to make backup of SOURCE2
 if [[ "x$instanceserver" != "x0" ]]; then
 	echo
 	echo `date +'%Y-%m-%d %H:%M:%S'`" Do rsync of customer directories $DIRSOURCE2/osu to remote $SERVDESTI..."
@@ -214,8 +226,8 @@ if [[ "x$instanceserver" != "x0" ]]; then
 		if [ "x$nbofdir" != "x0" ]; then
 			# Test if we force backup on a given dir
 			if [ "x$3" != "x" ]; then
-				if [ "x$3" != "xosu$i" ]; then
-					echo "Ignored."
+				if [ "x$3" != "xosu$i" -a "x$3" != "x--delete" ]; then
+					echo "Ignored (param 3 is $3)."
 					continue
 				fi
 			fi
@@ -223,7 +235,11 @@ if [[ "x$instanceserver" != "x0" ]]; then
 			for SERVDESTICURSOR in `echo $SERVDESTI | sed -e 's/,/ /g'`
 			do
 				export RSYNC_RSH="ssh -p $SERVPORTDESTI"
-		        export command="rsync $TESTN -x --exclude-from=$scriptdir/backup_backups.exclude $OPTIONS --backup --backup-dir=$DIRDESTI2/backupold_$HISTODIR $DIRSOURCE2/osu$i* $USER@$SERVDESTICURSOR:$DIRDESTI2";
+				if [ "x$HISTODIR" == "x" ]; then
+		    	    export command="rsync $TESTN -x --exclude-from=$scriptdir/backup_backups.exclude $OPTIONS $DIRSOURCE2/osu$i* $USER@$SERVDESTICURSOR:$DIRDESTI2";
+		    	else 
+		    	    export command="rsync $TESTN -x --exclude-from=$scriptdir/backup_backups.exclude $OPTIONS --backup --backup-dir=$DIRDESTI2/backupold_$HISTODIR $DIRSOURCE2/osu$i* $USER@$SERVDESTICURSOR:$DIRDESTI2";
+		    	fi
 	        	echo `date +'%Y-%m-%d %H:%M:%S'`" $command";
 
 		        $command 2>&1
@@ -232,9 +248,11 @@ if [[ "x$instanceserver" != "x0" ]]; then
 		        if [ "x$rescommand" != "x0" ]; then
 		        	ret2[$SERVDESTICURSOR]=$((${ret2[$SERVDESTICURSOR]} + 1));
 		        	echo "ERROR Failed to make rsync for $DIRSOURCE2/osu$i to $SERVDESTICURSOR. ret=${ret2[$SERVDESTICURSOR]}."
-				   	echo "Command was: $command"
+		        	echo "Command was: $command"
+		        	((totalinstancesfailed += nbofdir))
 		        	export errstring="$errstring\n"`date '+%Y-%m-%d %H:%M:%S'`" Dir osu$i to $SERVDESTICURSOR. ret=${ret2[$SERVDESTICURSOR]}. Command was: $command\n"
 		        else
+		          ((totalinstancessaved += nbofdir))
 		        	echo
 		        	# Success of backup of backup, we try to calculate disk usage for each dir
 		        	echo `date +'%Y-%m-%d %H:%M:%S'`" Scan dir named $DIRSOURCE2/osu$i*"
@@ -244,12 +262,13 @@ if [[ "x$instanceserver" != "x0" ]]; then
 		        		if [[ $nbdu -lt 50 ]]; then
 			        		export osudirbase=`basename $osudir`
 			        		if [[ -d $homedir/$osudirbase/ ]]; then
+			        			echo `date +'%Y-%m-%d %H:%M:%S'`" Search if a recent duc file exists with find $homedir/$osudirbase/.duc.db -mtime -60 2>/dev/null | wc -l"
 				        		export found=`find $homedir/$osudirbase/.duc.db -mtime -60 2>/dev/null | wc -l`
 				        		if [ "x$found" = "x0" ]; then
 				        			# No recent .duc.db found, so we calculate it
 				        			echo `date +'%Y-%m-%d %H:%M:%S'`" No recent .duc.db into $homedir/$osudirbase and nb already updated = $nbdu, so we update it."
-				        			echo "duc index $DIRSOURCE2/$osudirbase -x -m 3 -d $homedir/$osudirbase/.duc.db"
-					        		duc index $DIRSOURCE2/$osudirbase -x -m 3 -d $homedir/$osudirbase/.duc.db
+				        			echo "duc index $homedir/$osudirbase -x -m 3 -d $homedir/$osudirbase/.duc.db"
+					        		duc index $homedir/$osudirbase -x -m 3 -d $homedir/$osudirbase/.duc.db
 					        		chown $osudirbase.$osudirbase $homedir/$osudirbase/.duc.db
 					        		export nbdu=$((nbdu+1))
 					        	else
@@ -280,6 +299,7 @@ echo
 
 # Loop on each targeted server for return code
 export atleastoneerror=0
+
 for SERVDESTICURSOR in `echo $SERVDESTI | sed -e 's/,/ /g'`
 do
 	echo `date +'%Y-%m-%d %H:%M:%S'`" End for $SERVDESTICURSOR ret1[$SERVDESTICURSOR]=${ret1[$SERVDESTICURSOR]} ret2[$SERVDESTICURSOR]=${ret2[$SERVDESTICURSOR]}"
@@ -299,16 +319,16 @@ rmdir $HOME/emptydir
 # Send email if there is one error
 if [ "x$atleastoneerror" != "x0" ]; then
 	echo "Send email to $EMAILTO to warn about backup error"
-	echo -e "Failed to make copy backup to remote backup server(s) $SERVDESTI.\nErrors or warnings are:\n$errstring" | mail -aFrom:$EMAILFROM -s "[Warning] Backup of backup to remote server(s) failed for "`hostname` $EMAILTO
+	echo -e "Failed to make copy backup to remote backup server(s) $SERVDESTI.\nNumber of instances successfully saved: $totalinstancessaved\nNumber of instances unsuccessfully saved: $totalinstancesfailed\nErrors or warnings are:\n$errstring" | mail -aFrom:$EMAILFROM -s "[Warning] Backup of backup to remote server(s) failed for "`hostname` $EMAILTO
 	
 	exit 1
 fi
 
-if [ "x$3" != "x" ]; then
+if [ "x$3" != "x" -a "x$3" != "x--delete" ]; then
 	echo "Script was called for only one of few given instances. No email or supervision event sent on success in such situation."
 else
 	echo "Send email to $EMAILTO to inform about backup success"
-	echo -e "The backup of backup for "`hostname`" to remote backup server $SERVDESTI succeed.\n$errstring" | mail -aFrom:$EMAILFROM -s "[Backup of Backup - "`hostname`"] Backup of backup to remote server succeed" $EMAILTO
+	echo -e "The backup of backup for "`hostname`" to remote backup server $SERVDESTI succeed.\nNumber of instances successfully saved: $totalinstancessaved\n$errstring" | mail -aFrom:$EMAILFROM -s "[Backup of Backup - "`hostname`"] Backup of backup to remote server succeed" $EMAILTO
 fi
 echo
 

@@ -22,12 +22,13 @@ echo Lancement repair.ksh - $1 - $$ - $UID >/var/log/repair01_start$$.log
 
 export databaseuser=`grep '^databaseuser=' /etc/sellyoursaas.conf | cut -d '=' -f 2`
 
+
 # Report Mysql usage status
 uptime > /var/log/repair02_uptime$$.log
 cat /proc/meminfo > /var/log/repair02_meminfo$$.log
 /usr/bin/mysqladmin -h localhost --verbose processlist > /var/log/repair02_mysqlprocesslist$$.log 2>&1
 ps fauxww > /var/log/repair02_ps$$.log
-
+iotop -P -b -n 2 > /var/log/repair02_iotop$$.log
 
 /usr/sbin/apachectl fullstatus > /var/log/repair03_status$$.log 2>&1
 
@@ -65,11 +66,6 @@ cat /proc/meminfo > /var/log/repair06_meminfo$$.log
 #/usr/bin/mysqladmin -h localhost --verbose processlist > /var/log/repair06_mysqlprocesslist$$.log 2>&1
 
 
-#if [ "x$1" == "xwebmin" ]
-#then
-#       sleep 5;
-#fi
-
 #/etc/init.d/apache2 start >/var/log/repair07_start$$.log 2>&1
 
 
@@ -78,8 +74,9 @@ uptime > /var/log/repair09_uptime$$.log
 cat /proc/meminfo > /var/log/repair09_meminfo$$.log
 /usr/bin/mysqladmin -h localhost --verbose processlist > /var/log/repair09_mysqlprocesslist$$.log 2>&1
 
-cp -p /var/log/mod_evasive/* /var/log/mod_evasive/archives 2>/dev/null
-rm -f /var/log/mod_evasive/* 2>/dev/null
+#cp -p /var/log/mod_evasive/* /var/log/mod_evasive/archives 2>/dev/null
+#rm -f /var/log/mod_evasive/* 2>/dev/null
+
 touch /var/log/repair.lock
 
 # Return 0 to avoid reboot

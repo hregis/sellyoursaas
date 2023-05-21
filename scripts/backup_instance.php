@@ -91,6 +91,7 @@ $databasepass='';
 $dolibarrdir='';
 $usecompressformatforarchive='gzip';
 $backupignoretables='';
+$backupcompressionalgorithms='';
 $backuprsyncdayfrequency=1;	// Default value is an rsync every 1 day.
 $backupdumpdayfrequency=1;	// Default value is a sql dump every 1 day.
 $fp = @fopen('/etc/sellyoursaas.conf', 'r');
@@ -99,9 +100,6 @@ if ($fp) {
 	$array = explode("\n", fread($fp, filesize('/etc/sellyoursaas.conf')));
 	foreach ($array as $val) {
 		$tmpline=explode("=", $val);
-		if ($tmpline[0] == 'ipserverdeployment') {
-			$ipserverdeployment = $tmpline[1];
-		}
 		if ($tmpline[0] == 'instanceserver') {
 			$instanceserver = $tmpline[1];
 		}
@@ -128,6 +126,9 @@ if ($fp) {
 		}
 		if ($tmpline[0] == 'backupignoretables') {
 			$backupignoretables = $tmpline[1];
+		}
+		if ($tmpline[0] == 'backupcompressionalgorithms') {
+			$backupcompressionalgorithms = preg_replace('/[^a-z]/', '', $tmpline[1]);
 		}
 		if ($tmpline[0] == 'backuprsyncdayfrequency') {
 			$backuprsyncdayfrequency = $tmpline[1];
@@ -190,13 +191,10 @@ if (0 == posix_getuid()) {
 	echo "Script must not be ran with root (but with the 'admin' sellyoursaas account).\n";
 	exit(-1);
 }
-if (empty($ipserverdeployment)) {
-	echo "Script can't find the value of 'ipserverdeployment' in sellyoursaas.conf file).\n";
-	exit(-1);
-}
 if (empty($instanceserver)) {
 	echo "This server seems to not be a server for deployment of instances (this should be defined in sellyoursaas.conf file).\n";
-	exit(-1);
+	print "Press ENTER to continue or CTL+C to cancel...";
+	$input = trim(fgets(STDIN));
 }
 
 $dbmaster=getDoliDBInstance('mysqli', $databasehost, $databaseuser, $databasepass, $database, $databaseport);
@@ -495,7 +493,11 @@ if ($mode == 'testdatabase' || $mode == 'test' || $mode == 'confirmdatabase' || 
 		$param[]="-u";
 		$param[]=$object->username_db;
 		$param[]='-p"'.str_replace(array('"','`'), array('\"','\`'), $object->password_db).'"';
-		$param[]="--compress";
+		if ($backupcompressionalgorithms) {
+			$param[]="--compression-algorithms=".$backupcompressionalgorithms;
+		} else {
+			$param[]="--compress";
+		}
 		$param[]="-l";
 		if (empty($NOTRANS)) {
 			$param[]="--single-transaction";

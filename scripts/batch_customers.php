@@ -88,6 +88,7 @@ if (!empty($argv[3]) && $argv[3] == '--force') {
 }
 
 // Read /etc/sellyoursaas.conf file
+$domain='';
 $databasehost='localhost';
 $databaseport='3306';
 $database='';
@@ -102,6 +103,9 @@ if ($fp) {
 	$array = explode("\n", fread($fp, filesize('/etc/sellyoursaas.conf')));
 	foreach ($array as $val) {
 		$tmpline=explode("=", $val);
+		if ($tmpline[0] == 'domain') {
+			$domain = dol_string_nospecial($tmpline[1]);
+		}
 		if ($tmpline[0] == 'databasehost') {
 			$databasehost = $tmpline[1];
 		}
@@ -131,6 +135,12 @@ if ($fp) {
 	print "Failed to open /etc/sellyoursaas.conf file\n";
 	exit(-1);
 }
+if (empty($emailfrom)) {
+	$emailfrom="noreply@".$domain;
+}
+if (empty($emailsupervision)) {
+	$emailsupervision="supervision@".$domain;
+}
 
 $sendcontext = 'emailing';
 //$sendcontext = 'standard';
@@ -146,8 +156,11 @@ if ($dbmaster->error) {
 	dol_print_error($dbmaster, "host=".$databasehost.", port=".$databaseport.", user=".$databaseuser.", databasename=".$database.", ".$dbmaster->error);
 
 	$from = $emailfrom;
-	$to = $emailsupervision;
-	// Supervision tools are generic for all domain. No way to target a specific supervision email.
+	$to = $emailsupervision;	// Supervision tools are generic for all domain. No way to target a specific supervision email.
+	// Force to use local sending (MAIN_MAIL_SENDMODE is the one of the master server. It may be to an external SMTP server not allowed to the deployment server)
+	$conf->global->MAIN_MAIL_SENDMODE = 'mail';
+	$conf->global->MAIN_MAIL_SENDMODE_EMAILING = 'mail';
+	$conf->global->MAIN_MAIL_SMTP_SERVER = 'localhost';
 
 	$msg = 'Error in '.$script_file." ".(empty($argv[1]) ? '' : $argv[1])." ".(empty($argv[2]) ? '' : $argv[2])." (finished at ".dol_print_date(dol_now('gmt'), "%Y%m%d-%H%M%S", 'gmt').")\n\n".$dbmaster->error;
 
@@ -155,6 +168,9 @@ if ($dbmaster->error) {
 	print 'Send email MAIN_MAIL_SENDMODE='.getDolGlobalString('MAIN_MAIL_SENDMODE').' MAIN_MAIL_SMTP_SERVER='.getDolGlobalString('MAIN_MAIL_SMTP_SERVER').' from='.$from.' to='.$to.' title=[Warning] Error(s) in backups - '.gethostname().' - '.dol_print_date(dol_now(), 'dayrfc')."\n";
 	$cmail = new CMailFile('[Warning] Error(s) in backups - '.gethostname().' - '.dol_print_date(dol_now(), 'dayrfc'), $to, $from, $msg, array(), array(), array(), '', '', 0, 0, '', '', '', '', $sendcontext);
 	$result = $cmail->sendfile();		// Use the $conf->global->MAIN_MAIL_SMTPS_PW_$SENDCONTEXT for password
+	if (!$result) {
+		print 'Failed to send email. See dolibarr.log file'."\n";
+	}
 
 	exit(-1);
 }
@@ -192,6 +208,7 @@ if (! isset($argv[1])) {	// Check parameters
 	print "- backupdatabase      creates backup (mysqldump)\n";
 	print "- backup              creates backup (rsync + database) ***** Used by cron on deployment servers *****\n";
 	print "- backupdelete        creates backup (rsync with delete + database)\n";
+	print "- backupdeleteexclude creates backup (rsync with delete excluded + database)\n";
 	print "\n";
 	print "with a backup... action, you can also add the option --force to execute backup even if done recently.\n";
 
@@ -374,7 +391,7 @@ print "We found ".count($instancestrial)." deployed trial + ".count($instances).
 
 
 //print "----- Start loop for backup_instance\n";
-if ($action == 'backup' || $action == 'backupdelete' ||$action == 'backuprsync' || $action == 'backupdatabase' || $action == 'backuptest' || $action == 'backuptestrsync' || $action == 'backuptestdatabase') {
+if ($action == 'backup' || $action == 'backupdelete' || $action == 'backupdeleteexclude' || $action == 'backuprsync' || $action == 'backupdatabase' || $action == 'backuptest' || $action == 'backuptestrsync' || $action == 'backuptestdatabase') {
 	if (empty($conf->global->DOLICLOUD_BACKUP_PATH)) {
 		print "Error: Setup of module SellYourSaas not complete. Path to backup not defined.\n";
 		exit(-1);
@@ -410,6 +427,7 @@ if ($action == 'backup' || $action == 'backupdelete' ||$action == 'backuprsync' 
 				$mode = 'unknown';
 				$mode = ($action == 'backup'?'confirm':$mode);
 				$mode = ($action == 'backupdelete'?'confirm':$mode);
+				$mode = ($action == 'backupdeleteexclude'?'confirm':$mode);
 				$mode = ($action == 'backuprsync'?'confirmrsync':$mode);
 				$mode = ($action == 'backupdatabase'?'confirmdatabase':$mode);
 				$mode = ($action == 'backuptest'?'test':$mode);
@@ -420,6 +438,9 @@ if ($action == 'backup' || $action == 'backupdelete' ||$action == 'backuprsync' 
 				if ($action == 'backupdelete') {
 					$command .= ' --delete';
 				}
+				if ($action == 'backupdeleteexclude') {
+					$command .= ' --delete --delete-excluded';
+				}
 				if ($FORCE) {
 					$command .= ' --forcersync --forcedump';
 				}
@@ -428,7 +449,7 @@ if ($action == 'backup' || $action == 'backupdelete' ||$action == 'backuprsync' 
 
 				echo $command."\n";
 
-				if ($action == 'backup' || $action == 'backupdelete' ||$action == 'backuprsync' || $action == 'backupdatabase') {
+				if ($action == 'backup' || $action == 'backupdelete' || $action == 'backupdeleteexclude' || $action == 'backuprsync' || $action == 'backupdatabase') {
 					$utils = new Utils($db);
 					$outputfile = $conf->admin->dir_temp.'/out.tmp';
 					$resultarray = $utils->executeCLI($command, $outputfile);
@@ -466,7 +487,7 @@ if ($action == 'backup' || $action == 'backupdelete' ||$action == 'backuprsync' 
 
 $today=dol_now();
 
-$error=''; $errors=array();
+$error=0; $errors=array();
 $servicetouse=strtolower($conf->global->SELLYOURSAAS_NAME);
 
 if ($action == 'updatedatabase' || $action == 'updatestatsonly' || $action == 'updatecountsonly') {	// updatedatabase = updatestatsonly + updatecountsonly
@@ -660,7 +681,7 @@ if ($action == 'updatedatabase' || $action == 'updatestatsonly' || $action == 'u
 
 // Output result
 $out = '';
-if ($action == 'backup' || $action == 'backupdelete' ||$action == 'backuprsync' || $action == 'backupdatabase' || $action == 'backuptest' || $action == 'backuptestrsync' || $action == 'backuptestdatabase') {
+if ($action == 'backup' || $action == 'backupdelete' || $action == 'backupdeleteexclude' || $action == 'backuprsync' || $action == 'backupdatabase' || $action == 'backuptest' || $action == 'backuptestrsync' || $action == 'backuptestdatabase') {
 	$out.= "\n";
 	$out.= "***** Summary for host ".$ipserverdeployment."\n";
 } else {
@@ -753,12 +774,13 @@ if ($action == 'updatestatsonly') {
 if (! $nboferrors) {
 	print '--- end OK - '.dol_print_date(dol_now('gmt'), "%Y%m%d-%H%M%S", 'gmt')."\n";
 
-	if ($action == 'backup' || $action == 'backupdelete' ||$action == 'backuprsync' || $action == 'backupdatabase' || $action == 'backuptest' || $action == 'backuptestrsync' || $action == 'backuptestdatabase') {
+	if ($action == 'backup' || $action == 'backupdelete' || $action == 'backupdeleteexclude' || $action == 'backuprsync' || $action == 'backupdatabase' || $action == 'backuptest' || $action == 'backuptestrsync' || $action == 'backuptestdatabase') {
 		if (empty($instancefilter)) {
 			$from = $emailfrom;
 			$to = $emailsupervision;
 			// Force to use local sending (MAIN_MAIL_SENDMODE is the one of the master server. It may be to an external SMTP server not allowed to the deployment server)
 			$conf->global->MAIN_MAIL_SENDMODE = 'mail';
+			$conf->global->MAIN_MAIL_SENDMODE_EMAILING = 'mail';
 			$conf->global->MAIN_MAIL_SMTP_SERVER = 'localhost';
 
 			$msg = 'Backup done without errors on '.gethostname().' by '.$script_file." ".(empty($argv[1]) ? '' : $argv[1])." ".(empty($argv[2]) ? '' : $argv[2])." (finished at ".dol_print_date(dol_now('gmt'), "%Y%m%d-%H%M%S", 'gmt').")\n\n".$out;
@@ -777,6 +799,9 @@ if (! $nboferrors) {
 			print 'Send email MAIN_MAIL_SENDMODE='.$conf->global->MAIN_MAIL_SENDMODE.' MAIN_MAIL_SMTP_SERVER='.$conf->global->MAIN_MAIL_SMTP_SERVER.' from='.$from.' to='.$to.' title=[Backup instances - '.gethostname().'] Backup of user instances succeed'."\n";
 			$cmail = new CMailFile('[Backup instances - '.gethostname().'] Backup of user instances succeed', $to, $from, $msg, array(), array(), array(), '', '', 0, 0, '', '', '', '', $sendcontext);
 			$result = $cmail->sendfile();		// Use the $conf->global->MAIN_MAIL_SMTPS_PW_$SENDCONTEXT for password
+			if (!$result) {
+				print 'Failed to send email. See dolibarr.log file'."\n";
+			}
 		} else {
 			print 'Script was called for a given instance. No email or indicator sent in such situation'."\n";
 		}
@@ -784,22 +809,26 @@ if (! $nboferrors) {
 } else {
 	print '--- end ERROR nb='.$nboferrors.' - '.dol_print_date(dol_now('gmt'), "%Y%m%d-%H%M%S", 'gmt')."\n";
 
-	if ($action == 'backup' || $action == 'backupdelete' ||$action == 'backuprsync' || $action == 'backupdatabase' || $action == 'backuptest' || $action == 'backuptestrsync' || $action == 'backuptestdatabase') {
+	if ($action == 'backup' || $action == 'backupdelete' || $action == 'backupdeleteexclude' || $action == 'backuprsync' || $action == 'backupdatabase' || $action == 'backuptest' || $action == 'backuptestrsync' || $action == 'backuptestdatabase') {
 		if (empty($instancefilter)) {
 			$from = $emailfrom;
 			$to = $emailsupervision;
 			// Force to use local sending (MAIN_MAIL_SENDMODE is the one of the master server. It may be to an external SMTP server not allowed to the deployment server)
 			$conf->global->MAIN_MAIL_SENDMODE = 'mail';
-			$conf->global->MAIN_MAIL_SMTP_SERVER = '';
+			$conf->global->MAIN_MAIL_SENDMODE_EMAILING = 'mail';
+			$conf->global->MAIN_MAIL_SMTP_SERVER = 'localhost';
 
 			// Supervision tools are generic for all domains. No way to target a specific supervision email.
 
-			$msg = 'Error in '.$script_file." ".$argv[1]." ".$argv[2]." (finished at ".dol_print_date(dol_now('gmt'), "%Y%m%d-%H%M%S", 'gmt').")\n\n".$out;
+			$msg = 'Error in '.$script_file." ".(empty($argv[1]) ? '' : $argv[1])." ".(empty($argv[2]) ? '' : $argv[2])." (finished at ".dol_print_date(dol_now('gmt'), "%Y%m%d-%H%M%S", 'gmt').")\n\n".$out;
 
 			include_once DOL_DOCUMENT_ROOT.'/core/class/CMailFile.class.php';
 			print 'Send email MAIN_MAIL_SENDMODE='.$conf->global->MAIN_MAIL_SENDMODE.' MAIN_MAIL_SMTP_SERVER='.$conf->global->MAIN_MAIL_SMTP_SERVER.' from='.$from.' to='.$to.' title=[Warning] Error(s) in backups - '.gethostname().' - '.dol_print_date(dol_now(), 'dayrfc')."\n";
 			$cmail = new CMailFile('[Warning] Error(s) in backups - '.gethostname().' - '.dol_print_date(dol_now(), 'dayrfc'), $to, $from, $msg, array(), array(), array(), '', '', 0, 0, '', '', '', '', $sendcontext);
 			$result = $cmail->sendfile();		// Use the $conf->global->MAIN_MAIL_SMTPS_PW_$SENDCONTEXT for password
+			if (!$result) {
+				print 'Failed to send email. See dolibarr.log file'."\n";
+			}
 
 			// Send to DataDog (metric + event)
 			if (! empty($conf->global->SELLYOURSAAS_DATADOG_ENABLED)) {
