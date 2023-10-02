@@ -489,14 +489,16 @@ apt remove unattended-upgrades
 [source, bash]
 ---------------
 ufw allow 22
+
 ufw allow out ntp
 ufw allow out 53
 ufw allow out 443
+
 ufw status
 ufw enable
 ---------------
 
-Port 22 is for SSH, NTP is 123/upd, 53 if for DNS, 443 is to allow for monitoring agent reports
+Port 22 is for SSH, NTP is 123/upd, 53 if for DNS, 443 is to allow monitoring agents to push reporting data
 
 
 === Installation of fail2ban ===
@@ -782,9 +784,10 @@ Delete very old files every sunday by adding the cron task:
 
 [source,bash]
 ---------------
-0 18 * * 0 find /mnt/diskbackup/*/backupold_* -type f -mtime +50 -ls -delete > /var/log/find_delete_old_files.log 2>&1
-0 18 * * 1 find /mnt/diskbackup/*/backupold_* -type d -empty -ls -delete > /var/log/find_delete_empty_dir.log 2>&1
+#0 18 * * 0 find /mnt/diskbackup/*/backupold_* -type f -mtime +50 -ls -delete > /var/log/find_delete_old_files.log 2>&1
+#0 18 * * 1 find /mnt/diskbackup/*/backupold_* -type d -empty -ls -delete > /var/log/find_delete_empty_dir.log 2>&1
 55 23 * * * btrfs subvolume delete /mnt/diskbackup/.snapshots/diskbackup-`date +\%j` >/var/log/sellyoursaas_btrfs.log; btrfs subvolume snapshot /mnt/diskbackup /mnt/diskbackup/.snapshots/diskbackup-`date +\%j` >>/var/log/sellyoursaas_btrfs.log; rm -fr /mnt/diskbackup/.snapshots/diskbackup-`date +\%j`/.snapshots >>/var/log/sellyoursaas_btrfs.log; btrfs property set -ts /mnt/diskbackup/.snapshots/diskbackup-`date +\%j` ro true >>/var/log/sellyoursaas_btrfs.log;
+0 0 * * * find /mnt/diskbackup/.snapshots -maxdepth 1 -type d -mtime +40 -exec btrfs subvolume delete {} \; >>/var/log/sellyoursaas_btrfs.log;
 ---------------
 
 
@@ -884,33 +887,6 @@ apt dist-upgrade
 ---------------
 
 
-=== Follow files modified
-
-Pour détecter la liste des fichiers modifiés depuis la dernière mise à jour afick:
-
-[source,bash]
----------------
-afick.pl -k
----------------
-
-Voir le résumé des historiques de chaque changements:
-
-[source,bash]
----------------
-vi /var/lib/afick/history
----------------
-
-Voir le détail des changements d'un jour:
-
-[source,bash]
----------------
-vi /var/lib/afick/archive/afick.YYYMMDD*
----------------
-
-Voir la documentation *afick.pl* pour plus d'options.
-
-
-
 === Passage en mode rescue d'un serveur
 
 Aller sur l'interface du service Cloud pour passer en mode rescue. Le serveur sera rebooté et un lien pour se logué sera fourni.
@@ -924,11 +900,6 @@ mount /dev/sdXY /mnt
 ---------------
 
 Il est alors possible d'agir sur le disque en écriture accessible dans /mnt
-
-
-<<<<<<<
-
-== Annexes
 
 
 === Migrate a ext4 partition into btrfs
@@ -974,7 +945,6 @@ cp -ax --reflink=always src/. dest
 ---------------
 
 To convert an existing directory into a subvolume or convert a subvolume into a common directory
-
 [source,bash]
 ---------------
 export dirtoconvert=xxx		# with xxx = home_serverX or backup_serverX
@@ -1002,15 +972,22 @@ rm -fr /mnt/diskbackup/.snapshots/diskbackup-`date +%j`/.snapshots;
 btrfs property set -ts /mnt/diskbackup/.snapshots/diskbackup-`date +%j` ro true;
 ---------------
 
-To delete a readonly snapshot
+To delete a readonly snapshot of a day. Note: space is not freed immediatly.
 
 [source,bash]
 ---------------
 btrfs subvolume delete /mnt/diskbackup/.snapshots/diskbackup-`date +%j`;
 ---------------
 
+To delete all old snapshot
 
-=== TroubleShooting
+[source,bash]
+---------------
+find /mnt/diskbackup/.snapshots -maxdepth 1 -type d -mtime +60 -exec btrfs subvolume delete {} \; >>/var/log/sellyoursaas_btrfs.log;
+---------------
+
+
+== TroubleShooting
 
 See the chapter available into the *Documentation SellYourSaas - Master and Deployment servers*
 

@@ -4,6 +4,8 @@
 # Put the following entry into your root cron
 #40 4 4 * * /home/admin/wwwroot/dolibarr_sellyoursaas/scripts/backup_backups.sh confirm [month|week|none] [osuX]
 
+#TODO Rewrite this in PHP so we can update database of master to flag remote backup success or error. 
+
 #set -e
 
 source /etc/lsb-release
@@ -262,8 +264,10 @@ if [[ "x$instanceserver" != "x0" ]]; then
 		        		if [[ $nbdu -lt 50 ]]; then
 			        		export osudirbase=`basename $osudir`
 			        		if [[ -d $homedir/$osudirbase/ ]]; then
-			        			echo `date +'%Y-%m-%d %H:%M:%S'`" Search if a recent duc file exists with find $homedir/$osudirbase/.duc.db -mtime -60 2>/dev/null | wc -l"
-				        		export found=`find $homedir/$osudirbase/.duc.db -mtime -60 2>/dev/null | wc -l`
+			        			# Frequency in day to update duc database
+			        			DELAYUPDATEDUC=-15
+			        			echo `date +'%Y-%m-%d %H:%M:%S'`" Search if a recent duc file exists with find $homedir/$osudirbase/.duc.db -mtime $DELAYUPDATEDUC 2>/dev/null | wc -l"
+				        		export found=`find $homedir/$osudirbase/.duc.db -mtime $DELAYUPDATEDUC 2>/dev/null | wc -l`
 				        		if [ "x$found" = "x0" ]; then
 				        			# No recent .duc.db found, so we calculate it
 				        			echo `date +'%Y-%m-%d %H:%M:%S'`" No recent .duc.db into $homedir/$osudirbase and nb already updated = $nbdu, so we update it."

@@ -91,7 +91,7 @@ $databasepass='';
 $dolibarrdir='';
 $usecompressformatforarchive='gzip';
 $backupignoretables='';
-$backupcompressionalgorithms='';
+$backupcompressionalgorithms='';	// can be '' or 'zstd'
 $backuprsyncdayfrequency=1;	// Default value is an rsync every 1 day.
 $backupdumpdayfrequency=1;	// Default value is a sql dump every 1 day.
 $fp = @fopen('/etc/sellyoursaas.conf', 'r');
@@ -192,7 +192,7 @@ if (0 == posix_getuid()) {
 	exit(-1);
 }
 if (empty($instanceserver)) {
-	echo "This server seems to not be a server for deployment of instances (this should be defined in sellyoursaas.conf file).\n";
+	echo "This server seems to not be a server for the deployment of instances (this should be defined in sellyoursaas.conf file).\n";
 	print "Press ENTER to continue or CTL+C to cancel...";
 	$input = trim(fgets(STDIN));
 }
@@ -650,6 +650,7 @@ if (empty($return_varother) && empty($return_var) && empty($return_varmysql) && 
 		$object->array_options['options_latestbackup_date_ok'] = $now;	// date latest files and database rsync backup try
 		$object->array_options['options_latestbackup_status'] = 'OK';
 		$object->array_options['options_latestbackup_message'] = dol_trunc('', 8000);
+
 		$object->update($user, 1);
 
 		// Send to DataDog (metric + event)
@@ -682,6 +683,7 @@ if (empty($return_varother) && empty($return_var) && empty($return_varmysql) && 
 		$object->array_options['options_latestbackup_date'] = $now;	// date latest files and database rsync backup try
 		$object->array_options['options_latestbackup_status'] = 'KO';
 		$object->array_options['options_latestbackup_message'] = dol_trunc('', 8000);
+
 		$object->update($user, 1);
 
 		// Send to DataDog (metric + event)

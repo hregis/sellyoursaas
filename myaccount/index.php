@@ -202,7 +202,6 @@ if (empty($conf->global->SELLYOURSAAS_MAIN_FAQ_URL)) {
 	$urlfaq = $conf->global->SELLYOURSAAS_MAIN_FAQ_URL;
 }
 
-
 $urlstatus = getDolGlobalString('SELLYOURSAAS_STATUS_URL');
 if (! empty($mythirdpartyaccount->array_options['options_domain_registration_page'])
 	&& $mythirdpartyaccount->array_options['options_domain_registration_page'] != $conf->global->SELLYOURSAAS_MAIN_DOMAIN_NAME) {
@@ -387,6 +386,7 @@ if (preg_match('/logout/', $mode)) {
 	header("Location: /index.php".($param?'?'.$param:''));
 	exit;
 }
+
 if (getDolGlobalInt("SELLYOURSAAS_RESELLER_ALLOW_CUSTOM_PRICE") && $action == 'updateforcepriceinstance') {
 	$errors = 0;
 	$result = 1;
@@ -544,7 +544,7 @@ if (getDolGlobalInt("SELLYOURSAAS_RESELLER_ALLOW_CUSTOM_PRICE") && $action == 'r
 	}
 }
 
-if ($action == 'updateurl') {
+if ($action == 'updateurl') {	// update URL from the tab "Domain"
 	$sellyoursaasemail = $conf->global->SELLYOURSAAS_MAIN_EMAIL;
 
 	if (! empty($mythirdpartyaccount->array_options['options_domain_registration_page'])
@@ -586,8 +586,22 @@ if ($action == 'updateurl') {
 		if (! $error) {
 			$result = $contract->fetch(GETPOST('contractid', 'int'));
 			if ($result > 0) {
+				$savlistofcontractid = $listofcontractid;
+
+				// Set a list of contract id but with the contract validated only to call the action_create_recinvoice_after_payment_creation
+				$listofcontractid = array();
+				$listofcontractid[] = $contract;
+
+				// TODO LMR Replace this part of code with the generic one
+				// include dol_buildpath('/sellyoursaas/myaccount/tpl/action_create_recinvoice_after_payment_creation.tpl.php');
+
 				dol_syslog("--- Create recurring invoice on contract contract_id = ".$contract->id." if it does not have yet.", LOG_DEBUG, 0);
 
+				if (preg_match('/^http/i', $contract->array_options['options_suspendmaintenance_message'])) {
+					dol_syslog("--- This contract is a redirection, we discard this contract", LOG_DEBUG, 0);
+					setEventMessages("This contract is a redirection", 'errors');
+					$error++;
+				}
 				if ($contract->array_options['options_deployment_status'] != 'done') {
 					dol_syslog("--- Deployment status is not 'done', we discard this contract", LOG_DEBUG, 0);
 					setEventMessages("Deployment status is not 'done'", 'errors');
@@ -901,6 +915,9 @@ if ($action == 'updateurl') {
 						}
 					}
 				}
+
+				// End of code to create the recurring invoice, we restore $listofcontractid with list of all contract of the thirdparty
+				$listofcontractid = $savlistofcontractid;
 			} else {
 				$error++;
 			}
@@ -1060,6 +1077,12 @@ if ($action == 'updateurl') {
 		$action = 'presend';
 	}
 } elseif ($action == 'sendbecomereseller') {
+	$dateapplyreseller = $mythirdpartyaccount->array_options['options_date_apply_for_reseller'];
+	if ($dateapplyreseller) {
+		accessforbidden("A request was already sent or too many request.", 1, 1, 1);
+		exit;
+	}
+
 	// Send reseller request
 	$sellyoursaasname = $conf->global->SELLYOURSAAS_NAME;
 	$sellyoursaasnoreplyemail = $conf->global->SELLYOURSAAS_NOREPLY_EMAIL;
@@ -1092,11 +1115,21 @@ if ($action == 'updateurl') {
 	$trackid = 'thi'.$mythirdpartyaccount->id;
 
 	$cmailfile = new CMailFile($topic, $emailto, $emailfrom, $content, array(), array(), array(), '', '', 0, 1, '', '', $trackid, '', 'standard', $replyto);
-	$result = $cmailfile->sendfile();
+	if (!getDolGlobalInt("SELLYOURSAAS_APPLY_RESELLER_EMAIL_DISABLED")) {
+		$result = $cmailfile->sendfile();
+	}
 
-	if ($result) setEventMessages($langs->trans("TicketSent"), null, 'warnings');
-	else setEventMessages($langs->trans("FailedToSentTicketPleaseTryLater").' '.$cmailfile->error, $cmailfile->errors, 'errors');
-	$action = '';
+	$mythirdpartyaccount->array_options['options_date_apply_for_reseller'] = dol_now();
+	$mythirdpartyaccount->note_private = dol_concatdesc($mythirdpartyaccount->note_private, GETPOST('content', 'restricthtml'));
+	$result = $mythirdpartyaccount->update(0);
+
+	if ($result) {
+		setEventMessages($langs->trans("TicketSent"), null, 'warnings');
+	} else {
+		setEventMessages($langs->trans("FailedToSentTicketPleaseTryLater").' '.$cmailfile->error, $cmailfile->errors, 'errors');
+	}
+	header("Location: ".$_SERVER['PHP_SELF']);
+	exit;
 } elseif ($action == 'updatemythirdpartyaccount') {
 	$error = 0;
 
@@ -1269,6 +1302,8 @@ if ($action == 'updateurl') {
 		include_once DOL_DOCUMENT_ROOT.'/societe/class/companybankaccount.class.php';
 		include_once DOL_DOCUMENT_ROOT.'/core/lib/bank.lib.php';
 
+		dol_syslog("Record the SEPA payment mode from myaccount");
+
 		$companybankaccount = new CompanyBankAccount($db);
 		$companybankaccount->label = GETPOST('bankname', 'alphanohtml');
 		$companybankaccount->bank = GETPOST('bankname', 'alphanohtml');
@@ -1277,7 +1312,7 @@ if ($action == 'updateurl') {
 		$companybankaccount->bic = GETPOST('bic', 'alphanohtml');
 		$companybankaccount->socid = $mythirdpartyaccount->id;
 		$companybankaccount->datec = dol_now();
-		$companybankaccount->frstrecur = 'RECUR';
+		$companybankaccount->frstrecur = 'RCUR';
 
 		if (empty($companybankaccount->label)) {
 			setEventMessages($langs->trans("ErrorFieldRequired", $langs->transnoentitiesnoconv("BankName")), null, 'errors');
@@ -1299,11 +1334,13 @@ if ($action == 'updateurl') {
 			$error++;
 		}
 
+		$thirdpartyhadalreadyapaymentmode = sellyoursaasThirdpartyHasPaymentMode($mythirdpartyaccount->id);    // Check if customer has already a payment mode or not
+
 		$db->begin();
 
 		// First update or insert payment mode 'ban'
 		if (! $error) {
-			$companybankid = $companybankaccount->create($user);
+			$companybankid = $companybankaccount->create($user);	// Create with main data
 
 			if (empty($companybankaccount->rum)) {
 				require_once DOL_DOCUMENT_ROOT.'/compta/prelevement/class/bonprelevement.class.php';
@@ -1312,11 +1349,13 @@ if ($action == 'updateurl') {
 				$companybankaccount->rum = $prelevement->buildRumNumber($mythirdpartyaccount->code_client, $companybankaccount->datec, $companybankid);
 			}
 
+			// Update with all other data, including $companybankaccount->rum
 			$resultbankcreate = $companybankaccount->update($user);
+
 			if ($resultbankcreate > 0) {
 				$sql = "UPDATE ".MAIN_DB_PREFIX ."societe_rib";
 				$sql.= " SET status = '".$db->escape($servicestatusstripe)."'";
-				$sql.= " WHERE rowid = " . $companybankid;
+				$sql.= " WHERE rowid = " . ((int) $companybankid);
 				$sql.= " AND type = 'ban'";
 				$resql = $db->query($sql);
 				if (! $resql) {
@@ -1362,6 +1401,9 @@ if ($action == 'updateurl') {
 				$error++;
 				setEventMessages('ThisPaymentModeIsNotSepa', null, 'errors');
 			} else {
+				$stripe = new Stripe($db);
+				$stripeacc = $stripe->getStripeAccount($service);	// Get Stripe OAuth connect account if it exists (no remote access to Stripe here)
+
 				$cu = $stripe->customerStripe($mythirdpartyaccount, $stripeacc, $servicestatus, 1);
 				if (!$cu) {
 					$error++;
@@ -1369,7 +1411,7 @@ if ($action == 'updateurl') {
 				}
 
 				if (!$error) {
-					// Creation of Stripe SEPA + update of societe_account
+					// Creation of Stripe SEPA + update of societe_rib
 					$card = $stripe->sepaStripe($cu, $companypaymentmode, $stripeacc, $servicestatus, 1);
 					if (!$card) {
 						$error++;
@@ -1385,7 +1427,7 @@ if ($action == 'updateurl') {
 			$id_payment_mode_ban = dol_getIdFromCode($db, 'PRE', 'c_paiement', 'code', 'id', 1);
 
 			// Update all pending recurring invoices of the thirdparty to the payment mode direct debit.
-			// Note that it may have no pending invoice yet when contract is in trial mode (running or suspended)
+			// Note that it may have no pending invoice yet when contract is in trial mode (running or suspended). For such case, recuring invoice is created at end of this action.
 			if ($id_payment_mode_ban > 0) {
 				$sql = "UPDATE ".MAIN_DB_PREFIX."facture_rec";
 				$sql .= " SET fk_mode_reglement = ".((int) $id_payment_mode_ban);
@@ -1400,8 +1442,43 @@ if ($action == 'updateurl') {
 				$error++;
 				setEventMessages("Failed to get payment mode ID for Direct Debit (code PRE). We can't continue.", null, 'errors');
 			}
-		}
 
+			dol_syslog("--- A sepa bank was recorded. Now we reset the custom stripeaccount (to force use of the default setup)", LOG_DEBUG, 0);
+
+			$sql = 'UPDATE '.MAIN_DB_PREFIX.'societe_extrafields set stripeaccount = NULL WHERE fk_object = '.$mythirdpartyaccount->id;
+			$db->query($sql);
+
+			if ($mythirdpartyaccount->client == 2) {
+				dol_syslog("--- Set status of thirdparty to prospect+client instead of only prospect", LOG_DEBUG, 0);
+				$mythirdpartyaccount->set_as_client();
+			}
+
+			if (! $error) {
+				$labelofevent = 'Payment mode SEPA added by '.getUserRemoteIP();
+				$codeofevent = 'AC_ADD_PAYMENT';
+				if ($thirdpartyhadalreadyapaymentmode > 0) {
+					$labelofevent = 'Payment mode modified by '.getUserRemoteIP().' with a SEPA';
+					$codeofevent = 'AC_MOD_PAYMENT';
+				}
+
+				include_once DOL_DOCUMENT_ROOT.'/comm/action/class/actioncomm.class.php';
+				// Create an event
+				$actioncomm = new ActionComm($db);
+				$actioncomm->type_code   = 'AC_OTH_AUTO';		// Type of event ('AC_OTH', 'AC_OTH_AUTO', 'AC_XXX'...)
+				$actioncomm->code        = $codeofevent;
+				$actioncomm->label       = $labelofevent;
+				$actioncomm->datep       = $now;
+				$actioncomm->datef       = $now;
+				$actioncomm->percentage  = -1;   // Not applicable
+				$actioncomm->socid       = $mythirdpartyaccount->id;
+				$actioncomm->authorid    = $user->id;   // User saving action
+				$actioncomm->userownerid = $user->id;	// Owner of action
+				$actioncomm->note_private= $labelofevent.' - Company payment mode id created or modified = '.$companypaymentmode->id;
+				//$actioncomm->fk_element  = $mythirdpartyaccount->id;
+				//$actioncomm->elementtype = 'thirdparty';
+				$ret=$actioncomm->create($user);       // User creating action
+			}
+		}
 
 		// Create a recurring invoice (+real invoice + contract renewal if payment try success and not 'ban') if there is no recurring invoice yet
 		// $listofcontractid must be defined
@@ -1413,6 +1490,7 @@ if ($action == 'updateurl') {
 
 		$paymentmode = 'ban';
 		include dol_buildpath('/sellyoursaas/myaccount/tpl/action_create_recinvoice_after_payment_creation.tpl.php');
+		// This include the $db->commit() or $db->rollback() and the redirect if everything is ok
 
 		$action='';
 		$mode='registerpaymentmode';
@@ -1421,6 +1499,8 @@ if ($action == 'updateurl') {
 		$iban = '';
 		$bic = '';
 	} else {
+		dol_syslog("Record the credit card");
+
 		// Case of Credit or Debit card
 		$setupintentid = GETPOST('setupintentid', 'alpha');
 
@@ -1489,6 +1569,7 @@ if ($action == 'updateurl') {
 
 			$companypaymentmode->stripe_card_ref = $payment_method->id;
 			$companypaymentmode->stripe_account  = $setupintent->customer.'@'.$stripearrayofkeys['publishable_key'];
+			$companypaymentmode->ext_payment_site= ($servicestatusstripe ? 'StripeLive' : 'StripeTest');
 			$companypaymentmode->status          = $servicestatusstripe;
 
 			$companypaymentmode->card_type       = $payment_method->card->brand;
@@ -1529,7 +1610,7 @@ if ($action == 'updateurl') {
 
 				if (! $error) {
 					$stripe = new Stripe($db);
-					$stripeacc = $stripe->getStripeAccount($service);								// Get Stripe OAuth connect account if it exists (no remote access to Stripe here)
+					$stripeacc = $stripe->getStripeAccount($service);	// Get Stripe OAuth connect account if it exists (no remote access to Stripe here)
 
 					// Get the Stripe customer (should have been created already when creating the setupintent)
 					// Note that we should have already the customer in $setupintent->customer
@@ -1582,7 +1663,7 @@ if ($action == 'updateurl') {
 
 				if (! $error) {
 					$companypaymentmode->setAsDefault($companypaymentmode->id, 1);
-					dol_syslog("--- A credit card was recorded. Now we reset the stripeaccount (to force use of default Stripe setup)", LOG_DEBUG, 0);
+					dol_syslog("--- A credit card was recorded. Now we reset the custom stripeaccount (to force use of the default setup)", LOG_DEBUG, 0);
 
 					$sql = 'UPDATE '.MAIN_DB_PREFIX.'societe_extrafields set stripeaccount = NULL WHERE fk_object = '.$mythirdpartyaccount->id;
 					$db->query($sql);
@@ -1593,10 +1674,10 @@ if ($action == 'updateurl') {
 					}
 
 					if (! $error) {
-						$labelofevent = 'Payment mode added by '.getUserRemoteIP();
+						$labelofevent = 'Payment mode CARD added by '.getUserRemoteIP();
 						$codeofevent = 'AC_ADD_PAYMENT';
 						if ($thirdpartyhadalreadyapaymentmode > 0) {
-							$labelofevent = 'Payment mode modified by '.getUserRemoteIP();
+							$labelofevent = 'Payment mode modified by '.getUserRemoteIP().' with a CARD';
 							$codeofevent = 'AC_MOD_PAYMENT';
 						}
 
@@ -1673,9 +1754,10 @@ if ($action == 'updateurl') {
 			// $backurl
 			// $thirdpartyhadalreadyapaymentmode
 			// $langscompany
+
 			$paymentmode = 'card';
 			include dol_buildpath('/sellyoursaas/myaccount/tpl/action_create_recinvoice_after_payment_creation.tpl.php');
-			// This include the $commit or $rollback and the redirect if everything is ok
+			// This include the $db->commit() or $db->rollback() and the redirect if everything is ok
 
 			$action='';
 			$mode='registerpaymentmode';
@@ -1885,7 +1967,7 @@ if ($action == 'updateurl') {
 		}
 	}
 
-	//$error++;
+	// Commit or Rollback
 	if (! $error) {
 		$db->commit();
 
@@ -1985,7 +2067,7 @@ if ($action == 'updateurl') {
 				';
 
 				// TODO
-				// Make a redirect on cancellation survey
+				// Make a redirect on cancelation survey
 
 				llxFooter();
 
@@ -1996,7 +2078,7 @@ if ($action == 'updateurl') {
 			}
 		}
 	}
-} elseif ($action == 'deploywebsite' && getDolGlobalString('SELLYOURSAAS_ENABLE_DOLIBARR_FEATURES') && getDolGlobalInt("SELLYOURSAAS_PRODUCT_WEBSITE_DEPLOYMENT") > 0) {
+} elseif ($action == 'deploywebsite' && getDolGlobalString('SELLYOURSAAS_ENABLE_DOLIBARR_WEBSITES') && getDolGlobalInt("SELLYOURSAAS_PRODUCT_WEBSITE_DEPLOYMENT") > 0) {
 	$error = 0;
 	$sellyoursaasutils = new SellYourSaasUtils($db);
 	$contractid = GETPOST('contractid', 'int');
@@ -2069,14 +2151,14 @@ if ($action == 'updateurl') {
 		if (!$foundlinecontract) {
 			$idlinecontract = $object->addLine($descriptionlines, $product->price, 1, $product->tva_tx, $product->localtax1_tx, $product->localtax2_tx, $productid, 0, $date_start, $date_end);
 			if ($idlinecontract <= 0) {
-				// TODO: Send mail auto to inform admins error line creation
+				// TODO: Send mail auto to inform admins of error line creation
 				$error ++;
 			}
 			if (!$error) {
 				$object->fetch($contractid);
 				$result = $object->active_line($user, $idlinecontract, $date_start, '', 'Activation after website deployment');
 				if (!$result) {
-					// TODO: Send mail auto to inform admins errror activation line
+					// TODO: Send mail auto to inform admins of error activation line
 					$error ++;
 				}
 			}
@@ -2086,7 +2168,7 @@ if ($action == 'updateurl') {
 			$object->fetchObjectLinked();
 			$arrayfacturerec = array_values($object->linkedObjects["facturerec"]);
 			if (count($arrayfacturerec) != 1) {
-				// TODO: Send mail auto to inform admins multiples faturerec contract
+				// TODO: Send mail auto to inform admins of multiples faturerec contract
 				$error ++;
 			} else {
 				$facturerec = $arrayfacturerec[0];
@@ -2099,7 +2181,7 @@ if ($action == 'updateurl') {
 				if (!$foundlinefacturerec) {
 					$result = $facturerec->addLine($descriptionlines, $product->price, 1, $product->tva_tx, $product->localtax1_tx, $product->localtax2_tx, $productid, 0, 'HT', 0, '', 0, 0, -1, 0, '', null, 0, 1, 1);
 					if (!$result) {
-						// TODO: Send mail auto to inform admins errror line creation facturRec
+						// TODO: Send mail auto to inform admins of error line creation facturRec
 						$error ++;
 					}
 				}
@@ -2116,14 +2198,16 @@ if ($action == 'updateurl') {
 		if ($error) {
 			$db->rollback();
 			setEventMessages($langs->trans("ErrorDeployWebsite"), null, 'errors');
-			header('Location: '.$_SERVER["PHP_SELF"].'?mode=instances&tab=resources_'.$object->id);
 		} else {
 			$db->commit();
 			setEventMessages($langs->trans("DeploymentWebsiteDone"), null, 'mesgs');
-			header('Location: '.$_SERVER["PHP_SELF"].'?mode=instances&tab=resources_'.$object->id);
 		}
+
+		header('Location: '.$_SERVER["PHP_SELF"].'?mode=instances&tab=resources_'.$object->id);
 		exit();
 	}
+} elseif ($action == 'deploycustomurl' && getDolGlobalString('SELLYOURSAAS_ENABLE_CUSTOMURL')) {
+	// TODO
 }
 
 
@@ -2142,11 +2226,11 @@ if ($welcomecid > 0) {
 	var_dump($mythirdpartyaccount);*/
 	$contract=new Contrat($db);
 	$contract->fetch($welcomecid);
-	$listofcontractid[$welcomecid]=$contract;
+	$listofcontractid[$welcomecid] = $contract;
 	// Add a protection to avoid to see dashboard of others by changing welcomecid.
 	if (($mythirdpartyaccount->isareseller == 0 && $contract->fk_soc != $_SESSION['dol_loginsellyoursaas'])           // Not reseller, and contract is for another thirdparty
 	|| ($mythirdpartyaccount->isareseller == 1 && array_key_exists($contract->fk_soc, $listofcustomeridreseller))) { // Is a reseller and contract is for a company that is a customer of reseller
-		dol_print_error_email('DEPLOY-WELCOMEID'.$welcomecid, 'Bad value for welcomeid', null, 'alert alert-error');
+		dol_print_error_email('DEPLOY-WELCOMEID'.$welcomecid, 'Bad value for welcomeid. Try to remove the parameter welcomeid from your URL.', null, 'alert alert-error');
 		exit;
 	}
 }
@@ -2250,11 +2334,15 @@ print '
           </li>
           <li class="nav-item'.($mode == 'instances'?' active':'').'">
             <a class="nav-link" href="'.$_SERVER["PHP_SELF"].'?mode=instances"><i class="fa fa-server"></i> '.$langs->trans("MyInstances").'</a>
-          </li>
+          </li>';
+
+$freemodeinstance = ((empty($mythirdpartyaccount->array_options['options_checkboxnonprofitorga']) || $mythirdpartyaccount->array_options['options_checkboxnonprofitorga'] == 'nonprofit') && getDolGlobalInt("SELLYOURSAAS_ENABLE_FREE_PAYMENT_MODE"));
+if (!$freemodeinstance) {
+	print '
           <li class="nav-item'.($mode == 'billing'?' active':'').'">
             <a class="nav-link" href="'.$_SERVER["PHP_SELF"].'?mode=billing"><i class="fa fa-usd"></i> '.$langs->trans("MyBilling").'</a>
           </li>';
-
+}
 if ($mythirdpartyaccount->isareseller) {
 	print '
 			<li class="nav-item'.($mode == 'mycustomerinstances'?' active':'').'">
@@ -2625,7 +2713,7 @@ if ($mythirdpartyaccount->isareseller) {
 		print '&plan=XXX : ';
 		print '<span class="opacitymedium">'.$langs->trans("ToForcePlan").', '.$langs->trans("whereXXXcanbe").' '.join(', ', $arrayofplanscode).'</span><br>';
 	}
-	print '&extcss=mycssurl : <span class="opacitymedium">'.$langs->trans("YouCanUseCSSParameter").'. An example is available with &extcss='.$sellyoursaasaccounturl.'/dist/css/alt-myaccount-example.css</span><br>';
+	print '&extcss=mycssurl : <span class="opacitymedium">'.$langs->trans("YouCanUseCSSParameter").'. '.$langs->trans("AnExampleIsAvailableWith").' &extcss='.$sellyoursaasaccounturl.'/dist/css/alt-myaccount-example.css</span><br>';
 	print '&disablecustomeremail=1 : <span class="opacitymedium">'.$langs->trans("ToDisableEmailThatConfirmsRegistration").'</span>';
 
 	print '</div>';
@@ -2869,7 +2957,11 @@ if (empty($welcomecid) && ! in_array($action, array('instanceverification', 'aut
 						print '
 							<!-- XDaysBeforeEndOfTrial -->
 							<div class="note note-warning">
-							<h4 class="block">'.str_replace('{s1}', '<span class="wordbreak">'.$contract->ref_customer.'</span>', $langs->trans("XDaysBeforeEndOfTrial", abs($delayindays), '{s1}')).' !</h4>';
+							<h4 class="block">'.str_replace('{s1}', '<span class="wordbreak">'.$contract->ref_customer.'</span>', $langs->trans("XDaysBeforeEndOfTrial", abs($delayindays), '{s1}')).' !';
+						if (getDolGlobalInt('SELLYOURSAAS_ENABLE_FREE_PAYMENT_MODE')) {
+							print '<br>'.$langs->trans("XDaysBeforeEndOfTrialNoteForFreeMode");
+						}
+							print '</h4>';
 						if ($mode != 'registerpaymentmode') {
 							print '<p class="pforbutton">';
 							if ($contract->total_ht > 0) {
@@ -2983,6 +3075,7 @@ if (empty($welcomecid) && ! in_array($action, array('instanceverification', 'aut
 									</div>
 								';
 							} else {
+								// If amount is 0 in contract, explain that instance will be destroyed at end of trial
 								print '
 									<!-- XDaysBeforeEndOfTrialForAlwaysFreeInstance -->
 									<div class="note note-info">
@@ -3053,7 +3146,14 @@ if (empty($welcomecid) && ! in_array($action, array('instanceverification', 'aut
 					print '
 							<!-- XDaysAfterEndOfPeriodPaymentModeSet -->
 							<div class="note note-warning">
-							<h4 class="block">'.$langs->trans("XDaysAfterEndOfPeriodPaymentModeSet", $contract->ref_customer, abs($delayindays)).'</h4>
+							<h4 class="block">';
+					print $langs->trans("XDaysAfterEndOfPeriodPaymentModeSet", $contract->ref_customer, abs($delayindays));
+					if (getDolGlobalInt('SELLYOURSAAS_ENABLE_FREE_PAYMENT_MODE')) {
+						print $langs->trans("XDaysAfterEndOfPeriodPaymentModeSet2Free");
+					} else {
+						print $langs->trans("XDaysAfterEndOfPeriodPaymentModeSet2");
+					}
+					print '</h4>
 							</div>
 						';
 				}

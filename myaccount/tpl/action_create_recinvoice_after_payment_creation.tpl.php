@@ -28,8 +28,12 @@ if (empty($conf) || ! is_object($conf)) {
 // $thirdpartyhadalreadyapaymentmode
 // $langscompany
 
+dol_include_once('/sellyoursaas/class/sellyoursaasutils.class.php');
+if (!is_object($sellyoursaasutils)) {
+	$sellyoursaasutils = new SellYourSaasUtils($db);
+}
 
-// Create a recurring invoice (+real invoice + contract renewal) if there is no recurring invoice yet
+// Create a recurring invoice (+real invoice + contract renewal) for all contracts of the customer, if there is no recurring invoice yet
 if (! $error) {
 	foreach ($listofcontractid as $contract) {
 		dol_syslog("--- Create recurring invoice on contract contract_id = ".$contract->id." if it does not have yet.", LOG_DEBUG, 0);
@@ -87,7 +91,11 @@ if (! $error) {
 			$invoice_draft->date				= $dateinvoice;
 
 			$invoice_draft->note_private		= 'Template invoice created after adding a payment mode for card/stripe';
-			$invoice_draft->mode_reglement_id	= dol_getIdFromCode($db, 'CB', 'c_paiement', 'code', 'id', 1);
+			if ($paymentmode == 'ban') {
+				$invoice_draft->mode_reglement_id	= dol_getIdFromCode($db, 'PRE', 'c_paiement', 'code', 'id', 1);
+			} else {
+				$invoice_draft->mode_reglement_id	= dol_getIdFromCode($db, 'CB', 'c_paiement', 'code', 'id', 1);
+			}
 			$invoice_draft->cond_reglement_id	= dol_getIdFromCode($db, 'RECEP', 'c_payment_term', 'code', 'rowid', 1);
 			$invoice_draft->fk_account          = getDolGlobalInt('STRIPE_BANK_ACCOUNT_FOR_PAYMENTS');	// stripe
 
@@ -260,6 +268,8 @@ if (! $error) {
 
 		// Now we convert invoice into a template
 		if (! $error) {
+			dol_syslog("Now we convert invoice into recuring invoice");
+
 			//var_dump($invoice_draft->lines);
 			//var_dump(dol_print_date($date_start,'dayhour'));
 			//exit;
@@ -347,11 +357,13 @@ if (! $error) {
 				dol_syslog("--- A template invoice was generated with id ".$invoicerecid.", now we run createRecurringInvoices to build real invoice", LOG_DEBUG, 0);
 				$facturerec = new FactureRec($db);
 
-				$savperm1 = $user->rights->facture->creer;
-				$savperm2 = $user->rights->facture->invoice_advance->validate;
+				$savperm1 = $user->hasRight('facture', 'creer');
+				$savperm2 = $user->hasRight('facture', 'invoice_advance', 'validate');
 
-				$user->rights->facture->creer = 1;
-				if (empty($user->rights->facture->invoice_advance)) $user->rights->facture->invoice_advance=new stdClass();
+				$user->rights->facture->creer = 1;	// Force permission to user to validate invoices because code may be executed by anonymous user
+				if (empty($user->rights->facture->invoice_advance)) {
+					$user->rights->facture->invoice_advance = new stdClass();
+				}
 				$user->rights->facture->invoice_advance->validate = 1;
 
 				$result = $facturerec->createRecurringInvoices($invoicerecid, 1);		// Generate real invoice from pending recurring invoices
@@ -364,13 +376,13 @@ if (! $error) {
 				$user->rights->facture->invoice_advance->validate = $savperm2;
 			}
 
-			// Now try to take the payment
-			if (! $error) {
+			// Now try to take the payment if payment is OK and payment mode is not a differed payment mode
+			if (! $error && $paymentmode != 'ban') {
 				if (empty($paymentmode)) {
 					$paymentmode = 'card';
 				}
 
-				dol_syslog("--- Now we try to take payment with mode ".$paymentmode." for thirdpartyid = ".$mythirdpartyaccount->id, LOG_DEBUG, 0);	// Unsuspend if it was suspended (done by trigger BILL_CANCEL or BILL_PAYED).
+				dol_syslog("--- Now we try to take payment with mode '".$paymentmode."' for thirdpartyid = ".$mythirdpartyaccount->id, LOG_DEBUG, 0);	// Unsuspend if it was suspended (done by trigger BILL_CANCEL or BILL_PAYED).
 
 
 				$sellyoursaasutils = new SellYourSaasUtils($db);
@@ -407,6 +419,17 @@ if (! $error) {
 					$error++;
 					setEventMessages($sellyoursaasutils->error, $sellyoursaasutils->errors, 'errors');
 				}
+			}
+		}
+		if (! $error && !$thirdpartyhadalreadyapaymentmode) {
+			$comment = 'Execute remote script on '.$contract->ref.' after the creation of a first payment method';
+			$sellyoursaasutils = new SellYourSaasUtils($db);
+			$result = $sellyoursaasutils->sellyoursaasRemoteAction('actionafterpaid', $contract, 'admin', '', '', 0, $comment);
+			if ($result <= 0) {
+				dol_syslog("Call to remoteaction actionafterpaid has failed with result=".$result.". Check remote_server.log file.", LOG_WARNING);
+				// No error test on this. Not a problem if it fails.
+				//$error++;
+				//setEventMessages($sellyoursaasutils->error, $sellyoursaasutils->errors, 'errors');
 			}
 		}
 	}

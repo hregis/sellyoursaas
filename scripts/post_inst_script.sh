@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # This script can be ran when installing a new server from an image as a post installation script
-# so the new server does not executes scheduled task automatically (resulting of a duplicate task
+# so the new server does not executes scheduled task automatically (resulting of duplicated tasks
 # with the tasks already executed by the original server). 
 #
 
@@ -17,6 +17,7 @@ if [ "$(id -u)" != "0" ]; then
 	exit 100
 fi
 
+# Disable cron
 echo "Disable cron begin"
 echo "Disable cron begin" >>/tmp/post_inst_script.log
 
@@ -29,8 +30,31 @@ systemctl disable cron 2>&1 >>/tmp/post_inst_script.log
 echo "Disable cron end"
 echo "Disable cron end" >>/tmp/post_inst_script.log
 
+# Disablepostfix
+echo "Stop postfix begin"
+echo "Stop postfix begin" >>/tmp/post_inst_script.log
 
+/etc/init.d/postfix stop >>/tmp/post_inst_script.log
+echo result = $? >>/tmp/post_inst_script.log
+
+echo "Stop postfix end"
+echo "Stop postfix end" >>/tmp/post_inst_script.log
+
+# Disable ufw
+echo "Stop ufw begin"
+echo "Stop ufw begin" >>/tmp/post_inst_script.log
+
+#/etc/init.d/ufw stop >>/tmp/post_inst_script.log
+ufw disable >>/tmp/post_inst_script.log
+echo result = $? >>/tmp/post_inst_script.log
+
+echo "Stop ufw end"
+echo "Stop ufw end" >>/tmp/post_inst_script.log
+
+# Disable datadog
 if [ -f /etc/init.d/datadog-agent ]; then
+	sleep 1
+
 	rm -f /etc/datadog-agent/datadog.yaml.disabled
 	if [ -f /etc/datadog-agent/datadog.yaml ]; then
 		mv /etc/datadog-agent/datadog.yaml  /etc/datadog-agent/datadog.yaml.disabled
@@ -44,16 +68,6 @@ if [ -f /etc/init.d/datadog-agent ]; then
 	echo "Stop datadog end"
 	echo "Stop datadog end" >>/tmp/post_inst_script.log
 fi
-
-
-echo "Stop postfix begin"
-echo "Stop postfix begin" >>/tmp/post_inst_script.log
-
-/etc/init.d/postfix stop >>/tmp/post_inst_script.log
-echo result = $? >>/tmp/post_inst_script.log
-
-echo "Stop postfix end"
-echo "Stop postfix end" >>/tmp/post_inst_script.log
 
 
 exit 0

@@ -103,9 +103,9 @@ $defaultproduct = '';
 if (empty($productid) && empty($productref)) {
 	$productref = $plan;
 	if (empty($productref)) {
-		$suffix='_'.strtoupper(str_replace('.', '_', $domainname));
-		$constname="SELLYOURSAAS_DEFAULT_PRODUCT".$suffix;
-		$defaultproduct=(empty($conf->global->$constname) ? $conf->global->SELLYOURSAAS_DEFAULT_PRODUCT : $conf->global->$constname);
+		$suffix = '_'.strtoupper(str_replace('.', '_', $domainname));
+		$constname = "SELLYOURSAAS_DEFAULT_PRODUCT".$suffix;
+		$defaultproduct = (empty($conf->global->$constname) ? $conf->global->SELLYOURSAAS_DEFAULT_PRODUCT : $conf->global->$constname);
 
 		// Take first plan found
 		$sqlproducts = 'SELECT p.rowid, p.ref, p.label, p.price, p.price_ttc, p.duration, pa.restrict_domains';
@@ -260,7 +260,9 @@ $title = $langs->trans("Registration").($tmpproduct->label?' ('.$tmpproduct->lab
 
 $prefix=dol_getprefix('');
 $cookieregistrationa='DOLREGISTERA_'.$prefix;
-if (empty($_COOKIE[$cookieregistrationa])) setcookie($cookieregistrationa, 1, 0, "/", null, false, true);	// Cookie to count nb of registration from this computer
+if (empty($_COOKIE[$cookieregistrationa])) {
+	setcookie($cookieregistrationa, 1, 0, "/", null, false, true);	// Cookie to count nb of registration from this computer
+}
 
 llxHeader($head, $title, '', '', 0, 0, $arrayofjs, array(), '', 'register');
 
@@ -445,10 +447,10 @@ llxHeader($head, $title, '', '', 0, 0, $arrayofjs, array(), '', 'register');
 			  <input type="hidden" name="fromsocid" value="<?php echo dol_escape_htmltag($fromsocid); ?>" />
 
 			  <input type="hidden" name="origin" value="<?php echo dol_escape_htmltag($origin); ?>" /><!-- wil be saved into options_source -->
-			  <!-- the utm_source_cookie=<?php echo dol_escape_htmltag($_COOKIE["utm_source_cookie"]); ?> will be saved into options_source_utm -->
+			  <!-- the utm_source_cookie=<?php echo dol_escape_htmltag(empty($_COOKIE["utm_source_cookie"]) ? '' : $_COOKIE["utm_source_cookie"]); ?> will be saved into options_source_utm -->
 
 			  <input type="hidden" name="disablecustomeremail" value="<?php echo dol_escape_htmltag($disablecustomeremail); ?>" />
-			  <!-- _SESSION['dol_loginsellyoursaas'] = <?php echo empty($_SESSION['dol_loginsellyoursaas']) ? '' : $_SESSION['dol_loginsellyoursaas']; ?> -->
+			  <!-- _SESSION['dol_loginsellyoursaas'] = <?php echo (empty($_SESSION['dol_loginsellyoursaas']) ? '' : $_SESSION['dol_loginsellyoursaas']); ?> -->
 
 			  <section id="enterUserAccountDetails">
 
@@ -732,8 +734,14 @@ llxHeader($head, $title, '', '', 0, 0, $arrayofjs, array(), '', 'register');
 			<div class="group required">
 				<input type="checkbox" id="checkboxnonprofitorga" name="checkboxnonprofitorga" class="valignmiddle inline" style="margin-top: 0" value="nonprofit" required=""<?php echo (GETPOST('checkboxnonprofitorga') ? ' checked="checked"' : ''); ?>>
 				<label for="checkboxnonprofitorga" class="valignmiddle small inline"><?php
-					echo $langs->trans("ConfirmNonProfitOrga", $sellyoursaasname);
-					echo '. ';
+				if (getDolGlobalInt('SELLYOURSAAS_ONLY_NON_PROFIT_ORGA') == 2) {
+					echo $langs->trans("ConfirmNonProfitOrgaCaritative", $sellyoursaasname).'. ';
+				} elseif (getDolGlobalInt('SELLYOURSAAS_ONLY_NON_PROFIT_ORGA') == 3) {
+					echo $langs->trans("ConfirmNonProfitOrgaSmall", $sellyoursaasname).'. ';
+				} else {
+					echo $langs->trans("ConfirmNonProfitOrga", $sellyoursaasname).'. ';
+				}
+				// Show the link for commecial service if there is a commercial alternative service
 				if (getDolGlobalString('SELLYOURSAAS_ONLY_NON_PROFIT_ORGA_LINK_COMMERCIAL')) {
 					echo $langs->trans("ConfirmNonProfitOrgaBis", getDolGlobalString('SELLYOURSAAS_ONLY_NON_PROFIT_ORGA_LINK_COMMERCIAL'), getDolGlobalString('SELLYOURSAAS_ONLY_NON_PROFIT_ORGA_LINK_COMMERCIAL'));
 				}
@@ -770,7 +778,7 @@ llxHeader($head, $title, '', '', 0, 0, $arrayofjs, array(), '', 'register');
 			}
 			if ($urlfortermofuse) {
 				?>
-			  <p class="termandcondition small center" style="color:#444;margin:10px 0;" trans="1"><?php echo $langs->trans("WhenRegisteringYouAccept", $urlfortermofuse) ?></p>
+			  <p class="termandcondition small center" style="color:#444; margin:10px 3px;" trans="1"><?php echo $langs->trans("WhenRegisteringYouAccept", $urlfortermofuse) ?></p>
 				<?php
 			}
 			?>
@@ -834,6 +842,9 @@ llxHeader($head, $title, '', '', 0, 0, $arrayofjs, array(), '', 'register');
 		}
 		while ( domain.length > 1 && !isNaN( domain.charAt(0))  ){
 		  domain=domain.substr(1)
+		}
+		if (domain.length > 29) {
+			domain = domain.substring(0, 28);
 		}
 		return domain
 	}

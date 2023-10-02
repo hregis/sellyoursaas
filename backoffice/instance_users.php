@@ -1,19 +1,19 @@
 <?php
-/* Copyright (C) 2004-2013 Laurent Destailleur  <eldy@users.sourceforge.net>
+/* Copyright (C) 2004-2023 Laurent Destailleur  <eldy@users.sourceforge.net>
  *
-* This program is free software; you can redistribute it and/or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation; either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
-* along with this program. If not, see <http://www.gnu.org/licenses/>.
-*/
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ */
 
 /**
  *       \file       htdocs/sellyoursaas/backoffice/instance_users.php
@@ -53,13 +53,16 @@ $langs->loadLangs(array("admin","companies","users","contracts","other","commerc
 $action		= (GETPOST('action', 'alpha') ? GETPOST('action', 'alpha') : 'view');
 $confirm	= GETPOST('confirm', 'alpha');
 $backtopage = GETPOST('backtopage', 'alpha');
+$contextpage = 'instance_user';
+$optioncss  = GETPOST('optioncss', 'alpha');
+
 $sortfield = GETPOST('sortfield', 'aZ09comma');
 $sortorder = GETPOST('sortorder', 'aZ09comma');
 
 $id			= GETPOST('id', 'int');
 $ref        = GETPOST('ref', 'alpha');
 
-$error = 0; $errors = array();
+$error = 0;
 
 if (!$sortorder) {
 	$sortorder = "ASC";
@@ -69,6 +72,21 @@ if ($action != 'create') {
 	$object = new SellYourSaasContract($db);
 }
 
+// Initialize array of search criterias
+$search_all = GETPOST('search_all', 'alphanohtml');
+$search = array();
+$arrayoffields = array('rowid', 'login', 'firstname', 'lastname', 'admin', 'email');
+foreach ($arrayoffields as $key) {
+	if (GETPOST('search_'.$key, 'alpha') !== '') {
+		$search[$key] = GETPOST('search_'.$key, 'alpha');
+	}
+	if (preg_match('/^(date|timestamp|datetime)/', $val['type'])) {
+		$search[$key.'_dtstart'] = dol_mktime(0, 0, 0, GETPOST('search_'.$key.'_dtstartmonth', 'int'), GETPOST('search_'.$key.'_dtstartday', 'int'), GETPOST('search_'.$key.'_dtstartyear', 'int'));
+		$search[$key.'_dtend'] = dol_mktime(23, 59, 59, GETPOST('search_'.$key.'_dtendmonth', 'int'), GETPOST('search_'.$key.'_dtendday', 'int'), GETPOST('search_'.$key.'_dtendyear', 'int'));
+	}
+}
+
+
 // Initialize technical object to manage hooks of page. Note that conf->hooks_modules contains array array
 include_once DOL_DOCUMENT_ROOT.'/core/class/hookmanager.class.php';
 $hookmanager=new HookManager($db);
@@ -77,11 +95,14 @@ $hookmanager->initHooks(array('contractcard'));
 
 if ($id > 0 || $ref) {
 	$result=$object->fetch($id, $ref);
-	if ($result < 0) dol_print_error($db, $object->error);
+	if ($result < 0) {
+		setEventMessages('Failed to read remote customer instance: '.$object->error, null, 'warnings');
+		$error++;
+	}
 	$id = $object->id;
 }
 
-$backupstring=$conf->global->DOLICLOUD_SCRIPTS_PATH.'/backup_instance.php '.$object->instance.' '.$conf->global->DOLICLOUD_INSTANCES_PATH;
+$backupstring = getDolGlobalString('DOLICLOUD_SCRIPTS_PATH').'/backup_instance.php '.$object->instance.' '.$conf->global->DOLICLOUD_INSTANCES_PATH;
 
 
 $instance = 'xxxx';
@@ -120,6 +141,7 @@ foreach ($object->lines as $keyline => $line) {
 	}
 }
 
+
 /*
  *	Actions
  */
@@ -136,6 +158,23 @@ if (empty($reshook)) {
 		header("Location: ".$backtopage);
 		exit;
 	}
+	// Purge search criteria
+	if (GETPOST('button_removefilter_x', 'alpha') || GETPOST('button_removefilter.x', 'alpha') || GETPOST('button_removefilter', 'alpha')) { // All tests are required to be compatible with all browsers
+		foreach ($arrayoffields as $key) {
+			$search[$key] = '';
+			if (preg_match('/^(date|timestamp|datetime)/', $val['type'])) {
+				$search[$key.'_dtstart'] = '';
+				$search[$key.'_dtend'] = '';
+			}
+		}
+		$toselect = array();
+		$search_array_options = array();
+	}
+	if (GETPOST('button_removefilter_x', 'alpha') || GETPOST('button_removefilter.x', 'alpha') || GETPOST('button_removefilter', 'alpha')
+		|| GETPOST('button_search_x', 'alpha') || GETPOST('button_search.x', 'alpha') || GETPOST('button_search', 'alpha')) {
+		$massaction = ''; // Protection to avoid mass action if we force a new search during a mass action confirmation
+	}
+
 	include DOL_DOCUMENT_ROOT.'/core/actions_changeselectedfields.inc.php';
 
 	if ($action == "createsupportuser") {
@@ -412,11 +451,47 @@ if (empty($reshook)) {
  *	View
  */
 
-$help_url='';
-llxHeader('', $langs->trans("Users"), $help_url);
-
 $form = new Form($db);
 $formcompany = new FormCompany($db);
+
+$title = $langs->trans("Users");
+$help_url='';
+llxHeader('', $title, $help_url);
+
+$param = '';
+/*if (!empty($mode)) {
+	$param .= '&mode='.urlencode($mode);
+}*/
+if (!empty($contextpage) && $contextpage != $_SERVER["PHP_SELF"]) {
+	$param .= '&contextpage='.urlencode($contextpage);
+}
+/*if ($limit > 0 && $limit != $conf->liste_limit) {
+	$param .= '&limit='.((int) $limit);
+}*/
+if ($optioncss != '') {
+	$param .= '&optioncss='.urlencode($optioncss);
+}
+foreach ($search as $key => $val) {
+	if (is_array($search[$key])) {
+		foreach ($search[$key] as $skey) {
+			if ($skey != '') {
+				$param .= '&search_'.$key.'[]='.urlencode($skey);
+			}
+		}
+	} elseif (preg_match('/(_dtstart|_dtend)$/', $key) && !empty($val)) {
+		$param .= '&search_'.$key.'month='.((int) GETPOST('search_'.$key.'month', 'int'));
+		$param .= '&search_'.$key.'day='.((int) GETPOST('search_'.$key.'day', 'int'));
+		$param .= '&search_'.$key.'year='.((int) GETPOST('search_'.$key.'year', 'int'));
+	} elseif ($search[$key] != '') {
+		$param .= '&search_'.$key.'='.urlencode($search[$key]);
+	}
+}
+// Add $param from extra fields
+include DOL_DOCUMENT_ROOT.'/core/tpl/extrafields_list_search_param.tpl.php';
+// Add $param from hooks
+$parameters = array();
+$reshook = $hookmanager->executeHooks('printFieldListSearchParam', $parameters, $object, $action); // Note that $action and $object may have been modified by hook
+$param .= $hookmanager->resPrint;
 
 $countrynotdefined=$langs->trans("ErrorSetACountryFirst").' ('.$langs->trans("SeeAbove").')';
 
@@ -479,45 +554,37 @@ if ($id > 0 && $action != 'edit' && $action != 'create') {
 
 	$linkback = '<a href="'.DOL_URL_ROOT.'/contrat/list.php?restore_lastsearch_values=1'.(! empty($socid)?'&socid='.$socid:'').'">'.$langs->trans("BackToList").'</a>';
 
-	$morehtmlref='';
-
-	$morehtmlref.='<div class="refidno">';
+	$morehtmlref = '<div class="refidno">';
 	// Ref customer
 	$morehtmlref.=$form->editfieldkey("RefCustomer", 'ref_customer', $object->ref_customer, $object, 0, 'string', '', 0, 1);
 	$morehtmlref.=$form->editfieldval("RefCustomer", 'ref_customer', $object->ref_customer, $object, 0, 'string', '', null, null, '', 1, 'getFormatedCustomerRef');
 	// Ref supplier
 	$morehtmlref.='<br>';
 	$morehtmlref.=$form->editfieldkey("RefSupplier", 'ref_supplier', $object->ref_supplier, $object, 0, 'string', '', 0, 1);
-	$morehtmlref.=$form->editfieldval("RefSupplier", 'ref_supplier', $object->ref_supplier, $object, 0, 'string', '', null, null, '', 1, 'getFormatedSupplierRef');
+	$morehtmlref.=$form->editfieldval("RefSupplier", 'ref_supplier', $object->ref_supplier, $object, 0, 'string'.(isset($conf->global->THIRDPARTY_REF_INPUT_SIZE) ? ':'.$conf->global->THIRDPARTY_REF_INPUT_SIZE : ''), '', null, null, '', 1, 'getFormatedSupplierRef');
 	// Thirdparty
-	$morehtmlref.='<br>'.$langs->trans('ThirdParty') . ' : ' . $object->thirdparty->getNomUrl(1);
+	$morehtmlref .= '<br>'.$object->thirdparty->getNomUrl(1, 'customer');
+	if (empty($conf->global->MAIN_DISABLE_OTHER_LINK) && $object->thirdparty->id > 0) {
+		$morehtmlref .= ' (<a href="'.DOL_URL_ROOT.'/contrat/list.php?socid='.$object->thirdparty->id.'&search_societe='.urlencode($object->thirdparty->name).'">'.$langs->trans("OtherContracts").'</a>)';
+	}
 	// Project
-	if (! empty($conf->project->enabled)) {
+	if (isModEnabled('project')) {
 		$langs->load("projects");
-		$morehtmlref.='<br>'.$langs->trans('Project') . ' : ';
+		$morehtmlref .= '<br>';
 		if (0) {
-			if ($action != 'classify')
-				$morehtmlref.='<a class="editfielda" href="' . $_SERVER['PHP_SELF'] . '?action=classify&token='.newToken().'&id=' . $object->id . '">' . img_edit($langs->transnoentitiesnoconv('SetProject')) . '</a> : ';
-			if ($action == 'classify') {
-				//$morehtmlref.=$form->form_project($_SERVER['PHP_SELF'] . '?id=' . $object->id, $object->socid, $object->fk_project, 'projectid', 0, 0, 1, 1);
-				$morehtmlref.='<form method="post" action="'.$_SERVER['PHP_SELF'].'?id='.$object->id.'">';
-				$morehtmlref.='<input type="hidden" name="action" value="classin">';
-				$morehtmlref.='<input type="hidden" name="token" value="'.newToken().'">';
-				$morehtmlref.=$formproject->select_projects($object->thirdparty->id, $object->fk_project, 'projectid', $maxlength, 0, 1, 0, 1, 0, 0, '', 1);
-				$morehtmlref.='<input type="submit" class="button valignmiddle" value="'.$langs->trans("Modify").'">';
-				$morehtmlref.='</form>';
-			} else {
-				$morehtmlref.=$form->form_project($_SERVER['PHP_SELF'] . '?id=' . $object->id, $object->thirdparty->id, $object->fk_project, 'none', 0, 0, 0, 1);
+			$morehtmlref .= img_picto($langs->trans("Project"), 'project', 'class="pictofixedwidth"');
+			if ($action != 'classify') {
+				$morehtmlref .= '<a class="editfielda" href="'.$_SERVER['PHP_SELF'].'?action=classify&token='.newToken().'&id='.$object->id.'">'.img_edit($langs->transnoentitiesnoconv('SetProject')).'</a> ';
 			}
+			$morehtmlref .= $form->form_project($_SERVER['PHP_SELF'].'?id='.$object->id, $object->socid, $object->fk_project, ($action == 'classify' ? 'projectid' : 'none'), 0, 0, 0, 1, '', 'maxwidth300');
 		} else {
-			if (! empty($object->fk_project)) {
+			if (!empty($object->fk_project)) {
 				$proj = new Project($db);
 				$proj->fetch($object->fk_project);
-				$morehtmlref.='<a href="'.DOL_URL_ROOT.'/projet/card.php?id=' . $object->fk_project . '" title="' . $langs->trans('ShowProject') . '">';
-				$morehtmlref.=$proj->ref;
-				$morehtmlref.='</a>';
-			} else {
-				$morehtmlref.='';
+				$morehtmlref .= $proj->getNomUrl(1);
+				if ($proj->title) {
+					$morehtmlref .= '<span class="opacitymedium"> - '.dol_escape_htmltag($proj->title).'</span>';
+				}
 			}
 		}
 	}
@@ -628,19 +695,18 @@ $db->close();
 /**
  * Print list of users
  *
- * @param   string      $newdb          New db
- * @param   Contrat     $object         Object contract
+ * @param   string      			$newdb          New db
+ * @param   SellYourSaasContract    $object         Object contract
  * @return  void
  */
 function print_user_table($newdb, $object)
 {
-	global $db, $langs;
-	global $id;
+	global $db, $langs, $form;
+	global $search, $id, $contextpage, $param;
 
 	$sortfield = GETPOST('sortfield', 'aZ09comma');
 	$sortorder = GETPOST('sortorder', 'aZ09comma');
 
-	$form = new Form($newdb);
 	$arrayfields = array(
 		'rowid'=>array('label'=>"ID", 'checked'=>1, 'position'=>10),
 		'login'=>array('label'=>"Login", 'checked'=>1, 'position'=>15),
@@ -648,15 +714,15 @@ function print_user_table($newdb, $object)
 		'firstname'=>array('label'=>"Firstname", 'checked'=>1, 'position'=>50, 'csslist'=>'tdoverflowmax150'),
 		'admin'=>array('label'=>"Admin", 'checked'=>1, 'position'=>22),
 		'email'=>array('label'=>"Email", 'checked'=>1, 'position'=>25),
-		'pass'=>array('label'=>"Pass", 'checked'=>1, 'position'=>27),
+		'pass'=>array('label'=>"Pass", 'checked'=>-1, 'position'=>27),
 		'datec'=>array('label'=>"DateCreation", 'checked'=>1, 'position'=>31),
-		'datem'=>array('label'=>"DateModification", 'checked'=>1, 'position'=>32),
+		'datem'=>array('label'=>"DateModification", 'checked'=>-1, 'position'=>32),
 		'datelastlogin'=>array('label'=>"DateLastLogin", 'checked'=>1, 'position'=>35),
 		'iplastlogin'=>array('label'=>"IPLastLogin", 'checked'=>0, 'position'=>36),
 		'datepreviouslogin'=>array('label'=>"DatePreviousLogin", 'checked'=>0, 'position'=>37),
 		'ippreviouslogin'=>array('label'=>"IPPreviousLogin", 'checked'=>0, 'position'=>38),
 		'entity'=>array('label'=>"Entity", 'checked'=>1, 'position'=>100),
-		'fk_soc'=>array('label'=>"ParentsId", 'checked'=>1, 'position'=>105),
+		'fk_soc'=>array('label'=>"ParentsId", 'checked'=>-1, 'position'=>105),
 		'statut'=>array('label'=>"Status", 'checked'=>1, 'position'=>110),
 	);
 	if (!$sortfield) {
@@ -675,8 +741,16 @@ function print_user_table($newdb, $object)
 	print '<table class="noborder centpercent">';
 
 	$cssforfield = '';
-	// Nb of users
+
+	// Filters line
 	print '<tr class="liste_titre">';
+	// Action column
+	if (getDolGlobalString('MAIN_CHECKBOX_LEFT_COLUMN')) {
+		print '<td class="liste_titre center maxwidthsearch">';
+		$searchpicto = $form->showFilterButtons('left');
+		print $searchpicto;
+		print '</td>';
+	}
 	print '<td>#</td>';
 	foreach ($arrayfields as $key => $value) {
 		if ($key == 'statut') {
@@ -685,10 +759,46 @@ function print_user_table($newdb, $object)
 			$cssforfield = (empty($value['csslist']) ? '' : $value['csslist']);
 		}
 		if (!empty($arrayfields[$key]['checked'])) {
-			print getTitleFieldOfList($arrayfields[$key]['label'], 0, $_SERVER['PHP_SELF'], $key, '', "&id=".$id, ($cssforfield ? 'class="'.$cssforfield.'"' : ''), $sortfield, $sortorder, ($cssforfield ? $cssforfield.' ' : ''))."\n";
+			if (in_array($key, array('rowid', 'login', 'lastname', 'firstname', 'admin', 'email'))) {
+				//print getTitleFieldOfList($arrayfields[$key]['label'], 0, $_SERVER['PHP_SELF'], $key, '', "&id=".$id, ($cssforfield ? 'class="'.$cssforfield.'"' : ''), $sortfield, $sortorder, ($cssforfield ? $cssforfield.' ' : ''))."\n";
+				print '<td class="liste_titre'.($cssforfield ? ' '.$cssforfield : '').($key == 'status' ? ' parentonrightofpage' : '').'">';
+				print '<input type="text" class="flat maxwidth75" name="search_'.$key.'" value="'.dol_escape_htmltag(isset($search[$key]) ? $search[$key] : '').'">';
+				print '</td>';
+			} else {
+				print '<td class="liste_titre"></td>';
+			}
 		}
 	}
-	print getTitleFieldOfList($selectedfields, 0, $_SERVER["PHP_SELF"], '', '', '', '', "", "", 'center maxwidthsearch ')."\n";
+	// Action column
+	if (!getDolGlobalString('MAIN_CHECKBOX_LEFT_COLUMN')) {
+		print '<td class="liste_titre center maxwidthsearch">';
+		$searchpicto = $form->showFilterButtons('left');
+		print $searchpicto;
+		print '</td>';
+	}
+	print '</tr>';
+
+	// Fitled title line
+	print '<tr class="liste_titre">';
+	// Action column
+	if (getDolGlobalString('MAIN_CHECKBOX_LEFT_COLUMN')) {
+		print getTitleFieldOfList($selectedfields, 0, $_SERVER["PHP_SELF"], '', '', '', '', "", "", 'center maxwidthsearch ')."\n";
+	}
+	print '<td>#</td>';
+	foreach ($arrayfields as $key => $value) {
+		if ($key == 'statut') {
+			$cssforfield = ($cssforfield ? ' ' : '').'center';
+		} else {
+			$cssforfield = (empty($value['csslist']) ? '' : $value['csslist']);
+		}
+		if (!empty($arrayfields[$key]['checked'])) {
+			print getTitleFieldOfList($arrayfields[$key]['label'], 0, $_SERVER['PHP_SELF'], $key, '', "&id=".$id.$param, ($cssforfield ? 'class="'.$cssforfield.'"' : ''), $sortfield, $sortorder, ($cssforfield ? $cssforfield.' ' : ''))."\n";
+		}
+	}
+	// Action column
+	if (!getDolGlobalString('MAIN_CHECKBOX_LEFT_COLUMN')) {
+		print getTitleFieldOfList($selectedfields, 0, $_SERVER["PHP_SELF"], '', '', '', '', "", "", 'center maxwidthsearch ')."\n";
+	}
 	print '</tr>';
 
 	if (is_object($newdb) && $newdb->connected) {
@@ -704,6 +814,31 @@ function print_user_table($newdb, $object)
 		if ($fordolibarr) {
 			$sql = "SELECT rowid, login, lastname, firstname, admin, email, pass, pass_crypted, datec, tms as datem, datelastlogin, fk_soc, fk_socpeople, fk_member, entity, statut";
 			$sql .= " FROM ".$prefix_db."user";
+			$sql .= " WHERE 1 = 1";
+			$key = 'rowid';
+			if ($search[$key]) {
+				$sql .= natural_search($key, $search[$key], 1);
+			}
+			$key = 'login';
+			if ($search[$key]) {
+				$sql .= natural_search($key, $search[$key], 0);
+			}
+			$key = 'lastname';
+			if ($search[$key]) {
+				$sql .= natural_search($key, $search[$key], 0);
+			}
+			$key = 'firstname';
+			if ($search[$key]) {
+				$sql .= natural_search($key, $search[$key], 0);
+			}
+			$key = 'admin';
+			if ($search[$key]) {
+				$sql .= natural_search($key, $search[$key], 0);
+			}
+			$key = 'email';
+			if ($search[$key]) {
+				$sql .= natural_search($key, $search[$key], 0);
+			}
 			$sql .= $newdb->order($sortfield, $sortorder);
 
 			$resql=$newdb->query($sql);
@@ -726,7 +861,34 @@ function print_user_table($newdb, $object)
 			$sql .= " LEFT JOIN glpi_profiles_users as gpu ON gpu.users_id = gu.id";
 			$sql .= " LEFT JOIN glpi_profiles as gp ON gpu.profiles_id = gp.id AND gp.interface = 'central'";
 			$sql .= " WHERE gu.id not in (select gu2.id from glpi_users as gu2 where gu2.is_deleted = 1)";
-			$sql .= " ORDER BY gu.is_active DESC";
+			$key = 'rowid';
+			if ($search[$key]) {
+				$sql .= natural_search($key, $search[$key], 1);
+			}
+			$key = 'login';
+			if ($search[$key]) {
+				$sql .= natural_search($key, $search[$key], 0);
+			}
+			$key = 'lastname';
+			if ($search[$key]) {
+				$sql .= natural_search('realname', $search[$key], 0);
+			}
+			$key = 'firstname';
+			if ($search[$key]) {
+				$sql .= natural_search($key, $search[$key], 0);
+			}
+			$key = 'admin';
+			if ($search[$key]) {
+				$sql .= natural_search('gp.interface', $search[$key], 0);
+			}
+			$key = 'email';
+			if ($search[$key]) {
+				$sql .= natural_search($key, $search[$key], 0);
+			}
+
+			$sql .= $newdb->order($sortfield, $sortorder);
+		} else {
+			// Generic case
 		}
 
 		$resql=$newdb->query($sql);
@@ -740,6 +902,12 @@ function print_user_table($newdb, $object)
 				global $object;
 				$url='https://'.$object->ref_customer.'?username='.$obj->login.'&amp;password='.$obj->pass;
 				print '<tr class="oddeven">';
+				// Action column
+				if (getDolGlobalString('MAIN_CHECKBOX_LEFT_COLUMN')) {
+					print '<td align="center">';
+					print '<a href="'.$_SERVER["PHP_SELF"].'?action=resetpassword&token='.newToken().'&remoteid='.((int) $obj->rowid).'&id='.((int) $id).'">'.img_picto($langs->trans('ResetPassword'), 'object_technic').'</a>';
+					print '</td>';
+				}
 				print '<td>';
 				print ($i+1);
 				print '</td>';
@@ -776,9 +944,12 @@ function print_user_table($newdb, $object)
 						}
 					}
 				}
-				print '<td align="center">';
-				print '<a href="'.$_SERVER["PHP_SELF"].'?action=resetpassword&token='.newToken().'&remoteid='.((int) $obj->rowid).'&id='.((int) $id).'">'.img_picto('ResetPassword', 'object_technic').'</a>';
-				print '</td>';
+				// Action column
+				if (!getDolGlobalString('MAIN_CHECKBOX_LEFT_COLUMN')) {
+					print '<td align="center">';
+					print '<a href="'.$_SERVER["PHP_SELF"].'?action=resetpassword&token='.newToken().'&remoteid='.((int) $obj->rowid).'&id='.((int) $id).'">'.img_picto($langs->trans('ResetPassword'), 'object_technic').'</a>';
+					print '</td>';
+				}
 				print '</tr>';
 				$i++;
 			}

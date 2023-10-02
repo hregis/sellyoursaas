@@ -110,7 +110,7 @@ if (count($listofcontractid) > 0) {
 
 		$contract->fetchObjectLinked();
 		$freqlabel = array('d'=>$langs->trans('Day'), 'm'=>$langs->trans('Month'), 'y'=>$langs->trans('Year'));
-		if (is_array($contract->linkedObjects['facture']) && count($contract->linkedObjects['facture']) > 0) {
+		if (!empty($contract->linkedObjects['facture']) && is_array($contract->linkedObjects['facture']) && count($contract->linkedObjects['facture']) > 0) {
 			//var_dump($contract->linkedObjects['facture']);
 			usort($contract->linkedObjects['facture'], "cmpr_invoice_object_date_desc");	// function "cmp" to sort on ->date is inside sellyoursaas.lib.php
 
@@ -185,6 +185,19 @@ if (count($listofcontractid) > 0) {
 					$s = $invoice->getLibStatut(2, $alreadypayed + $amount_credit_notes_included);
 					$s = preg_replace('/'.$langs->transnoentitiesnoconv("BillStatusPaidBackOrConverted").'/', $langs->trans("Refunded"), $s);
 					$s = preg_replace('/'.$langs->transnoentitiesnoconv("BillShortStatusPaidBackOrConverted").'/', $langs->trans("Refunded"), $s);
+					// Test if there is a direct debit order linked to invoice
+					$sql = "SELECT dp.rowid, pb.rowid  FROM ".MAIN_DB_PREFIX."prelevement_demande as dp";
+					$sql .= " JOIN ".MAIN_DB_PREFIX."prelevement_bons as pb ON pb.rowid = dp.fk_prelevement_bons";
+					$sql .= " WHERE dp.fk_facture = ".((int) $invoice->id)." AND dp.date_traite IS NOT NULL";
+					$sql .= " AND pb.statut = 1 AND pb.date_credit IS NULL";
+					$resql = $db->query($sql);
+					if ($resql) {
+						$num_rows = $db->num_rows($resql);
+						if ($num_rows >= 1) {
+							$s = preg_replace('/'.$langs->transnoentitiesnoconv("BillStatusNotPaid").'/', $langs->trans("StatusTrans"), $s);
+							$s = preg_replace('/'.$langs->trans("BillShortStatusNotPaid").'/', $langs->trans("SepaSentToBank"), $s);
+						}
+					}
 					print $s;
 					// TODO Add details of payments
 					//$htmltext = 'Soon here: Details of payment...';
@@ -264,7 +277,7 @@ if ($mythirdpartyaccount->array_options['options_checkboxnonprofitorga'] != 'non
 				print '</tr>';
 				print '<tr>';
 				print '<td>';
-				print '....'.$companypaymentmodetemp->last_four;
+				print '....'.dol_escape_htmltag($companypaymentmodetemp->last_four);
 				print '</td>';
 				print '<td></td>';
 				print '<td>';
@@ -287,7 +300,7 @@ if ($mythirdpartyaccount->array_options['options_checkboxnonprofitorga'] != 'non
 					print '<tr><td>';
 					print 'Stripe customer: '.$customer->id;
 					print '</td><td colspan="2">';
-					print 'Stripe card: '.$companypaymentmodetemp->stripe_card_ref;
+					print 'Stripe card: '.dol_escape_htmltag($companypaymentmodetemp->stripe_card_ref);
 					print '</td></tr>';
 				}
 			} elseif ($companypaymentmodetemp->type == 'paypal') {
@@ -300,7 +313,7 @@ if ($mythirdpartyaccount->array_options['options_checkboxnonprofitorga'] != 'non
 				print '</tr>';
 				print '<tr>';
 				print '<td>';
-				print $companypaymentmodetemp->email;
+				print dol_escape_htmltag($companypaymentmodetemp->email);
 				print '<br>Preaproval key: '.$companypaymentmodetemp->preapproval_key;
 				print '</td>';
 				print '<td>';
@@ -328,10 +341,10 @@ if ($mythirdpartyaccount->array_options['options_checkboxnonprofitorga'] != 'non
 			} else {
 				print '<tr>';
 				print '<td>';
-				print $companypaymentmodetemp->type;
+				print dol_escape_htmltag($companypaymentmodetemp->type);
 				print '</td>';
 				print '<td>';
-				print $companypaymentmodetemp->label;
+				print dol_escape_htmltag($companypaymentmodetemp->label);
 				print '</td>';
 				print '<td>';
 				print '</td>';
@@ -344,8 +357,8 @@ if ($mythirdpartyaccount->array_options['options_checkboxnonprofitorga'] != 'non
 		print '</table>';
 	} else {
 		print '<span class="opacitymedium">'.$langs->trans("NoPaymentMethodOnFile").'</span>';
-		if ($nbofinstancessuspended || $ispaid || $atleastonecontractwithtrialended) {
-			print ' '.img_warning();
+		if (!empty($nbofinstancessuspended) || !empty($ispaid) || !empty($atleastonecontractwithtrialended)) {
+			print ' '.img_warning($langs->trans("NoPaymentMethodOnFile"));
 		}
 	}
 

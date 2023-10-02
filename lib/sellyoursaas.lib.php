@@ -112,8 +112,12 @@ function sellyoursaasThirdpartyHasPaymentMode($thirdpartyidtotest)
 	// Fill array of company payment modes
 	$sql = 'SELECT rowid, default_rib FROM '.MAIN_DB_PREFIX."societe_rib";
 	$sql.= " WHERE type in ('ban', 'card', 'paypal')";
-	$sql.= " AND fk_soc = ".$thirdpartyidtotest;
-	$sql.= " AND (type = 'ban' OR (type = 'card' AND status = ".$servicestatusstripe.") OR (type = 'paypal' AND status = ".$servicestatuspaypal."))";
+	$sql.= " AND fk_soc = ".((int) $thirdpartyidtotest);
+	$sql.= " AND (";
+	$sql.= "(type = 'ban') OR";												// sepa		TODO Add filter on ext_payment_site
+	$sql.= "(type = 'card' AND status = ".$servicestatusstripe.") OR";		// stripe	TODO Add filter on ext_payment_site
+	$sql.= "(type = 'paypal' AND status = ".$servicestatuspaypal.")";		// paypal	TODO Add filter on ext_payment_site
+	$sql.= ")";
 	$sql.= " ORDER BY default_rib DESC, tms DESC";
 
 	$resqltmp = $db->query($sql);
@@ -141,7 +145,7 @@ function sellyoursaasThirdpartyHasPaymentMode($thirdpartyidtotest)
  * Check if there is an invoice or template invoice (it was a paying customer) or just a template invoice (it is a current paying customer)
  *
  * @param 	Contrat $contract			Object contract
- * @param	int		$mode				0=Test invoice or template invoice of contract, 1=Test only templates invoices
+ * @param	int		$mode				0=Test invoice or template invoice linked to the contract, 1=Test only templates invoices
  * @param	int		$loadalsoobjects	Load also array this->linkedObjects (Use 0 to increase performances)
  * @return	int							>0 if this is a paid contract
  */
@@ -449,6 +453,16 @@ function sellyoursaas_admin_prepare_head()
 	$head[$h][0] = "setup_automation.php";
 	$head[$h][1] = $langs->trans("Automation");
 	$head[$h][2] = "setup_automation";
+	$h++;
+
+	$head[$h][0] = "setup_reseller.php";
+	$head[$h][1] = $langs->trans("ResellerProgram");
+	$head[$h][2] = "setup_reseller";
+	$h++;
+
+	$head[$h][0] = "setup_endpoints.php";
+	$head[$h][1] = $langs->trans("Endpoints");
+	$head[$h][2] = "setup_endpoints";
 	$h++;
 
 	$head[$h][0] = "setup_other.php";

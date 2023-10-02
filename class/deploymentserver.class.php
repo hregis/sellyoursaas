@@ -66,7 +66,7 @@ class Deploymentserver extends CommonObject
 	public $nb_instances;
 	public $nb_backupok;
 	public $nb_backuptotal;
-
+	public $nb_backuptotalremote;
 
 	const STATUS_DISABLED = 0;
 	const STATUS_ENABLED = 1;
@@ -128,7 +128,7 @@ class Deploymentserver extends CommonObject
 		'status' => array('type'=>'integer', 'label'=>'OpenCloseStatus', 'enabled'=>'1', 'position'=>100, 'notnull'=>1, 'visible'=>1, 'index'=>1, 'arrayofkeyval'=>array('0'=>'Closed', '1'=>'Opened'), 'validate'=>'1',),
 		'note_private' => array('type'=>'html', 'label'=>'NotePrivate', 'enabled'=>'1', 'position'=>200, 'notnull'=>0, 'visible'=>0, 'cssview'=>'wordbreak', 'validate'=>'1',),
 		'servercustomerannounce' => array('type'=>'text', 'label'=>'ServerCustomerAnnounce', 'enabled'=>'1', 'position'=>162, 'notnull'=>0, 'visible'=>1, 'help'=>"ServerCustomerAnnounceInfo", 'csslist'=>'small tdoverflowmax200'),
-		'servercustomerannouncestatus' => array('type'=>'integer', 'label'=>'ServerCustomerAnnounceStatus', 'enabled'=>'1', 'default'=>0, 'position'=>163, 'notnull'=>1, 'visible'=>1, 'arrayofkeyval'=>array('0'=>'Disabled', '1'=>'Enabled'),),
+		'servercustomerannouncestatus' => array('type'=>'integer', 'label'=>'ServerCustomerAnnounceStatus', 'enabled'=>'1', 'default'=>0, 'position'=>163, 'notnull'=>1, 'visible'=>1, 'arrayofkeyval'=>array('0'=>'Disabled', '1'=>'Enabled'), 'csslist'=>'center'),
 		'fk_user_modif' => array('type'=>'integer:User:user/class/user.class.php', 'label'=>'UserLastModif', 'enabled'=>'1', 'position'=>600, 'notnull'=>0, 'visible'=>-2, 'css'=>'maxwidth500', 'csslist'=>'tdoverflowmax500'),
 	);
 
@@ -715,7 +715,7 @@ class Deploymentserver extends CommonObject
 		if ($option != 'nolink') {
 			// Add param to save lastsearch_values or not
 			$add_save_lastsearch_values = ($save_lastsearch_value == 1 ? 1 : 0);
-			if ($save_lastsearch_value == -1 && preg_match('/list\.php/', $_SERVER["PHP_SELF"])) {
+			if ($save_lastsearch_value == -1 && isset($_SERVER["PHP_SELF"]) && preg_match('/list\.php/', $_SERVER["PHP_SELF"])) {
 				$add_save_lastsearch_values = 1;
 			}
 			if ($url && $add_save_lastsearch_values) {
@@ -1119,7 +1119,9 @@ class Deploymentserver extends CommonObject
 	{
 		$maxtryok = $maxokok = $maxtryko = $maxokko = null;
 
-		$sql = "SELECT ce.latestbackup_status, MAX(ce.latestbackup_date) as maxtry, MAX(ce.latestbackup_date_ok) as maxok";
+		$sql = "SELECT ce.latestbackup_status,";
+		$sql .= " MIN(ce.latestbackup_date) as mintry, MIN(ce.latestbackup_date_ok) as minok,";
+		$sql .= " MAX(ce.latestbackup_date) as maxtry, MAX(ce.latestbackup_date_ok) as maxok";
 		$sql .= " FROM ".$this->db->prefix()."contrat as c, ".$this->db->prefix()."contrat_extrafields as ce";
 		$sql .= " WHERE ce.fk_object = c.rowid";
 		$sql .= " AND ce.deployment_status IN ('done', 'processing')";
@@ -1132,9 +1134,13 @@ class Deploymentserver extends CommonObject
 				if ($obj->latestbackup_status == 'OK') {
 					$maxtryok = $this->db->jdate($obj->maxtry);
 					$maxokok = $this->db->jdate($obj->maxok);
+					$mintryok = $this->db->jdate($obj->mintry);
+					$minokok = $this->db->jdate($obj->minok);
 				} elseif ($obj->latestbackup_status == 'KO') {
 					$maxtryko = $this->db->jdate($obj->maxtry);
 					$maxokko = $this->db->jdate($obj->maxok);
+					$mintryko = $this->db->jdate($obj->mintry);
+					$minokko = $this->db->jdate($obj->minok);
 				} elseif ($obj->latestbackup_status) {
 					dol_print_error($this->db, 'Bad value for latestbackup_status');
 				}
@@ -1143,6 +1149,7 @@ class Deploymentserver extends CommonObject
 			dol_print_error($this->db);
 		}
 
-		return array('maxtryok' => $maxtryok, 'maxokok' => $maxokok, 'maxtryko' => $maxtryko, 'maxokko' => $maxokko);
+		return array('maxtryok' => $maxtryok, 'maxokok' => $maxokok, 'maxtryko' => $maxtryko, 'maxokko' => $maxokko,
+			'mintryok'=>$mintryok, 'minokok'=>$minokok, 'mintryko'=>$mintryko, 'minokko'=>$minokko);
 	}
 }

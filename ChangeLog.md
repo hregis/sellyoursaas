@@ -3,6 +3,18 @@
 
 ## 2.1
 
+* NEW Show oldest date of backup ok/ko in popup on list of instances
+* NEW Removed a lot of useless or duplicated SQL request in remoteAction.
+* NEW Add a test on a signature of parameters provided to remoteaction
+* NEW Request to become a reseller are now store into database. Add a menu entry to list all pending requests to become a reseller.
+* NEW Add allowed patterns for shell scripts (CLI after install, CLI after switch to pay)
+* NEW reorganisation of the setup tabs. Add a dedicated tab for reseller and endpoints options.
+* FIX Notice on login attempt on myaccount fixed to allow fail2ban.
+* FIX $emailtowarn on job scheduled was not using the sellyoursaas setuped email.
+* NEW Can filter and sort in the list of "users of" a given instance.
+* NEW Enhance script disk_used_per_instance to allow to process 1 instance only and to run updates manually
+* NEW More options on SELLYOURSAAS_ONLY_NON_PROFIT_ORGA
+* NEW Features "Shell after swtiching to paid" and "Sql after switch to paid" are now available.
 * NEW Add the date of the first access.
 * NEW Use a local cache for deployment if no remote cache is found.
 * NEW Show info on latest backup on tooltip on column "Nb of backup"  

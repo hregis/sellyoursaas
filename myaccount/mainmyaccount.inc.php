@@ -425,8 +425,8 @@ function top_htmlhead_sellyoursaas($head, $title = '', $disablejs = 0, $disableh
 
 			// Global js function
 			print '<!-- Includes JS of Dolibarr -->'."\n";
-			print '<script src="'.DOL_URL_ROOT.'/core/js/lib_head.js.php?lang='.$langs->defaultlang.($ext?'?'.$ext:'').'"></script>'."\n";
-			print '<script src="'.DOL_URL_ROOT.'/core/js/lib_foot.js.php?lang='.$langs->defaultlang.($ext?'?'.$ext:'').'"></script>'."\n";
+			print '<script src="'.DOL_URL_ROOT.'/core/js/lib_head.js.php?lang='.$langs->defaultlang.($ext?'&'.$ext:'').'"></script>'."\n";
+			print '<script src="'.DOL_URL_ROOT.'/core/js/lib_foot.js.php?lang='.$langs->defaultlang.($ext?'&'.$ext:'').'"></script>'."\n";
 
 			// JS forced by page in top_htmlhead (relative url starting with /)
 			if (is_array($arrayofjs)) {
@@ -708,7 +708,9 @@ function dol_loginfunction($langs, $conf, $mysoc)
 	// Set cookie for timeout management
 	$prefix=dol_getprefix('');
 	$sessiontimeout='DOLSESSTIMEOUT_'.$prefix;
-	if (! empty($conf->global->MAIN_SESSION_TIMEOUT)) setcookie($sessiontimeout, $conf->global->MAIN_SESSION_TIMEOUT, 0, "/", null, false, true);
+	if (! empty($conf->global->MAIN_SESSION_TIMEOUT)) {
+		setcookie($sessiontimeout, $conf->global->MAIN_SESSION_TIMEOUT, 0, "/", null, false, true);
+	}
 
 	if (GETPOST('urlfrom', 'alpha')) $_SESSION["urlfrom"]=GETPOST('urlfrom', 'alpha');
 	else unset($_SESSION["urlfrom"]);

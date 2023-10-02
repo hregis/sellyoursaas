@@ -597,7 +597,9 @@ class ActionsSellyoursaas
 			if (in_array($action, array('refresh', 'refreshmetrics', 'refreshfilesonly', 'recreateauthorizedkeys', 'deletelock', 'recreatelock', 'unsuspend', 'suspendmaintenance'))) {
 				dol_include_once('sellyoursaas/class/sellyoursaasutils.class.php');
 				$sellyoursaasutils = new SellYourSaasUtils($db);
-				$result = $sellyoursaasutils->sellyoursaasRemoteAction($action, $object);
+
+				$comment = 'Executed by doActions with action = '.$action;
+				$result = $sellyoursaasutils->sellyoursaasRemoteAction($action, $object, 'admin', '', '', '0', $comment);
 				if ($result <= 0) {
 					$error++;
 					$this->error=$sellyoursaasutils->error;
@@ -633,7 +635,7 @@ class ActionsSellyoursaas
 			}
 		}
 
-		// Action when we click on "Pay all pending invoices"
+		// Action when we click on "Pay all pending invoices" on a credit card line
 		if (in_array($parameters['currentcontext'], array('thirdpartybancard')) && $action == 'sellyoursaastakepayment' && GETPOST('companymodeid', 'int') > 0) {
 			// Define environment of payment modes
 			$servicestatusstripe = 0;
@@ -698,7 +700,11 @@ class ActionsSellyoursaas
 			// Change customer confirmation
 			$showtype = 1;
 			$showcode = 0;
-			$formquestion = array(array('type' => 'other','name' => 'socid','label' => $langs->trans("SelectThirdParty"),'value' => $form->select_company($object->thirdparty->id, 'socid', '(s.client=1 OR s.client=2 OR s.client=3)', '', $showtype, 0, null, 0, 'minwidth100', '', '', 1, array(), false, array(), $showcode)));
+			if ((float) DOL_VERSION < 18) {
+				$formquestion = array(array('type' => 'other','name' => 'socid','label' => $langs->trans("SelectThirdParty"),'value' => $form->select_company($object->thirdparty->id, 'socid', '(s.client=1 OR s.client=2 OR s.client=3)', '', $showtype, 0, null, 0, 'minwidth100', '', '', 1, array(), false, array(), $showcode)));
+			} else {
+				$formquestion = array(array('type' => 'other','name' => 'socid','label' => $langs->trans("SelectThirdParty"),'value' => $form->select_company($object->thirdparty->id, 'socid', '((s.client:=:1) OR (s.client:=:2) OR (s.client:=:3))', '', $showtype, 0, null, 0, 'minwidth100', '', '', 1, array(), false, array(), $showcode)));
+			}
 			$formconfirm = $form->formconfirm($_SERVER["PHP_SELF"] . '?id=' . $object->id, $langs->trans('ChangeCustomer'), '', 'confirm_changecustomer', $formquestion, 'yes', 1);
 			$this->resprints = $formconfirm;
 		}
@@ -794,7 +800,13 @@ class ActionsSellyoursaas
 					}
 					// Show payment status
 					if ($ispaid) {
-						$ret .= '<span class="badge badge-status4 badge-status valignmiddle inline-block">'.$langs->trans("PayedMode").'</span>';
+						$ret .= '<span class="badge badge-status4 badge-status valignmiddle inline-block">';
+						if (getDolGlobalString("SELLYOURSAAS_ENABLE_FREE_PAYMENT_MODE")) {
+							$ret .= $langs->trans("PayedOrConfirmedMode");
+						} else {
+							$ret .= $langs->trans("PayedMode");
+						}
+						$ret .= '</span>';
 						// nbofserviceswait, nbofservicesopened, nbofservicesexpired and nbofservicesclosed
 						if (! $object->nbofservicesclosed) {
 							$daysafterexpiration = getDolGlobalString('SELLYOURSAAS_NBDAYS_AFTER_EXPIRATION_BEFORE_PAID_SUSPEND');
@@ -1043,8 +1055,15 @@ class ActionsSellyoursaas
 
 						$ret = '<div class="bold">';
 						$ispaid = sellyoursaasIsPaidInstance($contractmpforloop);	// This call fetchObjectLinked
-						if ($ispaid) $ret .= '<span class="badge badge-status4" style="font-size: 1em;">'.$langs->trans("PayedMode").'</span>';
-						else $ret .= '<span class="badge" style="font-size: 1em">'.$langs->trans("TrialMode").'</span>';
+						if ($ispaid) {
+							if (getDolGlobalString("SELLYOURSAAS_ENABLE_FREE_PAYMENT_MODE")) {
+								$ret .= '<span class="badge badge-status4" style="font-size: 1em;">'.$langs->trans("PayedOrConfirmedMode").'</span>';
+							} else {
+								$ret .= '<span class="badge badge-status4" style="font-size: 1em;">'.$langs->trans("PayedMode").'</span>';
+							}
+						} else {
+							$ret .= '<span class="badge" style="font-size: 1em">'.$langs->trans("TrialMode").'</span>';
+						}
 						$ret .= '</div>';
 
 						print $ret;
@@ -1160,7 +1179,9 @@ class ActionsSellyoursaas
 		}
 		$pdf->SetFont(pdf_getPDFFont($outputlangs));
 
-		if ($conf->global->MAIN_DISABLE_PDF_COMPRESSION) $pdf->SetCompression(false);
+		if (getDolGlobalString('MAIN_DISABLE_PDF_COMPRESSION')) {
+			$pdf->SetCompression(false);
+		}
 		//$pdf->SetCompression(false);
 
 		$pagecounttmp = $pdf->setSourceFile($file);
@@ -1260,7 +1281,7 @@ class ActionsSellyoursaas
 		$this->results['head'] = $head;
 
 		$arrayoftypes = array(
-			'packages' => array('label' => 'Packages', 'ObjectClassName' => 'Packages', 'enabled' => $conf->sellyoursaas->enabled, 'ClassPath' => "/sellyoursaas/class/packages.class.php", 'langs'=>'sellyousaas@sellyoursaas')
+			'packages' => array('label' => 'Packages', 'picto'=>'label', 'ObjectClassName' => 'Packages', 'enabled' => $conf->sellyoursaas->enabled, 'ClassPath' => "/sellyoursaas/class/packages.class.php", 'langs'=>'sellyousaas@sellyoursaas')
 		);
 		$this->results['arrayoftype'] = $arrayoftypes;
 

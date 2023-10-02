@@ -219,7 +219,7 @@ foreach ($arrayofcompanypaymentmode as $companypaymentmodetemp) {
 	if ($companypaymentmodetemp->type == 'card') {
 		$foundcard++;
 		print '<hr>';
-		print '<div class="marginbottomonly">'.img_credit_card($companypaymentmodetemp->type_card, 'marginrightonlyimp');
+		print '<div class="marginbottomonly">'.img_credit_card($companypaymentmodetemp->card_type, 'marginrightonlyimp');
 		print '<span class="opacitymedium">'.$langs->trans("CurrentCreditOrDebitCard").'</span></div>';
 		print '<!-- companypaymentmode id = '.$companypaymentmodetemp->id.' -->';
 		print '....'.$companypaymentmodetemp->last_four;
@@ -235,7 +235,7 @@ foreach ($arrayofcompanypaymentmode as $companypaymentmodetemp) {
 }
 if ($foundcard) {
 	print '<hr>';
-	print '<div class="marginbottomonly">'.img_credit_card($companypaymentmodetemp->type_card, 'marginrightonlyimp');
+	print '<div class="marginbottomonly">'.img_credit_card($companypaymentmodetemp->card_type, 'marginrightonlyimp');
 	print '<span class="opacitymedium">'.$langs->trans("NewCreditOrDebitCard").'</span></div>';
 }
 
@@ -649,10 +649,10 @@ if ($mythirdpartyaccount->isInEEC()) {
 	}
 
 	$enabledformtoentersepa = getDolGlobalString('SELLYOURSAAS_ENABLE_SEPA');
-	$enabledformtoentersepaforids = explode(',', getDolGlobalString('SELLYOURSAAS_ENABLE_SEPA_FOR_THIRDPARTYID'));	// To test by enabling only on a given thirdparty, use SELLYOURSAAS_ENABLE_SEPA_FOR_THIRDPARTYID = id of thirparty.
+	$enabledformtoentersepaforids = explode(',', getDolGlobalString('SELLYOURSAAS_ENABLE_SEPA_FOR_THIRDPARTYID'));	// To test by enabling only on a given thirdparty, use SELLYOURSAAS_ENABLE_SEPA_FOR_THIRDPARTYID = 'id1,id2...' of thirparty.
 	//$enabledformtoentersepa = 1;
 
-	if ($enabledformtoentersepa || in_array($mythirdpartyaccount->id, $enabledformtoentersepaforids)) {
+	if ($enabledformtoentersepa && (empty($enabledformtoentersepaforids) || in_array($mythirdpartyaccount->id, $enabledformtoentersepaforids))) {
 		// Form to enter SEPA
 		print '<br>';
 		print '<div class="marginbottomonly">'.img_picto('', 'bank_account', 'class="marginrightonlyimp"');
