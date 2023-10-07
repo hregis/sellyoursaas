@@ -51,6 +51,24 @@ $mode=isset($argv[3])?$argv[3]:'';
 @set_time_limit(0);							// No timeout for this script
 define('EVEN_IF_ONLY_LOGIN_ALLOWED', 1);		// Set this define to 0 if you want to lock your script when dolibarr setup is "locked to admin user only".
 
+// Read /etc/sellyoursaas.conf file just for $dolibarrdir
+$dolibarrdir='';
+$fp = @fopen('/etc/sellyoursaas.conf', 'r');
+// Add each line to an array
+if ($fp) {
+	$array = explode("\n", fread($fp, filesize('/etc/sellyoursaas.conf')));
+	foreach ($array as $val) {
+		$tmpline=explode("=", $val);
+		if ($tmpline[0] == 'dolibarrdir') {
+			$dolibarrdir = preg_replace('/[^a-zA-Z0-9_\-\/]/', '', $tmpline[1]);
+		}
+	}
+}
+if (empty($dolibarrdir)) {
+	print "Failed to find 'dolibarrdir' entry into /etc/sellyoursaas.conf file\n";
+	exit(-1);
+}
+
 // Load Dolibarr environment
 $res=0;
 // Try master.inc.php into web root detected using web root caluclated from SCRIPT_FILENAME
@@ -76,6 +94,7 @@ $databaseport='3306';
 $database='';
 $databaseuser='sellyoursaas';
 $databasepass='';
+$master_unique_id = '';
 $fp = @fopen('/etc/sellyoursaas.conf', 'r');
 // Add each line to an array
 if ($fp) {
@@ -96,6 +115,9 @@ if ($fp) {
 		}
 		if ($tmpline[0] == 'databasepass') {
 			$databasepass = $tmpline[1];
+		}
+		if ($tmpline[0] == 'master_unique_id') {
+			$master_unique_id = dol_string_nospecial($tmpline[1]);
 		}
 	}
 } else {
@@ -144,8 +166,14 @@ if (! empty($instance) && ! preg_match('/\./', $instance) && ! preg_match('/\.ho
 	$instance = $instance.".".$tmpstring;   // Automatically concat first domain name
 }
 
-include_once DOL_DOCUMENT_ROOT.'/contrat/class/contrat.class.php';
-$object = new Contrat($db);
+dol_include_once('sellyoursaas/class/sellyoursaascontract.class.php');
+
+$object = new SellYourSaasContract($dbmaster);
+
+if (empty($conf->file->instance_unique_id)) {
+	$conf->file->instance_unique_id = empty($master_unique_id) ? '' : $master_unique_id;
+}
+
 $result=$object->fetch('', '', $instance);
 $result=$object->fetch_thirdparty();
 

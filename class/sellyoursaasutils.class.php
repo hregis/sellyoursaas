@@ -199,7 +199,7 @@ class SellYourSaasUtils
 										$hidedesc = (GETPOST('hidedesc', 'int') ? GETPOST('hidedesc', 'int') : (! empty($conf->global->MAIN_GENERATE_DOCUMENTS_HIDE_DESC) ? 1 : 0));
 										$hideref = (GETPOST('hideref', 'int') ? GETPOST('hideref', 'int') : (! empty($conf->global->MAIN_GENERATE_DOCUMENTS_HIDE_REF) ? 1 : 0));
 
-										$model_pdf = ($invoice->model_pdf ? $invoice->model_pdf : $invoice->modelpdf);
+										$model_pdf = $invoice->model_pdf;
 										$ret = $invoice->fetch($invoice->id); // Reload to get new records
 
 										dol_syslog("GETPOST('lang_id','aZ09')=".GETPOST('lang_id', 'aZ09')." invoice->thirdparty->default_lang=".(is_object($invoice->thirdparty)?$invoice->thirdparty->default_lang:'invoice->thirdparty not defined')." newlang=".$newlang." outputlangs->defaultlang=".$outputlangs->defaultlang);
@@ -2669,6 +2669,8 @@ class SellYourSaasUtils
 								}
 								// Add lines on invoice
 								if (! $error) {
+									dol_syslog("Now we will create the invoice lines from the contract ".$contract->ref, LOG_DEBUG, 0);
+
 									// Add lines of contract to template invoice
 									$srcobject = $contract;
 
@@ -2707,7 +2709,8 @@ class SellYourSaasUtils
 										// If date start is in past, we set it to now
 										$now = dol_now();
 										if ($date_start < $now) {
-											dol_syslog("--- Date start is in past, so we take current date as date start and update also end date of contract", LOG_DEBUG, 0);
+											dol_syslog("Date start of line is in past, so we take current date as date start and update also end date of contract", LOG_DEBUG, 0);
+
 											$tmparray = sellyoursaasGetExpirationDate($srcobject, 0);
 											$duration_value = $tmparray['duration_value'];
 											$duration_unit = $tmparray['duration_unit'];
@@ -2761,7 +2764,7 @@ class SellYourSaasUtils
 
 										$tmpproduct->fetch($lines[$i]->fk_product, '', '', '', 1, 1, 1);
 
-										dol_syslog("--- Read frequency for product id=".$tmpproduct->id, LOG_DEBUG, 0);
+										dol_syslog("Read frequency for product id=".$tmpproduct->id, LOG_DEBUG, 0);
 										if ($tmpproduct->array_options['options_app_or_option'] == 'app') {
 											$frequency = $tmpproduct->duration_value;
 											$frequency_unit = $tmpproduct->duration_unit;
@@ -2771,6 +2774,7 @@ class SellYourSaasUtils
 
 								// Now we convert invoice into a template
 								if (! $error) {
+									dol_syslog("Now we convert invoice into a template", LOG_DEBUG, 0);
 									//var_dump($invoice_draft->lines);
 									//var_dump(dol_print_date($date_start, 'dayhour'));
 									//exit;
