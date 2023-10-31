@@ -88,10 +88,9 @@ class SellYourSaasUtils
 		$this->error='';
 
 		$draftinvoiceprocessed = array();
+		$draftinvoicecanceled = array();
 		$contractprocessed = array();
 		$contracterror = array();
-
-		$this->db->begin();
 
 		$sql = 'SELECT f.rowid FROM '.MAIN_DB_PREFIX.'facture as f,';
 		$sql.= ' '.MAIN_DB_PREFIX.'societe_extrafields as se';
@@ -120,15 +119,21 @@ class SellYourSaasUtils
 					} else {
 						$tmparray = $invoice->thirdparty->getOutstandingBills('customer');
 						if ($tmparray['opened'] > 0) {
-							dol_syslog("This thirdparty has already open invoices, so we don't validate any other invoices");     // So only 1 invoice is validated per thirdparty and pass
+							dol_syslog("Note: This thirdparty has already validated open invoices.");
+							// @TODO Try to avoid validation of invoice if open invoice is on same contract ?
+							// Note also that later, we don't validate invoice if services are suspended.
 						}
 
 						// Search contracts linked to the invoice we try to validate
 						$invoice->fetchObjectLinked(null, '', null, '', 'OR', 1, 'sourcetype', 1);
 
 						if (is_array($invoice->linkedObjects['contrat']) && count($invoice->linkedObjects['contrat']) > 0) {
+							$errorforinvoice = 0;
+
+							$this->db->begin();
+
 							foreach ($invoice->linkedObjects['contrat'] as $idcontract => $contract) {
-								if (! empty($draftinvoiceprocessed[$invoice->id])) {
+								if (!empty($draftinvoiceprocessed[$invoice->id]) || !empty($draftinvoicecanceled[$invoice->id])) {
 									continue;	// If already processed because of a previous contract line, do nothing more
 								}
 
@@ -182,8 +187,10 @@ class SellYourSaasUtils
 										dol_syslog("doValidateDraftInvoices The invoice to validate has amount = ".$amountofinvoice." and come from recurring invoice with frequency ".$tmpinvoicerec->frequency."/".$tmpinvoicerec->unit_frequency." so a month factor of ".$monthfactor);
 										// Check amount with monthfactor is lower than $conf->global->SELLYOURSAAS_MAX_MONTHLY_AMOUNT_OF_INVOICE
 										if ($amountofinvoice >= (getDolGlobalInt('SELLYOURSAAS_MAX_MONTHLY_AMOUNT_OF_INVOICE') * $monthfactor)) {
-											$error++;
-											$this->error = 'The invoice '.$invoice->ref." can't be validated: Amount ".$amountofinvoice." > ".getDolGlobalInt('SELLYOURSAAS_MAX_MONTHLY_AMOUNT_OF_INVOICE')." * ".$monthfactor;
+											$draftinvoicecanceled[$invoice->id] = $invoice->ref;
+
+											$errorforinvoice++;
+											$this->error = 'The invoice '.$invoice->ref." can't be validated by doValidateDraftInvoices: Amount ".$amountofinvoice." > ".getDolGlobalInt('SELLYOURSAAS_MAX_MONTHLY_AMOUNT_OF_INVOICE')." * ".$monthfactor;
 											$this->errors[] = $this->error;
 											break;
 										}
@@ -206,16 +213,21 @@ class SellYourSaasUtils
 
 										$result = $invoice->generateDocument($model_pdf, $outputlangs, $hidedetails, $hidedesc, $hideref);
 									} else {
-										$error++;
+										$draftinvoicecanceled[$invoice->id] = $invoice->ref;
+
+										$errorforinvoice++;
 										$this->error = $invoice->error;
-										$this->errors = $invoice->errors;
+										$this->errors = array_merge($this->errors, $invoice->errors);
 										break;
 									}
 								} else {
 									// Do nothing
 									dol_syslog("Number of open services (".$nbservice.") is zero or contract is undeployed, so we do nothing.");
 								}
-								if (!$error) {
+
+								if (!$errorforinvoice) {
+									dol_syslog("Check if invoice payment mode is a SEPA payment: mode_reglement_code=".$invoice->mode_reglement_code);
+
 									$codepaiementdirectdebit = 'PRE';
 									$codepaiementtransfer = 'VIR';
 									if ($invoice->mode_reglement_code == $codepaiementdirectdebit || $invoice->mode_reglement_code == $codepaiementtransfer) {
@@ -239,11 +251,21 @@ class SellYourSaasUtils
 											}
 
 											if ($protecti < 1000) {	// If not, there is a pb
-												// We will update the end of date of contrat, so first we refresh contract data
+												// We will update the end of date of contrat
 												dol_syslog("We will update the end of date of contract with newdate = ".dol_print_date($newdate, 'dayhourrfc'));
 
 												$label = 'Increase end date of services for contract '.$contract->ref;
-												$comment = 'Increase end date of services for contract '.$contract->ref.' to '.dol_print_date($newdate, 'dayhourrfc').' by doValidateDraftInvoices()';
+												$comment = 'Increase end date of services for contract '.$contract->ref.' to '.dol_print_date($newdate, 'dayhourrfc').' by doValidateDraftInvoices().';
+
+												// First launch update of resources if it is not a redirect contract:
+												// We should not have to do that because the batch SellYourSaasRefreshContracts is called 2 days before
+												/*
+												$result = 1;
+												if (empty($contract->array_options['options_suspendmaintenance_message']) || !preg_match('/^http/i', $contract->array_options['options_suspendmaintenance_message'])) {
+													// This update qty of contract lines + qty into linked template invoice.
+													$result = $this->sellyoursaasRemoteAction('refreshmetrics', $contract, 'admin', '', '', '0', $comment);	// This includes the creation of an event if the qty has changed
+												}
+												*/
 
 												$sqlupdate = 'UPDATE '.MAIN_DB_PREFIX."contratdet SET date_fin_validite = '".$this->db->idate($newdate)."'";
 												$sqlupdate.= ' WHERE fk_contrat = '.((int) $contract->id);
@@ -275,11 +297,19 @@ class SellYourSaasUtils
 
 													$error++;
 													$this->error = $this->db->lasterror();
+													$this->errors[] = $this->error;
 												}
 											}
 										}
 									}
 								}
+							}
+
+							if (!$errorforinvoice) {
+								$this->db->commit();
+							} else {
+								$this->db->rollback();
+								$error++;
 							}
 						} else {
 							dol_syslog("No linked contract found on this invoice");
@@ -287,7 +317,8 @@ class SellYourSaasUtils
 					}
 				} else {
 					$error++;
-					$this->errors[] = 'Failed to get invoice with id '.$obj->rowid;
+					$this->error = 'Failed to get invoice with id '.$obj->rowid;
+					$this->errors[] = $this->error;
 				}
 
 				$i++;
@@ -295,11 +326,15 @@ class SellYourSaasUtils
 		} else {
 			$error++;
 			$this->error = $this->db->lasterror();
+			$this->errors[] = $this->error;
 		}
 
-		$this->output = count($draftinvoiceprocessed).' invoice(s) validated on '.$num_rows.' draft invoice found'.(count($draftinvoiceprocessed)>0 ? ' : '.join(',', $draftinvoiceprocessed) : '').' (search done on invoices of SellYourSaas customers only)';
+		$this->output = count($draftinvoiceprocessed).' invoice(s) validated on '.$num_rows.' draft invoice(s) found'.(count($draftinvoiceprocessed)>0 ? ' : '.join(',', $draftinvoiceprocessed) : '').' (search done on invoices of SellYourSaas customers only)';
 
-		$this->db->commit();
+		if (!empty($this->errors)) {
+			$this->output .= "\n";
+			// The $this->errors will be concatenated to the output bu the function that call this method.
+		}
 
 		$conf->global->SYSLOG_FILE = $savlog;
 
@@ -1002,7 +1037,7 @@ class SellYourSaasUtils
 						if ($result > 0) {
 							if ($invoice->statut == Facture::STATUS_DRAFT) {
 								$user->rights->facture->creer = 1;	// Force permission to user to validate invoices because code may be executed by anonymous user
-								if (empty($user->rights->facture->invoice_advance)) {
+								if (!$user->hasRight('facture', 'invoice_advance')) {
 									$user->rights->facture->invoice_advance = new stdClass();
 								}
 								$user->rights->facture->invoice_advance->validate = 1;
@@ -1030,7 +1065,7 @@ class SellYourSaasUtils
 									// Check amount with monthfactor is lower than $conf->global->SELLYOURSAAS_MAX_MONTHLY_AMOUNT_OF_INVOICE
 									if ($amountofinvoice >= ($conf->global->SELLYOURSAAS_MAX_MONTHLY_AMOUNT_OF_INVOICE * $monthfactor)) {
 										$error++;
-										$this->error = 'The invoice '.$invoice->ref." can't be validated: Amount ".$amountofinvoice." > ".$conf->global->SELLYOURSAAS_MAX_MONTHLY_AMOUNT_OF_INVOICE." * ".$monthfactor;
+										$this->error = 'The invoice '.$invoice->ref." can't be validated by doTakePaymentStripeForThirdparty: Amount ".$amountofinvoice." > " . getDolGlobalString('SELLYOURSAAS_MAX_MONTHLY_AMOUNT_OF_INVOICE')." * ".$monthfactor;
 										$this->errors[] = $this->error;
 										break;
 									}
@@ -1317,7 +1352,7 @@ class SellYourSaasUtils
 										$charge->failure_message = $stripe->error;
 										$charge->failure_declinecode = $stripe->declinecode;
 										$stripefailurecode = $stripe->code;
-										$stripefailuremessage = 'Action required. Contact the support at '.$conf->global->SELLYOURSAAS_MAIN_EMAIL;
+										$stripefailuremessage = 'Action required. Contact the support at ' . getDolGlobalString('SELLYOURSAAS_MAIN_EMAIL');
 										$stripefailuredeclinecode = $stripe->declinecode;
 									} else {
 										dol_syslog("paymentintent = ".var_export($paymentintent, true), LOG_DEBUG);
@@ -1439,9 +1474,9 @@ class SellYourSaasUtils
 									$paiement->ext_payment_site = $service;
 
 									if (! $errorforinvoice) {
-										dol_syslog('* Record payment for invoice id '.$invoice->id.'. It includes closing of invoice and regenerating document');
+										dol_syslog('* Record payment for invoice id '.$invoice->id.'. It includes payment insert + trigger PAYMENT_CUSTOMER_CREATE (to warn supervision) then invoice->setPaid() + trigger BILL_PAYED (to unsuspend instance), and regenerating document');
 
-										// This include closing invoices to 'paid' (and trigger including unsuspending) and regenerating document
+										// This include closing invoices to 'paid' (and triggers execution including unsuspending) and regenerating document
 										// So this method can be very long if there is an unsuspend action ending with timeout.
 										// Note: If there is an error during generation of PDF, we received a payment error. A solution may be to set $conf->global->MAIN_DISABLE_PDF_AUTOUPDATE and
 										// force regeneration of PDF outside of method create
@@ -3134,7 +3169,7 @@ class SellYourSaasUtils
 						if ($mode == 'test') $remotetouse = 'undeployall';
 
 						$conf->global->noapachereload = 1;       // Set a global variable that can be read later
-						$comment = "Undeploy instance by doUndeployOldSuspendedInstances('".$mode."') so remotetouse=".$remotetouse.", the ".dol_print_date($now, 'dayhourrfc').' (noapachereload='.$conf->global->noapachereload.')';
+						$comment = "Undeploy instance by doUndeployOldSuspendedInstances('".$mode."') so remotetouse=".$remotetouse.", the ".dol_print_date($now, 'dayhourrfc').' (noapachereload=' . getDolGlobalString('noapachereload').')';
 						$result = $this->sellyoursaasRemoteAction($remotetouse, $object, 'admin', '', '', '0', $comment, 300);
 						$conf->global->noapachereload = null;    // unset a global variable that can be read later
 						if ($result <= 0) {
@@ -3153,7 +3188,7 @@ class SellYourSaasUtils
 							dol_syslog("Unactivate all lines - doUndeployOldSuspendedInstances undeploy or undeployall");
 
 							$conf->global->noapachereload = 1;       // Set a global variable that can be read later by trigger
-							$comment = "Close after undeployment by doUndeployOldSuspendedInstances('".$mode."') the ".dol_print_date($now, 'dayhourrfc').' (noapachereload='.$conf->global->noapachereload.')';
+							$comment = "Close after undeployment by doUndeployOldSuspendedInstances('".$mode."') the ".dol_print_date($now, 'dayhourrfc').' (noapachereload=' . getDolGlobalString('noapachereload').')';
 							$result = $object->closeAll($user, 1, $comment);   // Disable trigger to avoid any other action
 							$conf->global->noapachereload = null;    // unset a global variable that can be read later by trigger
 							if ($result <= 0) {
@@ -3390,20 +3425,20 @@ class SellYourSaasUtils
 								// Check if install.lock exists
 								$dir = $object->array_options['options_database_db'];
 								$fileinstalllock="ssh2.sftp://".intval($sftp).$object->array_options['options_hostname_os'].'/'.$object->array_options['options_username_os'].'/'.$dir.'/documents/install.lock';
-								$fileinstalllock2=$conf->global->DOLICLOUD_INSTANCES_PATH.'/'.$object->array_options['options_username_os'].'/'.$dir.'/documents/install.lock';
+								$fileinstalllock2=getDolGlobalString('DOLICLOUD_INSTANCES_PATH') . '/'.$object->array_options['options_username_os'].'/'.$dir.'/documents/install.lock';
 								$fstatlock=@ssh2_sftp_stat($sftp, $fileinstalllock2);
 								$datelockfile=(empty($fstatlock['atime'])?'':$fstatlock['atime']);
 
 								// Check if installmodules.lock exists
 								$dir = $object->array_options['options_database_db'];
 								$fileinstallmoduleslock="ssh2.sftp://".intval($sftp).$object->array_options['options_hostname_os'].'/'.$object->array_options['options_username_os'].'/'.$dir.'/documents/installmodules.lock';
-								$fileinstallmoduleslock2=$conf->global->DOLICLOUD_INSTANCES_PATH.'/'.$object->array_options['options_username_os'].'/'.$dir.'/documents/installmodules.lock';
+								$fileinstallmoduleslock2=getDolGlobalString('DOLICLOUD_INSTANCES_PATH') . '/'.$object->array_options['options_username_os'].'/'.$dir.'/documents/installmodules.lock';
 								$fstatinstallmoduleslock=@ssh2_sftp_stat($sftp, $fileinstallmoduleslock2);
 								$dateinstallmoduleslockfile=(empty($fstatinstallmoduleslock['atime'])?'':$fstatinstallmoduleslock['atime']);
 
 								// Check if authorized_keys_support exists (created during os account creation, into skel dir)
 								$fileauthorizedkeys="ssh2.sftp://".intval($sftp).$object->array_options['options_hostname_os'].'/'.$object->array_options['options_username_os'].'/.ssh/authorized_keys_support';
-								$fileauthorizedkeys2=$conf->global->DOLICLOUD_INSTANCES_PATH.'/'.$object->array_options['options_username_os'].'/.ssh/authorized_keys_support';
+								$fileauthorizedkeys2=getDolGlobalString('DOLICLOUD_INSTANCES_PATH') . '/'.$object->array_options['options_username_os'].'/.ssh/authorized_keys_support';
 								$fstatlock=@ssh2_sftp_stat($sftp, $fileauthorizedkeys2);
 								$dateauthorizedkeysfile=(empty($fstatlock['atime'])?'':$fstatlock['atime']);
 								//var_dump($datelockfile);
@@ -3431,7 +3466,7 @@ class SellYourSaasUtils
 								// Dir .ssh must have rwx------ permissions
 								// File authorized_keys_support must have rw------- permissions
 								$dircreated=0;
-								$result=ssh2_sftp_mkdir($sftp, $conf->global->DOLICLOUD_INSTANCES_PATH.'/'.$object->array_options['options_username_os'].'/.ssh');
+								$result=ssh2_sftp_mkdir($sftp, getDolGlobalString('DOLICLOUD_INSTANCES_PATH') . '/'.$object->array_options['options_username_os'].'/.ssh');
 								if ($result) {
 									// Created
 									$dircreated=1;
@@ -3441,8 +3476,8 @@ class SellYourSaasUtils
 								}
 
 								// Check if authorized_key exists
-								$filecert="ssh2.sftp://".intval($sftp).$conf->global->DOLICLOUD_INSTANCES_PATH.'/'.$object->array_options['options_username_os'].'/.ssh/authorized_keys_support';  // With PHP 5.6.27+
-								$fstat=@ssh2_sftp_stat($sftp, $conf->global->DOLICLOUD_INSTANCES_PATH.'/'.$object->array_options['options_username_os'].'/.ssh/authorized_keys_support');
+								$filecert="ssh2.sftp://".intval($sftp) . getDolGlobalString('DOLICLOUD_INSTANCES_PATH').'/'.$object->array_options['options_username_os'].'/.ssh/authorized_keys_support';  // With PHP 5.6.27+
+								$fstat=@ssh2_sftp_stat($sftp, getDolGlobalString('DOLICLOUD_INSTANCES_PATH') . '/'.$object->array_options['options_username_os'].'/.ssh/authorized_keys_support');
 
 								// Create authorized_keys_support file
 								if (empty($fstat['atime'])) {		// Failed to connect or file does not exists
@@ -3457,8 +3492,8 @@ class SellYourSaasUtils
 
 										fclose($stream);
 										// File authorized_keys_support must have rw------- permissions
-										ssh2_sftp_chmod($sftp, $conf->global->DOLICLOUD_INSTANCES_PATH.'/'.$object->array_options['options_username_os'].'/.ssh/authorized_keys_support', 0600);
-										$fstat=ssh2_sftp_stat($sftp, $conf->global->DOLICLOUD_INSTANCES_PATH.'/'.$object->array_options['options_username_os'].'/.ssh/authorized_keys_support');
+										ssh2_sftp_chmod($sftp, getDolGlobalString('DOLICLOUD_INSTANCES_PATH') . '/'.$object->array_options['options_username_os'].'/.ssh/authorized_keys_support', 0600);
+										$fstat=ssh2_sftp_stat($sftp, getDolGlobalString('DOLICLOUD_INSTANCES_PATH') . '/'.$object->array_options['options_username_os'].'/.ssh/authorized_keys_support');
 									}
 								} else {
 									$error++;
@@ -3478,7 +3513,7 @@ class SellYourSaasUtils
 							} else {
 								// Check if install.lock exists
 								$dir = $object->array_options['options_database_db'];
-								$filetodelete=$conf->global->DOLICLOUD_INSTANCES_PATH.'/'.$object->array_options['options_username_os'].'/'.$dir.'/documents/install.lock';
+								$filetodelete=getDolGlobalString('DOLICLOUD_INSTANCES_PATH') . '/'.$object->array_options['options_username_os'].'/'.$dir.'/documents/install.lock';
 								$result=ssh2_sftp_unlink($sftp, $filetodelete);
 
 								if (! $result) {
@@ -3501,14 +3536,14 @@ class SellYourSaasUtils
 								// Check if install.lock exists
 								$dir = $object->array_options['options_database_db'];
 								//$fileinstalllock="ssh2.sftp://".$sftp.$conf->global->DOLICLOUD_INSTANCES_PATH.'/'.$object->array_options['options_username_os'].'/'.$dir.'/documents/install.lock';
-								$fileinstalllock="ssh2.sftp://".intval($sftp).$conf->global->DOLICLOUD_INSTANCES_PATH.'/'.$object->array_options['options_username_os'].'/'.$dir.'/documents/install.lock';
-								$fstat=@ssh2_sftp_stat($sftp, $conf->global->DOLICLOUD_INSTANCES_PATH.'/'.$object->array_options['options_username_os'].'/'.$dir.'/documents/install.lock');
+								$fileinstalllock="ssh2.sftp://".intval($sftp) . getDolGlobalString('DOLICLOUD_INSTANCES_PATH').'/'.$object->array_options['options_username_os'].'/'.$dir.'/documents/install.lock';
+								$fstat=@ssh2_sftp_stat($sftp, getDolGlobalString('DOLICLOUD_INSTANCES_PATH') . '/'.$object->array_options['options_username_os'].'/'.$dir.'/documents/install.lock');
 								if (empty($fstat['atime'])) {
 									$stream = fopen($fileinstalllock, 'w');
 									//var_dump($stream);exit;
 									fwrite($stream, "// File to protect from install/upgrade.\n");
 									fclose($stream);
-									$fstat=ssh2_sftp_stat($sftp, $conf->global->DOLICLOUD_INSTANCES_PATH.'/'.$object->array_options['options_username_os'].'/'.$dir.'/documents/install.lock');
+									$fstat=ssh2_sftp_stat($sftp, getDolGlobalString('DOLICLOUD_INSTANCES_PATH') . '/'.$object->array_options['options_username_os'].'/'.$dir.'/documents/install.lock');
 								} else {
 									$error++;
 									$this->errors[] = $langs->transnoentitiesnoconv("ErrorFileAlreadyExists");
@@ -3529,7 +3564,7 @@ class SellYourSaasUtils
 							} else {
 								// Check if install.lock exists
 								$dir = $object->array_options['options_database_db'];
-								$filetodelete=$conf->global->DOLICLOUD_INSTANCES_PATH.'/'.$object->array_options['options_username_os'].'/'.$dir.'/documents/installmodules.lock';
+								$filetodelete=getDolGlobalString('DOLICLOUD_INSTANCES_PATH') . '/'.$object->array_options['options_username_os'].'/'.$dir.'/documents/installmodules.lock';
 								$result=ssh2_sftp_unlink($sftp, $filetodelete);
 
 								if (! $result) {
@@ -3552,14 +3587,14 @@ class SellYourSaasUtils
 								// Check if install.lock exists
 								$dir = $object->array_options['options_database_db'];
 								//$fileinstalllock="ssh2.sftp://".$sftp.$conf->global->DOLICLOUD_INSTANCES_PATH.'/'.$object->array_options['options_username_os'].'/'.$dir.'/documents/install.lock';
-								$fileinstallmoduleslock="ssh2.sftp://".intval($sftp).$conf->global->DOLICLOUD_INSTANCES_PATH.'/'.$object->array_options['options_username_os'].'/'.$dir.'/documents/installmodules.lock';
-								$fstat=@ssh2_sftp_stat($sftp, $conf->global->DOLICLOUD_INSTANCES_PATH.'/'.$object->array_options['options_username_os'].'/'.$dir.'/documents/installmodules.lock');
+								$fileinstallmoduleslock="ssh2.sftp://".intval($sftp) . getDolGlobalString('DOLICLOUD_INSTANCES_PATH').'/'.$object->array_options['options_username_os'].'/'.$dir.'/documents/installmodules.lock';
+								$fstat=@ssh2_sftp_stat($sftp, getDolGlobalString('DOLICLOUD_INSTANCES_PATH') . '/'.$object->array_options['options_username_os'].'/'.$dir.'/documents/installmodules.lock');
 								if (empty($fstat['atime'])) {
 									$stream = fopen($fileinstallmoduleslock, 'w');
 									//var_dump($stream);exit;
 									fwrite($stream, "// File to protect from install/upgrade external module.\n");
 									fclose($stream);
-									$fstat=ssh2_sftp_stat($sftp, $conf->global->DOLICLOUD_INSTANCES_PATH.'/'.$object->array_options['options_username_os'].'/'.$dir.'/documents/installmodules.lock');
+									$fstat=ssh2_sftp_stat($sftp, getDolGlobalString('DOLICLOUD_INSTANCES_PATH') . '/'.$object->array_options['options_username_os'].'/'.$dir.'/documents/installmodules.lock');
 								} else {
 									$error++;
 									$this->errors[] = $langs->transnoentitiesnoconv("ErrorFileAlreadyExists");
@@ -3626,7 +3661,7 @@ class SellYourSaasUtils
 				($producttmp->array_options['options_app_or_option'] == 'app')) {
 					$doremoteaction = 1;
 			}
-			if (in_array($remoteaction, array('deploy','deployall','deployoption')) &&
+			if (in_array($remoteaction, array('deploy', 'deployall', 'deployoption')) &&
 				($producttmp->array_options['options_app_or_option'] == 'option') && $tmppackage->id > 0) {
 					$doremoteaction = 1;
 					$remoteaction = 'deployoption';		// force on deployoption for options services
@@ -3740,10 +3775,10 @@ class SellYourSaasUtils
 				$savhashalgo = $conf->global->MAIN_SECURITY_HASH_ALGO;
 
 				$conf->global->MAIN_SECURITY_HASH_ALGO = empty($conf->global->SELLYOURSAAS_HASHALGOFORPASSWORD)?'':$conf->global->SELLYOURSAAS_HASHALGOFORPASSWORD;
-				dol_syslog("Using this MAIN_SECURITY_HASH_ALGO for __APPPASSWORDxxx__ variables : ".$conf->global->MAIN_SECURITY_HASH_ALGO);
+				dol_syslog("Using this MAIN_SECURITY_HASH_ALGO for __APPPASSWORDxxx__ variables : " . getDolGlobalString('MAIN_SECURITY_HASH_ALGO'));
 
 				$conf->global->MAIN_SECURITY_SALT = empty($conf->global->SELLYOURSAAS_SALTFORPASSWORDENCRYPTION)?'':$conf->global->SELLYOURSAAS_SALTFORPASSWORDENCRYPTION;
-				dol_syslog("Using this salt for __APPPASSWORDxxxSALTED__ variables : ".$conf->global->MAIN_SECURITY_SALT);
+				dol_syslog("Using this salt for __APPPASSWORDxxxSALTED__ variables : " . getDolGlobalString('MAIN_SECURITY_SALT'));
 				$password0salted = dol_hash($password);
 				$passwordmd5salted = dol_hash($password, 'md5');
 				$passwordsha256salted = dol_hash($password, 'sha256');
@@ -3827,7 +3862,7 @@ class SellYourSaasUtils
 				$tmppackage->targetsrcfile3 = make_substitutions($tmppackage->targetsrcfile3, $substitarray);
 
 
-				$automigrationtmpdir = $dirfortmpfiles."/automigration".($object->socid > 0 ? "_".$object->socid : "").".tmp";
+				$automigrationtmpdir = $dirfortmpfiles."/automigration".((!empty($object->socid) && $object->socid > 0) ? "_".$object->socid : "").".tmp";
 				$automigrationdocumentarchivename = (empty($object->array_options["automigrationdocumentarchivename"]) ? '' : $object->array_options["automigrationdocumentarchivename"]);
 				$dirforexampleforsources = (empty($object->array_options["dirforexampleforsources"]) ? '' : $object->array_options["dirforexampleforsources"]);
 				$laststableupgradeversion = (empty($object->array_options["laststableupgradeversion"]) ? '' : $object->array_options["laststableupgradeversion"]);
@@ -3980,13 +4015,9 @@ class SellYourSaasUtils
 						}
 					}
 				}
-			} else {
-				dol_syslog("Do not enter into doremoteaction code for contract line id=".$tmpobject->id." app_or_option=".(empty($producttmp->array_options['options_app_or_option']) ? '' : $producttmp->array_options['options_app_or_option']));
-			}
-
-			// remoteaction = refresh or refreshmetrics => update the qty for this line if it is a line that is a metric
-			// Here we are into a loop where $tmpobject and $tmpproduct are defined.
-			if ($remoteaction == 'refresh' || $remoteaction == 'refreshmetrics') {
+			} elseif ($remoteaction == 'refresh' || $remoteaction == 'refreshmetrics') {
+				// remoteaction = refresh or refreshmetrics => update the qty for this line if it is a line that is a metric
+				// Here we are into a loop where $tmpobject, $tmppackage and $producttmp are defined.
 				dol_syslog("Start refresh of nb of resources for a customer");
 
 				dol_include_once('/sellyoursaas/class/packages.class.php');
@@ -4044,10 +4075,10 @@ class SellYourSaasUtils
 					$savhashalgo = $conf->global->MAIN_SECURITY_HASH_ALGO;
 
 					$conf->global->MAIN_SECURITY_HASH_ALGO = empty($conf->global->SELLYOURSAAS_HASHALGOFORPASSWORD)?'':$conf->global->SELLYOURSAAS_HASHALGOFORPASSWORD;
-					dol_syslog("Using this MAIN_SECURITY_HASH_ALGO for __APPPASSWORDxxx__ variables : ".$conf->global->MAIN_SECURITY_HASH_ALGO);
+					dol_syslog("Using this MAIN_SECURITY_HASH_ALGO for __APPPASSWORDxxx__ variables : " . getDolGlobalString('MAIN_SECURITY_HASH_ALGO'));
 
 					$conf->global->MAIN_SECURITY_SALT = empty($conf->global->SELLYOURSAAS_SALTFORPASSWORDENCRYPTION)?'':$conf->global->SELLYOURSAAS_SALTFORPASSWORDENCRYPTION;
-					dol_syslog("Using this salt for __APPPASSWORDxxxSALTED__ variables : ".$conf->global->MAIN_SECURITY_SALT);
+					dol_syslog("Using this salt for __APPPASSWORDxxxSALTED__ variables : " . getDolGlobalString('MAIN_SECURITY_SALT'));
 					$password0salted = dol_hash($password);
 					$passwordmd5salted = dol_hash($password, 'md5');
 					$passwordsha256salted = dol_hash($password, 'sha256');
@@ -4382,8 +4413,12 @@ class SellYourSaasUtils
 
 					// Set flag to update latesresupdate_date of the contract
 					$contracthasbeenrefreshed = 1;
-				} // end if a formula for the contract line is defined (so if a refresh must be done for line)
-			} // end if remoteaction is refresh
+				} else { // end if a formula for the contract line is defined (so if a refresh must be done for line)
+					dol_syslog("Do not enter into doremoteaction code for contract line id=".$tmpobject->id.", no formula defined on service");
+				}
+			} else { // end if remoteaction is refresh
+				dol_syslog("Do not enter into doremoteaction code for contract line id=".$tmpobject->id." app_or_option=".(empty($producttmp->array_options['options_app_or_option']) ? '' : $producttmp->array_options['options_app_or_option']));
+			}
 		} // end loop of each contract line
 
 		// If flag was set to say contract metrics has been refreshed
@@ -4503,7 +4538,7 @@ class SellYourSaasUtils
 				$statsd->increment('sellyoursaas.remoteaction', 1, $arraytags);
 
 				// Send an event for errors on remote action of contracts
-				if ($error && get_class($tmpcontract) == 'Contrat' && $conf->global->SELLYOURSAAS_DATADOG_ENABLED == 2) {
+				if ($error && get_class($tmpcontract) == 'Contrat' && getDolGlobalInt('SELLYOURSAAS_DATADOG_ENABLED') == 2) {
 					global $dolibarr_main_url_root;
 					$urlwithouturlroot=preg_replace('/'.preg_quote(DOL_URL_ROOT, '/').'$/i', '', trim($dolibarr_main_url_root));
 					$urlwithroot=$urlwithouturlroot.DOL_URL_ROOT;		// This is to use external domain name found into config file
@@ -4587,7 +4622,7 @@ class SellYourSaasUtils
 			}
 			//print 'Found domain at position '.$found;
 			if (! $found) {
-				dol_syslog("Failed to found position of server domain '".$domainname."' into SELLYOURSAAS_SUB_DOMAIN_NAMES=".$conf->global->SELLYOURSAAS_SUB_DOMAIN_NAMES, LOG_WARNING);
+				dol_syslog("Failed to found position of server domain '".$domainname."' into SELLYOURSAAS_SUB_DOMAIN_NAMES=" . getDolGlobalString('SELLYOURSAAS_SUB_DOMAIN_NAMES'), LOG_WARNING);
 				$this->error = "Failed to found position of server domain '".$domainname."' into SELLYOURSAAS_SUB_DOMAIN_NAMES";
 				$this->errors[] = "Failed to found position of server domain '".$domainname."' into SELLYOURSAAS_SUB_DOMAIN_NAMES";
 				$error++;
@@ -4595,7 +4630,7 @@ class SellYourSaasUtils
 				$tmparray=explode(',', $conf->global->SELLYOURSAAS_SUB_DOMAIN_IP);
 				$REMOTEIPTODEPLOYTO=$tmparray[($found-1)];
 				if (! $REMOTEIPTODEPLOYTO) {
-					dol_syslog("Failed to found ip of server domain '".$domainname."' at position '".$found."' into SELLYOURSAAS_SUB_DOMAIN_IP".$conf->global->SELLYOURSAAS_SUB_DOMAIN_IP, LOG_WARNING);
+					dol_syslog("Failed to found ip of server domain '".$domainname."' at position '".$found."' into SELLYOURSAAS_SUB_DOMAIN_IP" . getDolGlobalString('SELLYOURSAAS_SUB_DOMAIN_IP'), LOG_WARNING);
 					$this->error = "Failed to found ip of server domain '".$domainname."' at position '".$found."' into SELLYOURSAAS_SUB_DOMAIN_IP";
 					$this->errors[] = "Failed to found ip of server domain '".$domainname."' at position '".$found."' into SELLYOURSAAS_SUB_DOMAIN_IP";
 					$error++;

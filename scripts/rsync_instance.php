@@ -84,7 +84,7 @@ if (! $res) die("Include of master fails");
 // After this $db, $mysoc, $langs, $conf and $hookmanager are defined (Opened $db handler to database will be closed at end of file).
 // $user is created but empty.
 
-dol_include_once("/sellyoursaas/core/lib/dolicloud.lib.php");
+dol_include_once("/sellyoursaas/core/lib/sellyoursaas.lib.php");
 include_once DOL_DOCUMENT_ROOT.'/comm/action/class/actioncomm.class.php';
 
 
@@ -203,7 +203,7 @@ $dirdb = preg_replace('/_([a-zA-Z0-9]+)/', '', $object->database_db);
 $login = $object->username_os;
 $password = $object->password_os;
 
-$targetdir = $conf->global->DOLICLOUD_INSTANCES_PATH.'/'.$login.'/'.$dirdb;
+$targetdir = getDolGlobalString('DOLICLOUD_INSTANCES_PATH') . '/'.$login.'/'.$dirdb;
 $server = $object->array_options['options_hostname_os'];
 $server_port = (empty($conf->global->SELLYOURSAAS_SSH_SERVER_PORT) ? 22 : $conf->global->SELLYOURSAAS_SSH_SERVER_PORT);
 
@@ -289,14 +289,14 @@ if ($mode == 'confirmunlock') {
 
 			// Remove install.lock
 			$dir=preg_replace('/_([a-zA-Z0-9]+)$/', '', $object->database_db);
-			$fileinstalllock=$conf->global->DOLICLOUD_INSTANCES_PATH.'/'.$object->username_os.'/'.$dir.'/documents/install.lock';
+			$fileinstalllock=getDolGlobalString('DOLICLOUD_INSTANCES_PATH') . '/'.$object->username_os.'/'.$dir.'/documents/install.lock';
 
 			print 'Remove file '.$fileinstalllock."\n";
 
 			ssh2_sftp_unlink($sftp, $fileinstalllock);
 
 			// Create upgrade.unlock
-			$fileupgradeunlock="ssh2.sftp://".intval($sftp).$conf->global->DOLICLOUD_INSTANCES_PATH.'/'.$object->username_os.'/'.$dir.'/documents/upgrade.unlock';
+			$fileupgradeunlock="ssh2.sftp://".intval($sftp) . getDolGlobalString('DOLICLOUD_INSTANCES_PATH').'/'.$object->username_os.'/'.$dir.'/documents/upgrade.unlock';
 
 			print 'Create file '.$fileupgradeunlock."\n";
 

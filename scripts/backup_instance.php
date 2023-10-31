@@ -120,7 +120,7 @@ if (! $res) {
 }
 
 include_once DOL_DOCUMENT_ROOT.'/core/lib/files.lib.php';
-dol_include_once("/sellyoursaas/core/lib/dolicloud.lib.php");
+dol_include_once("/sellyoursaas/core/lib/sellyoursaas.lib.php");
 
 // Read /etc/sellyoursaas.conf file
 $databasehost='localhost';
@@ -238,7 +238,7 @@ if (empty($db)) {
 if (empty($dirroot) || empty($instance) || empty($mode)) {
 	print "This script must be ran as 'admin' user.\n";
 	print "Usage:   $script_file  instance    backup_dir  (testrsync|testdatabase|test|confirmrsync|confirmdatabase|confirm) [--delete] [--notransaction] [--quick] [--forcersync] [--forcedump] [--nostats]\n";
-	print "Example: $script_file  myinstance  ".$conf->global->DOLICLOUD_BACKUP_PATH."  testrsync\n";
+	print "Example: $script_file  myinstance  " . getDolGlobalString('DOLICLOUD_BACKUP_PATH')."  testrsync\n";
 	print "Note:    ssh keys must be authorized to have rsync (test and confirm) working\n";
 	print "         remote access to database must be granted for testdatabase or confirmdatabase.\n";
 	print "         the parameter --delete run the rsync with the --delete option\n";
@@ -328,7 +328,7 @@ if (! is_dir($dirroot)) {
 $dirdb = preg_replace('/_([a-zA-Z0-9]+)/', '', $object->database_db);
 $login = $object->username_os;
 
-$sourcedir=$conf->global->DOLICLOUD_INSTANCES_PATH.'/'.$login.'/'.$dirdb;
+$sourcedir=getDolGlobalString('DOLICLOUD_INSTANCES_PATH') . '/'.$login.'/'.$dirdb;
 $server=($object->deployment_host ? $object->deployment_host : $object->array_options['options_hostname_os']);
 
 if (empty($login) || empty($dirdb)) {
@@ -361,6 +361,8 @@ if ($mode == 'confirm' || $mode == 'confirmrsync' || $mode == 'confirmdatabase')
 		}
 	}
 }
+
+$linesforresult = '';
 
 // Backup files
 if ($mode == 'testrsync' || $mode == 'test' || $mode == 'confirmrsync' || $mode == 'confirm') {
@@ -448,7 +450,7 @@ if ($mode == 'testrsync' || $mode == 'test' || $mode == 'confirmrsync' || $mode 
 		//$param[] = (in_array($server, array('127.0.0.1','localhost')) ? '' : $login.'@'.$server.":") . $sourcedir;
 		$param[] = $login.'@'.$server.":" . $sourcedir;
 		$param[] = $dirroot.'/'.$login;
-		$fullcommand=$command." ".join(" ", $param);
+		$fullcommand=$command." ".join(" ", $param)." 2>&1";
 		$output=array();
 		$datebeforersync = dol_print_date(dol_now('gmt'), "%Y%m%d-%H%M%S", 'gmt');
 		print $datebeforersync.' '.$fullcommand."\n";
@@ -457,8 +459,11 @@ if ($mode == 'testrsync' || $mode == 'test' || $mode == 'confirmrsync' || $mode 
 		print $dateafterrsync.' rsync done (return='.$return_var.')'."\n";
 
 		// Output result
+		$i = 0;
 		foreach ($output as $outputline) {
 			print $outputline."\n";
+			$linesforresult .= $outputline."\n";
+			$i++;
 		}
 
 		// Add file tag
@@ -588,6 +593,7 @@ if ($mode == 'testdatabase' || $mode == 'test' || $mode == 'confirmdatabase' || 
 
 		$outputerr = file_get_contents($dirroot.'/'.$login.'/mysqldump_'.$object->database_db.'_'.$prefixdumptemp.'.err');
 		print $outputerr;
+		$linesforresult .= $outputerr."\n";
 
 		$return_outputmysql = (count(file($dirroot.'/'.$login.'/mysqldump_'.$object->database_db.'_'.$prefixdumptemp.'.err')) - 1);	// If there is more than 1 line in .err, this is an error in dump.
 		if (empty($return_outputmysql)) {	// If no error detected with the number of lines, we try also to detect by searching ' Error ' into .err content
@@ -631,8 +637,11 @@ if ($mode == 'testdatabase' || $mode == 'test' || $mode == 'confirmdatabase' || 
 		print $dateaftermysqldump.' mysqldump done (return='.$return_varmysql.', error in output='.$return_outputmysql.')'."\n";
 
 		// Output result
+		$i = 0;
 		foreach ($output as $outputline) {
 			print $outputline."\n";
+			$linesforresult .= $outputline."\n";
+			$i++;
 		}
 
 		// Add file tag
@@ -708,7 +717,7 @@ if (empty($return_varother) && empty($return_var) && empty($return_varmysql) && 
 		// Update database
 		$object->array_options['options_latestbackup_date'] = $now;	// date latest files and database rsync backup try
 		$object->array_options['options_latestbackup_status'] = 'KO';
-		$object->array_options['options_latestbackup_message'] = dol_trunc('', 8000);
+		$object->array_options['options_latestbackup_message'] = dol_trunc($linesforresult, 8000);
 
 		$object->update($user, 1);
 
