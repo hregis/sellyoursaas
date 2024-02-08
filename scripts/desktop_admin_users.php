@@ -23,8 +23,12 @@
  *      \brief      Script to run from a remote computer to admin unix users of a SellYourSaas infrastructure.
  */
 
-if (!defined('NOSESSION')) define('NOSESSION', '1');
-if (!defined('NOREQUIREDB')) define('NOREQUIREDB', '1');				// Do not create database handler $db
+if (!defined('NOSESSION')) {
+	define('NOSESSION', '1');
+}
+if (!defined('NOREQUIREDB')) {
+	define('NOREQUIREDB', '1');
+}				// Do not create database handler $db
 
 $sapi_type = php_sapi_name();
 $script_file = basename(__FILE__);
@@ -76,13 +80,19 @@ if (! isset($argv[4])) {	// Check parameters
 	print 'Administer unix users of a SellYourSaas infrastructure remotely.'."\n";
 	print "This script must be ran remotely from an allowed desktop.\n";
 	print "\n";
-	print "Usage:\n".$script_file." (create|deactivate|reactivate|remove) logintoupdate hostfile (master,deployment,web) [loginforansible] [userroot=0|1] [userip=userip] [userpublickey=\"userpublickey\"] [userpassword=\"userpassword\"]\n";
+	print "Usage:\n".$script_file." hostfile (master,deployment,web) (create|update|deactivate|reactivate|remove) logintoupdate [loginforansible] [userroot=0|1] [userip=userip] [userpublickey=\"userpublickey\"] [userpassword=\"userpassword\"]\n";
 	print "\n";
 	print "Example:\n";
-	print "To create a first admin user (root allowed): ".$script_file.' create logintocreate hostfile master,deployment,web ubuntu userroot=1 userpassword=... userpublickey="ABC..."'."\n";
-	print "To add an admin user (root not allowed): ".$script_file.' create logintocreate hostfile master,deployment,web userroot=0 userip=ipofuser userpassword=... userpublickey="ABC..."'."\n";
-	print "To update root access of a user: ".$script_file.' create logintoupdate hostfile withX.sellyoursaasdomain.com userroot=X'."\n";
-	print "To remove a user: ".$script_file.' remove logintodelete hostfile master,deployment,web'."\n";
+	print "- To create a sysadmin user (like the first one, root allowed):\n";
+	print "  ".$script_file.' create     hostfile master,deployment,web logintocreate ubuntu userroot=1 userpassword=... userpublickey="ABC..."'."\n";
+	print "- To add a sysadmin user (root not allowed):\n";
+	print "  ".$script_file.' create     hostfile master,deployment,web logintocreate userroot=0 userip=ipofuser userpassword=... userpublickey="ABC..."'."\n";
+	print "- To update a user (for example to change root access or change password):\n";
+	print "  ".$script_file.' update     hostfile withX.sellyoursaasdomain.com logintoupdate userroot=X userpassword=...'."\n";
+	print "- To remove a disable/reenable a user:\n";
+	print "  ".$script_file.' deactivate hostfile master,deployment,web logintodeactivate'."\n";
+	print "- To remove a user:\n";
+	print "  ".$script_file.' remove     hostfile master,deployment,web logintodelete'."\n";
 	exit(-1);
 }
 print '--- start'."\n";
@@ -98,10 +108,10 @@ print '--- start'."\n";
 $now = time();
 
 // mandatory params
-$action = isset($argv[1]) ? $argv[1] : '';
-$login = isset($argv[2]) ? $argv[2] : '';
-$hostfile = isset($argv[3]) ? $argv[3] : '';
-$target = empty($argv[4]) ? '' : $argv[4];
+$hostfile = isset($argv[1]) ? $argv[1] : '';
+$target = empty($argv[2]) ? '' : $argv[2];
+$action = isset($argv[3]) ? $argv[3] : '';
+$login = isset($argv[4]) ? $argv[4] : '';
 
 $loginforansible = isset($argv[5]) ? $argv[5] : '';
 if (strpos($loginforansible, '=') !== false) {
@@ -139,13 +149,13 @@ if ($action == 'create' && ($userroot === '' || empty($userpublickey))) {
 	echo "Error: To create a personal user login, the parameter userroot and userpublickey are mandatory.\n";
 	exit(-1);
 }
-if ($userroot && empty($userpassword)) {
+if ($action == 'create' && $userroot && empty($userpassword)) {
 	echo "Error: To create a personal user login allowed to get root access (userroot=1), the parameter userpassword is mandatory.\n";
 	exit(-1);
 }
 
 $scriptyaml = '';
-if ($action == 'create') {
+if ($action == 'create' || $action == 'update') {
 	$scriptyaml = 'user_create.yml';
 } elseif ($action == 'reactivate') {
 	$scriptyaml = 'user_reactivate.yml';
@@ -154,9 +164,9 @@ if ($action == 'create') {
 } elseif ($action == 'remove') {
 	$scriptyaml = 'user_remove.yml';
 } else {
-	echo "Error: Bad parameter action. Must be (create|deactivate|reactivate|remove).\n";
+	echo "Error: Bad parameter action '".$action."'. Must be (create|deactivate|reactivate|remove).\n";
 	echo "\n";
-	print "Usage:\n".$script_file." (create|deactivate|reactivate|remove) logintoupdate hostfile (master,deployment,web) [loginforansible] [userip=userip] [userroot=0|1] [userpublickey=\"userpublickey\"] [userpassword=\"userpassword\"]\n";
+	print "Usage:\n".$script_file." hostfile (master,deployment,web) (create|deactivate|reactivate|remove) logintoupdate [loginforansible] [userip=userip] [userroot=0|1] [userpublickey=\"userpublickey\"] [userpassword=\"userpassword\"]\n";
 	exit(-1);
 }
 
@@ -165,6 +175,8 @@ if (empty($target)) {
 }
 
 $currentdir = getcwd();
+
+echo "Go into directory $path./ansible\n";
 
 chdir($path.'/ansible');
 

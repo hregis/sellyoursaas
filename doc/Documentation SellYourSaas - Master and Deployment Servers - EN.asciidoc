@@ -8,7 +8,7 @@ This document describes the technical and functional implementation of Sell-Your
 :title: Document installation and operation of SellYourSaas
 :subject: This document describes the technical and functional implementation of SellYourSaas (automated deployment and sale system in SaaS of a WAMP application (like Dolibarr ERP CRM, WordPress, GLPI, MediaWiki, PrestaShop, ...).
 :keywords: sellyoursaas, saas, dolibarr, wamp, glpi
-:imagesdir: ./img
+:imagesdir: ./img_
 :city: Bordeaux
 :toc: manual
 :toclevels: 3
@@ -331,6 +331,16 @@ ln -fs /bin/bash /bin/sh
 ---------------
 
 
+==== Min for password
+
+Edit the file /etc/pam.d/common-password to set a minimal password length by adding minlength=16 at end of line
+
+[source, bash]
+---------------
+password        [success=1 default=ignore]      pam_unix.so obscure sha512 minlength=16
+---------------
+
+
 ==== SSH setup
 
 Fix permission on */etc/ssh/sshd_config* so only root has read and write access:
@@ -341,54 +351,19 @@ chmod go-rw /etc/ssh/sshd_config
 ---------------
 
 
-Create a file */etc/ssh/sshd_config.d/sellyoursaas.conf* to change login permissions with the following content:
+Copy the file into  */etc/ssh/sshd_config.d/sellyoursaas.conf* on the server in file */etc/ssh/sshd_config.d/sellyoursaas.conf*
 
 For Ubuntu 18.04: you can concat the content into file *sshd_config*, but be sure to not have duplicate values.
 
+
+Copy the file into  */etc/ssh/sshd_config.d/sellyoursaas-users.conf* on the server in file */etc/ssh/sshd_config.d/sellyoursaas-users.conf* and
+add entries for each sysadmin users.
+
 [source, conf]
 ---------------
-# Privilege Separation is turned on for security
-#UsePrivilegeSeparation yes
-# Permissions on files must be correct to allow login
-StrictModes yes
-
-Port 22
-
-# MaxAuthTries 6
-MaxAuthTries 10
-# MaxSessions 10
-MaxSessions 25
-
-# Disallow login to root
-PermitRootLogin no
-# Disallow empty passwords
-PermitEmptyPasswords no
-# Do not support the "keyboard-interactive" authentication scheme defined in RFC-4256.
-ChallengeResponseAuthentication no
-
-# Define list of allowed method to authenticate
-PasswordAuthentication no   # This will be allowed for osu users only into main sshd_config file with a Match User rule
-PubkeyAuthentication yes
-
-DenyUsers guest
-
-AuthorizedKeysFile     .ssh/authorized_keys .ssh/authorized_keys_support
-
-# Legacy changes - To allow an old client (like old PHP) to connect to
-HostKeyAlgorithms +ssh-rsa
-KexAlgorithms +diffie-hellman-group1-sha1
-Ciphers +aes128-cbc
-
-ClientAliveInterval 30
-#ClientAliveCountMax 3
-
-AllowUsers admin osu*
 AllowUsers myunixlogin
-
+AllowUsers otherunixlogin
 ---------------
-
-Please note: replace *myunixlogin* with the correct value before taking changes into account with:
-
 
 
 Now add this at end of file */etc/ssh/sshd_config* (ssh does not allow Match Rules into the custom file)
@@ -417,6 +392,8 @@ sshd -T -C user=mylogin -C host=clienthost -C addr=clientaddr
 
 Then reload ssh 
 
+Please note: check you have replaced *myunixlogin* with the correct values before taking changes into account.
+
 [source, conf]
 ---------------
 /etc/init.d/ssh reload
@@ -436,8 +413,9 @@ Create a file */etc/sudoers.d/myunixlogin* with the content
 ---------------
 myunixlogin ALL=(ALL) ALL
 # You can also add this lines to avoid users to re-enter a password when switching to 'admin' or 'osu*'
-#myunixlogin ALL=(ALL) NOPASSWD:/usr/bin/su - admin
-#myunixlogin ALL=(ALL) NOPASSWD:/usr/bin/su - osu*
+# This allows to switch to admin or osu* with "sudo su - admin" or "sudo su - osu..."
+#myunixlogin ALL=(ALL) /usr/bin/su - admin
+#myunixlogin ALL=(ALL) /usr/bin/su - osu*
 ---------------
 
 This allows you to switch to *admin* or *osu...* without typing your password too:
@@ -447,6 +425,8 @@ This allows you to switch to *admin* or *osu...* without typing your password to
 sudo su - admin
 sudo su - osu...
 ---------------
+
+Please note: check you have replaced *myunixlogin* with the correct values before taking changes into account.
 
 
 And set the *root*.*root* and the permissions *r--r-----*
@@ -527,11 +507,12 @@ printf '[client]\nprotocol=tcp' >> /etc/skel/.my.cnf
 
 === Add alias
 
-Add at the end of */etc/bash.bashrc*:
+Add at the end of */etc/bash.bashrc*, add alias to get a fast ps result and exclude some commands from the history:
 
 [source, bash]
 ---------------
 alias psld='ps -fax -eo user:12,pid,ppid,pcpu,pmem,vsz:12,size:12,tty,start_time:6,utime,time,context,cmd'
+HISTIGNORE='-*'
 ---------------
 
 
@@ -547,6 +528,13 @@ alias psld='ps -fax -eo user:12,pid,ppid,pcpu,pmem,vsz:12,size:12,tty,start_time
 ip addr add 2002:41d0:1234:1000::1234/128 dev eth0
 ip -6 route add 2002:41d0:1234:1000::1 dev eth0
 ip -6 route add default via 2002:41d0:1234:1000::1 dev eth0
+---------------
+
+Note: To remove it manually
+
+[source, bash]
+---------------
+ip -6 addr flush eth0
 ---------------
 
 - For a persistent reboot definition, declare the interface in */etc/network/interfaces* or in a file in */etc/network/interfaces.d* (Ubuntu <17.10)
@@ -573,6 +561,14 @@ To take this into account, try this, otherwise, reboot.
 ---------------
 /etc/init.d/networking restart
 ---------------
+
+To disable manually an interface:
+
+[source, bash]
+---------------
+ifconfig ethX down   or    ifconfig ethX:Y down
+---------------
+
 
 ==== With netplan (Ubuntu 18.04 +)
 
@@ -614,14 +610,14 @@ Addition:
 
 [source, bash]
 ---------------
-ifconfig eth0: 0 a.b.c.d
+ifconfig eth0:0 a.b.c.d
 ---------------
 
 Deletion:
 
 [source, bash]
 ---------------
-ifconfig eth0: 0 down
+ifconfig eth0:0 down
 ---------------
 
 - For a persistent reboot definition, declare the interface in */etc/network/interfaces* or in a file in */etc/network/interfaces.d* (Ubuntu <17.10)
@@ -632,14 +628,14 @@ Example for 2 virtual IPs:
 ---------------
 # To declare persistent virtual IPs
 
-auto eth0: 0
-iface eth0: 0 inet static
+auto eth0:0
+iface eth0:0 inet static
             address a.b.c.d
             netmask 255.255.255.255
             broadcast a.b.c.d
 
-auto eth0: 1
-iface eth0: 1 inet static
+auto eth0:1
+iface eth0:1 inet static
             address e.f.g.h
             netmask 255.255.255.255
             broadcast e.f.g.h
@@ -1023,7 +1019,7 @@ mount -a
 
 ==== On deployment servers
 
-On the deployment servers, copy the public and private key of the master's ssh *admin* account to */home/admin/.ssh/id_rsa_sellyoursaas...* (This couple of key file is the one common for maintenance to access osu... user accounts). Set the right permissions.
+On the deployment servers, copy the public and private key of the master's ssh *admin* account to */home/admin/.ssh/id_rsa_sellyoursaas...* (This couple of key file is the one common for maintenance to access osu... user accounts by admin). Set the right permissions.
 
 [source, bash]
 ---------------
@@ -1798,6 +1794,7 @@ grep logpath /etc/fail2ban/jail.local | cut -d= -f2 | grep '^ /'|sort|uniq|xargs
 ---------------
 /etc/init.d/fail2ban stop
 /etc/init.d/fail2ban start
+systemctl enable fail2ban
 systemctl status fail2ban
 fail2ban-client status
 ---------------
@@ -2373,11 +2370,28 @@ broken_sasl_auth_clients = yes
 
 ==== Setup
 
+On a *Master* only server, change only the listened address of the Mysql/Mariadb server:
+
+Edit config file 
+*/etc/mysql/mysql.conf.d/mysqld.cnf* (if mysql) 
+or
+*/etc/mysql/mariadb.conf.d/50-server.cnf* (if mariadb) 
+to change:
+
+[source,bash]
+--------------
+bind-address = 0.0.0.0
+--------------
+
+Note: This may be "listen = 0.0.0.0" instead of "bind-address = 0.0.0.0".
+
+
+
 On *Deployment servers*:
 
 Edit the config file 
 */lib/systemd/system/mysql.service*  or  */lib/systemd/system/mariadb.service*
-to put into section *[Service]* a value that is a limit number of files that is higher than the default value of *4096* (visible with *sudo systemctl show -p DefaultLimitNOFILE*) of systemd:
+to put into section *[Service]* a value that is a limit of number of files that is higher than the default value of *4096* (visible with *sudo systemctl show -p DefaultLimitNOFILE*) of systemd:
 
 [source,bash]
 ---------------
@@ -2396,12 +2410,11 @@ Take the change into account with command:
 systemctl daemon-reload
 ---------------
 
-Edit config file 
+Then edit config file 
 */etc/mysql/mysql.conf.d/mysqld.cnf* (if mysql) 
 or
 */etc/mysql/mariadb.conf.d/50-server.cnf* (if mariadb) 
 to change:
-
 
 [source,bash]
 ---------------
@@ -2434,23 +2447,19 @@ innodb_file_per_table=1
 innodb_log_file_size=256M
 innodb_log_buffer_size=32M
 
+character-set-server  = utf8
+collation-server      = utf8_unicode_ci
+
+log_error = /var/log/mysql/error.log
+
+...
 
 [mariadb]
 log_warnings = 2
 ---------------
 
-On a *Master* only server, change only the listened address :
 
-[source,bash]
---------------
-bind-address = 0.0.0.0
---------------
-
-Note: This may be "listen = 0.0.0.0" instead of "bind-address = 0.0.0.0".
-
-
-
-Comment the line into */etc/mysql/mariadb.conf.d/50-mysqld_safe.cnf* (if not, the error log file will not be isolated into the /var/log/mysql/mysql.log file):
+Comment also the line into */etc/mysql/mariadb.conf.d/50-mysqld_safe.cnf* (if not, the error log file will not be isolated into the /var/log/mysql/mysql.log file):
 
 [source,bash]
 --------------
@@ -2458,8 +2467,8 @@ Comment the line into */etc/mysql/mariadb.conf.d/50-mysqld_safe.cnf* (if not, th
 --------------
 
 
+Check that file /var/log/mysql/error.log is owned by mysql user and Restart the database server
 
-Restart the database server
 [source,bash]
 --------------
 /etc/init.d/mysql restart
@@ -2786,7 +2795,7 @@ All the disabled profiles are visible into */etc/apparmor.d/disable*
 The log are visible into */var/log/kern.log* or */var/log/audit/audit.log*. You can use *aa-logprof* to know the log file used and convert its content into real rules into existing profiles.
 
 
-* Note: From Ubuntu 20.04, to unload ALL apparmor profiles and reload them:
+* Note: From Ubuntu 20.04+, to unload ALL apparmor profiles and reload them:
 
 [source,bash]
 ---------------
@@ -3180,7 +3189,7 @@ Complete also the parameter *disable_functions* for the *apache* and *fpm* file 
 
 [source,bash]
 ---------------
-passthru,shell_exec,system,proc_open,popen
+passthru,shell_exec,system,proc_open,popen,dl,apache_note,apache_setenv,show_source,virtual
 ---------------
 
 Warning: Do not add "exec".
@@ -3437,15 +3446,18 @@ Note: Reports are into */var/crash*
 sudo apt remove cerbot; sudo apt install snapd;
 sudo snap install --classic certbot;
 sudo ln -fs /snap/bin/certbot /usr/bin/certbot
+certbot --version
 ---------------
 
 And to list certbot cron job:
 
 [source,bash]
 ---------------
-systemctl list-timers
+systemctl list-units | grep certbot
 systemctl status snap.certbot.renew.timer
 ---------------
+
+The complete logs of certbot are into /var/log/letsencrypt/...
 
 
 [[creation_certificat_ssl]]
@@ -3539,9 +3551,9 @@ systemctl status snap.certbot.renew.timer
 
 [source,bash]
 ---------------
-certbot renew
+certbot renew -v [--dry-run]
 or
-certbot renew --force-renewal 
+certbot renew --force-renewal
 or 
 certbot renew --cert-name admin.mysellyoursaasdomain.com --dry-run
 ---------------
@@ -3552,7 +3564,11 @@ You can use the same command as used originally (with --dry-run option first if 
 
 [source,bash]
 ---------------
-certbot certonly -n --manual-public-ip-logging-ok --server https://acme-v02.api.letsencrypt.org/directory --agree-tos --manual --preferred-challenges=dns --manual-auth-hook /home/admin/wwwroot/dolibarr_sellyoursaas/scripts/letsencrypt_authenticator.sh -d "*.with<X>.<your_domain>,with<X>.<your_domain>" -m <email_for_your_account_with_lets_encrypt> --deploy-hook "systemctl restart apache2" --force-renewal
+certbot renew -v [--dry-run]
+or
+certbot renew --force-renewal
+or
+certbot certonly -n [--manual-public-ip-logging-ok] --server https://acme-v02.api.letsencrypt.org/directory --agree-tos --manual --preferred-challenges=dns --manual-auth-hook /home/admin/wwwroot/dolibarr_sellyoursaas/scripts/letsencrypt_authenticator.sh -d "*.with<X>.<your_domain>,with<X>.<your_domain>" -m <email_for_your_account_with_lets_encrypt> --deploy-hook "systemctl restart apache2" --force-renewal
 ---------------
 
 Note: To know if a certificate will correctly use the hook for the renewal, you can have a look into the file 
@@ -3799,7 +3815,7 @@ certbot
 
 * Activate the "Cron / Scheduled Jobs" module and set the cron security key to the same value as what was set in the parameter of the call to *cron_run_jobs.php* in the cron of user *admin*.
 
-* Activate the "Stripe" module and set it. On Stripe side, you must enable the WebHooks for a least the message *payment_intent.succeeded*
+* Activate the "Stripe" module and set it. On Stripe side, you must enable the WebHooks for a least the message *payment_intent.succeeded* and *payment_intent.payment_failed*
 
 
 On *Deployment servers*:
@@ -4344,7 +4360,22 @@ netplan apply
 
 *With ScaleWay*:
 
-TODO
+Create an image from the server.
+
+Create a server from the image. If after creating the server, you can't connect to SSH, may be problem is the one described on the trouble shooting "sshd: no hostkeys available -- exiting"
+
+Detach IP on the 2 servers. Then attach IP of the production serveur to the new one. 
+
+Go on the new server using the new IP to set the hostname with same value than old name:
+
+[source,bash]
+---------------
+hostname oldhostname
+vi /etc/hostname
+vi /etc/hosts
+---------------
+
+Restart the server.
 
 
 ==== Disable cron
@@ -4848,12 +4879,42 @@ chroot /mnt
 passwd root
 ---------------
 
-* To disable firewall, use this command:
+* You can also edit the */mnt/etc/ssh/sshd_config.d/sellyoursaas.conf* to allow direct SSH access to root using SSH (should not be used, good practice is to ssh using key to a user then doing a sudo using user password)
 
-@TODO
+[source,ini]
+---------------
+PermitRootLogin yes
+PasswordAuthentication yes
+---------------
+
+Then
+
+[source,bash]
+---------------
+/etc/init.d/ssh restart
+---------------
+
+
+* If you have also doubt on the firewall, to disable firewall rules, use this command:
+
+[source,bash]
+---------------
+# Accept all traffic first to avoid ssh lockdown  via iptables firewall rules #
+iptables -P INPUT ACCEPT
+iptables -P FORWARD ACCEPT
+iptables -P OUTPUT ACCEPT
+ 
+# Flush All Iptables Chains/Firewall rules #
+iptables -F
+ 
+# Delete all Iptables Chains #
+iptables -X
+
+# To list rules
+iptables -L
+---------------
 
 When all this is done you can reboot your server by using the button Exit rescue mode in the dashboard.
-
 
 
 === Analysing changes in system files
@@ -5187,25 +5248,47 @@ Into field *sql after*
 
 [source,bash]
 ---------------
-UPDATE llx_user set pass_crypted = '__APPPASSWORD0__', email = '__APPEMAIL__' where login = 'admin' AND (pass = 'admin' OR pass_crypted = 'value_of_hashed_password_encrypted_with_password_hash');
+UPDATE llx_user set lastname='__(Administrator)__', datec = NOW(), pass_crypted = '__APPPASSWORD0SALTED__', email = '__APPEMAIL__', datelastlogin = NULL, datepreviouslogin = NULL WHERE login = 'admin' AND (pass = 'admin' OR pass_crypted = '25edccd81ce2def41eae1317392fd106d8152a5b');
 REPLACE INTO llx_const (name, entity, value, type, visible) values('CRON_KEY', 0, '__OSUSERNAME__', 'chaine', 0);
+REPLACE INTO llx_const (name, entity, value, type, visible) values('CRON_DISABLE_KEY_CHANGE', 0, '1', 'chaine', 0);
 REPLACE INTO llx_const (name, entity, value, type, visible) values('MAIN_INFO_SOCIETE_NOM', 1, '__APPORGNAME__', 'chaine', 0);
 --REPLACE INTO llx_const (name, entity, value, type, visible) values('MAIN_INFO_SOCIETE_COUNTRY', 1, '__APPCOUNTRYIDCODELABEL__', 'chaine', 0);
 UPDATE llx_const set value = '__APPEMAIL__' where name = 'MAIN_MAIL_EMAIL_FROM';
 UPDATE llx_const set value = '__APPEMAIL__' where name = 'MAILING_EMAIL_FROM';
-UPDATE llx_const set value = '10.0.0' where name = 'MAIN_VERSION_LAST_UPGRADE';
-REPLACE INTO llx_const (name, entity, value, type, visible) values ('MAIN_EXTERNAL_SMTP_CLIENT_IP_ADDRESS', 0, 'deployment-server-1.ip, deployment-server-2.ip, [deployment-server-1.ipv6-between-actual-brackets], ...', 'chaine', 0);
+UPDATE llx_const set value = '18.0.0' where name = 'MAIN_VERSION_LAST_UPGRADE';
+DELETE FROM llx_const where name IN ('MAIN_EXTERNAL_SMTP_SPF_STRING_TO_ADD', 'MAILING_NO_USING_PHPMAIL', 'MAIN_FILECHECK_LOCAL_SUFFIX');
+REPLACE INTO llx_const (name, entity, value, type, visible) values('MAIN_EXTERNAL_SMTP_CLIENT_IP_ADDRESS', 0, 'deployment-server-1.ip, deployment-server-2.ip, [deployment-server-1.ipv6-between-actual-brackets], ...', 'chaine', 0);
+REPLACE INTO llx_const (name, entity, value, type, visible) values('MAIN_EXTERNAL_MAIL_SPF_STRING_TO_ADD', 0, 'include:sendgrid.net', 'chaine', 0);
+REPLACE INTO llx_const (name, entity, value, type, visible) values('MAIN_MAIL_SENDMODE_password', 0, 'mail', 'chaine', 0);
+REPLACE INTO llx_const (name, entity, value, type, visible) values('MAIN_HIDE_WARNING_TO_ENCOURAGE_SMTP_SETUP', 0, '0', 'chaine', 0);
 REPLACE INTO llx_const (name, entity, value, type, visible) values('MAILING_NO_USING_PHPMAIL', 0, '1', 'chaine', 1);
+REPLACE INTO llx_const (name, entity, value, type, visible) values('MAILING_LIMIT_SENDBYDAY', 0, '250', 'chaine', 1);
+REPLACE INTO llx_const (name, entity, value, type, visible) values('MAILING_LIMIT_SENDBYCLI', 0, '250', 'chaine', 1);
+REPLACE INTO llx_const (name, entity, value, type, visible) values('MAILING_DELAY', 0, '0.2', 'chaine', 1);
+REPLACE INTO llx_const (name, entity, value, type, visible) values('MAIN_FILECHECK_LOCAL_SUFFIX', 0, '-sellyoursaas', 'chaine', 1);
+REPLACE INTO llx_const (name, entity, value, type, visible) values('MAIN_FILECHECK_LOCAL_EXT', 0, '.zip', 'chaine', 1);
+REPLACE INTO llx_const (name, entity, value, type, visible) values('MAIN_UPLOAD_DOC', 0, '8000', 'chaine', 0);
+REPLACE INTO llx_const (name, entity, value, type, visible) values('MAIN_HELP_DISABLELINK', 0, '1', 'chaine', 0);
+REPLACE INTO llx_const (name, entity, value, type, visible) values('MAIL_PREFIX_FOR_EMAIL_ID', 0, 'SERVER_NAME', 'chaine', 1);
+REPLACE INTO llx_const (name, entity, value, type, visible) values('MAIN_NO_UPGRADE_REDIRECT_ON_LEVEL_3_CHANGE', 0, '1', 'chaine', 1);
+REPLACE INTO llx_const (name, entity, value, type, visible) values('MAIN_FEATURES_LEVEL', 0, '0', 'chaine', 1);
+REPLACE INTO llx_const (name, entity, value, type, visible) values('MAIN_MAIL_DEBUG', 0, '0', 'chaine', 1);
+REPLACE INTO llx_const (name, entity, value, type, visible) values('MAIN_MESSAGE_INSTALL_MODULES_DISABLED_CONTACT_US', 0, '1', 'chaine', 1);
+REPLACE INTO llx_const (name, entity, value, type, visible) values('MAIN_UMASK', 0, '0660', 'chaine', 1);
+REPLACE INTO llx_const (name, entity, value, type, visible) values('MAIN_HELPCENTER_DISABLELINK', 0, '1', 'chaine', 1);
+REPLACE INTO llx_const (name, entity, value, type, visible) values('MAIN_LOGEVENTS_USER_LOGIN', 1, '1', 'chaine', 0);
+REPLACE INTO llx_const (name, entity, value, type, visible) values('MAIN_LOGEVENTS_USER_LOGIN_FAILED', 1, '1', 'chaine', 0);
+REPLACE INTO llx_const (name, entity, value, type, visible) values('MAIN_LOGEVENTS_USER_LOGOUT', 1, '1', 'chaine', 0);
 REPLACE INTO llx_const (name, entity, value, type, visible) values('MAIN_SECURITY_HASH_ALGO', 0, '1', 'password_hash', 1);
 ---------------
 
-Change the value 10.0.0 with version of the image you will build to deploy.
+Change the value 18.0.0 with version of the image you will build to deploy.
 
 Into field *sql to reset password*
 
 [source,bash]
 ---------------
-UPDATE llx_user set pass='__NEWUSERPASSWORD__', pass_crypted = '__NEWUSERPASSWORDCRYPTED__' where rowid = __INSTANCEID__;
+UPDATE llx_user set pass='__NEWUSERPASSWORD__', pass_crypted = '__NEWUSERPASSWORDCRYPTED__' where rowid = __REMOTEUSERID__;
 ---------------
 
 === Setup of Services
@@ -5677,19 +5760,30 @@ If you find into */var/log/auth.log* an error like:
 
 or into the apache error log file:
 
-... Error starting up SSH connection(-5): Unable to exchange encryption keys ...
+... Error starting up SSH connection(-5): Unable to exchange encryption keys in ...
 
-The client (maybe an old PHP version) is using a deprecated algorithm for negotiation. Edit the file */etc/ssh/sshd_config.d/sellyoursaas.conf* of the target server by adding:
+The client (maybe an old PHP version) is using a deprecated algorithm for negotiation. You can have a lost of algorithm supported by the server
+
+[source,bash]
+---------------
+ssh -Q kex|key|cipher
+---------------
+
+
+Edit the file */etc/ssh/sshd_config.d/sellyoursaas.conf* of the targeted server by adding:
 
 [source,bash]
 ---------------
 # Legacy changes - To allow an old client to connect to
 #PubkeyAcceptedKeyTypes=+ssh-rsa
 HostKeyAlgorithms +ssh-rsa
-#HostKey /etc/ssh/ssh_host_rsa_key
+#HostKeyAlgorithms -ecdsa-sha2-nistp256
 KexAlgorithms +diffie-hellman-group1-sha1
+#KexAlgorithms -ecdh-sha2-nistp256,ecdh-sha2-nistp384,ecdh-sha2-nistp521
 Ciphers +aes128-cbc
 ---------------
+
+Check by listing the kex algorithms that the new one is here with: ssh-audit ipofserver
 
 Then reload ssh with 
 
@@ -5751,6 +5845,26 @@ Then change the [default_sect] section with the followin
 
 This occurs on some distributions due to a bug in PHP method ssh2_disconnect().
 You can disable the call to *ssh2_disconnect()* by setting constant SELLYOURSAAS_SSH2_DISCONNECT_DISABLED to 1
+
+
+==== Failed to start ssh server, message "sshd: no hostkeys available -- exiting"
+
+After creation of a new server, it is not possible to reach the server using SSH.
+When logging using the "Console", after trying to start ssh server, we can find into the */var/log/syslog*, a line
+
+[source,bash]
+---------------
+sshd: no hostkeys available -- exiting
+---------------
+
+To fix this, just run from root user 
+
+[source,bash]
+---------------
+ssh-keygen -A
+---------------
+
+then restart the server.
 
 
 ==== On a deployment server, the user root can read files into /home/admin/wwwroot/dolibarr_documents/sellyoursaas
@@ -5998,7 +6112,7 @@ init_config:
 ---------------
 
 
-==== Error HTTP_DATA_ERROR, CertPathValidatorException when using DoliDroid
+==== Error HTTP_DATA_ERROR, CertPathValdatorException when using DoliDroid
 
 If you see this king of log into a DoliDroid session:
 
@@ -6033,6 +6147,25 @@ See https://developer.android.com/privacy-and-security/security-ssl#MissingCa
 Fix this by setting correctly your SSLxxx variable in your apache virtual host.
 
 
+==== do-release-upgrade hangs with no answer
 
+This may happen if you fails to connect to the remote ubuntu or mirror server.
 
+Open the file */etc/update-manager/meta-release* and get the URL of the server. Try it with a wget.
+You will see if you can reach the URL.
+If you get something like
+
+[source,bash]
+---------------
+--2023-12-10 11:20:31--  https://changelogs.ubuntu.com/meta-release-lts
+Resolving changelogs.ubuntu.com (changelogs.ubuntu.com)... 2620:2d:4000:1::2b, 2620:2d:4000:1::2a, 185.125.190.17, ...
+Connecting to changelogs.ubuntu.com (changelogs.ubuntu.com)|2620:2d:4000:1::2b|:443...
+---------------
+
+It may mean that you IPv6 connection is wrong. Disable the firewall, and try to disable the IPv6 interface
+
+[source,bash]
+---------------
+ip -6 addr flush eth0
+---------------
 

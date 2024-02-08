@@ -1,6 +1,6 @@
 #!/usr/bin/php
 <?php
-/* Copyright (C) 2012-2023 Laurent Destailleur	<eldy@users.sourceforge.net>
+/* Copyright (C) 2012-2024 Laurent Destailleur	<eldy@users.sourceforge.net>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  * or see http://www.gnu.org/
  *
- * FEATURE
+ * FEATURE of restore_instance.php
  *
  * Restore a backup of files (rsync) or database (mysqdump) of a deployed instance.
  * There is no report/tracking done into any database. This must be done by a parent script.
@@ -27,9 +27,15 @@
  * remote access to database must be granted for option 'testdatabase' or 'confirmdatabase'.
  */
 
-if (!defined('NOREQUIREDB')) define('NOREQUIREDB', '1');					// Do not create database handler $db
-if (!defined('NOSESSION')) define('NOSESSION', '1');
-if (!defined('NOREQUIREVIRTUALURL')) define('NOREQUIREVIRTUALURL', '1');
+if (!defined('NOREQUIREDB')) {
+	define('NOREQUIREDB', '1');
+}					// Do not create database handler $db
+if (!defined('NOSESSION')) {
+	define('NOSESSION', '1');
+}
+if (!defined('NOREQUIREVIRTUALURL')) {
+	define('NOREQUIREVIRTUALURL', '1');
+}
 
 $sapi_type = php_sapi_name();
 $script_file = basename(__FILE__);
@@ -46,10 +52,10 @@ $version='1.0';
 $error=0;
 $RSYNCDELETE=0;
 
-$dirroot=isset($argv[1])?$argv[1]:'';
-$dayofmysqldump=isset($argv[2])?$argv[2]:'';
-$instance=isset($argv[3])?$argv[3]:'';
-$mode=isset($argv[4])?$argv[4]:'';
+$dirroot=isset($argv[1]) ? $argv[1] : '';
+$dayofmysqldump=isset($argv[2]) ? $argv[2] : '';
+$instance=isset($argv[3]) ? $argv[3] : '';
+$mode=isset($argv[4]) ? $argv[4] : '';
 
 @set_time_limit(0);							// No timeout for this script
 define('EVEN_IF_ONLY_LOGIN_ALLOWED', 1);		// Set this define to 0 if you want to lock your script when dolibarr setup is "locked to admin user only".
@@ -75,19 +81,38 @@ if (empty($dolibarrdir)) {
 // Load Dolibarr environment
 $res=0;
 // Try master.inc.php into web root detected using web root caluclated from SCRIPT_FILENAME
-$tmp=empty($_SERVER['SCRIPT_FILENAME'])?'':$_SERVER['SCRIPT_FILENAME'];$tmp2=realpath(__FILE__); $i=strlen($tmp)-1; $j=strlen($tmp2)-1;
-while ($i > 0 && $j > 0 && isset($tmp[$i]) && isset($tmp2[$j]) && $tmp[$i]==$tmp2[$j]) { $i--; $j--; }
-if (! $res && $i > 0 && file_exists(substr($tmp, 0, ($i+1))."/master.inc.php")) $res=@include substr($tmp, 0, ($i+1))."/master.inc.php";
-if (! $res && $i > 0 && file_exists(dirname(substr($tmp, 0, ($i+1)))."/master.inc.php")) $res=@include dirname(substr($tmp, 0, ($i+1)))."/master.inc.php";
+$tmp=empty($_SERVER['SCRIPT_FILENAME']) ? '' : $_SERVER['SCRIPT_FILENAME'];$tmp2=realpath(__FILE__); $i=strlen($tmp)-1; $j=strlen($tmp2)-1;
+while ($i > 0 && $j > 0 && isset($tmp[$i]) && isset($tmp2[$j]) && $tmp[$i]==$tmp2[$j]) {
+	$i--;
+	$j--;
+}
+if (! $res && $i > 0 && file_exists(substr($tmp, 0, ($i+1))."/master.inc.php")) {
+	$res=@include substr($tmp, 0, ($i+1))."/master.inc.php";
+}
+if (! $res && $i > 0 && file_exists(dirname(substr($tmp, 0, ($i+1)))."/master.inc.php")) {
+	$res=@include dirname(substr($tmp, 0, ($i+1)))."/master.inc.php";
+}
 // Try master.inc.php using relative path
-if (! $res && file_exists("../master.inc.php")) $res=@include "../master.inc.php";
-if (! $res && file_exists("../../master.inc.php")) $res=@include "../../master.inc.php";
-if (! $res && file_exists("../../../master.inc.php")) $res=@include "../../../master.inc.php";
-if (! $res && file_exists(__DIR__."/../../master.inc.php")) $res=@include __DIR__."/../../../master.inc.php";
-if (! $res && file_exists(__DIR__."/../../../master.inc.php")) $res=@include __DIR__."/../../../master.inc.php";
-if (! $res && file_exists($dolibarrdir."/htdocs/master.inc.php")) $res=@include $dolibarrdir."/htdocs/master.inc.php";
+if (! $res && file_exists("../master.inc.php")) {
+	$res=@include "../master.inc.php";
+}
+if (! $res && file_exists("../../master.inc.php")) {
+	$res=@include "../../master.inc.php";
+}
+if (! $res && file_exists("../../../master.inc.php")) {
+	$res=@include "../../../master.inc.php";
+}
+if (! $res && file_exists(__DIR__."/../../master.inc.php")) {
+	$res=@include __DIR__."/../../../master.inc.php";
+}
+if (! $res && file_exists(__DIR__."/../../../master.inc.php")) {
+	$res=@include __DIR__."/../../../master.inc.php";
+}
+if (! $res && file_exists($dolibarrdir."/htdocs/master.inc.php")) {
+	$res=@include $dolibarrdir."/htdocs/master.inc.php";
+}
 if (! $res) {
-	print ("Include of master fails");
+	print("Include of master fails");
 	exit(-1);
 }
 include_once DOL_DOCUMENT_ROOT.'/core/lib/files.lib.php';
@@ -104,8 +129,6 @@ $databasepass='';
 $usecompressformatforarchive='gzip';
 $emailfrom='';
 $emailsupervision='';
-$backupignoretables='';
-$backupcompressionalgorithms='';	// can be '' or 'zstd'
 $backuprsyncdayfrequency=1;	// Default value is an rsync every 1 day.
 $backupdumpdayfrequency=1;	// Default value is a sql dump every 1 day.
 $master_unique_id = '';
@@ -141,12 +164,6 @@ if ($fp) {
 		}
 		if ($tmpline[0] == 'usecompressformatforarchive') {
 			$usecompressformatforarchive = $tmpline[1];
-		}
-		if ($tmpline[0] == 'backupignoretables') {
-			$backupignoretables = $tmpline[1];
-		}
-		if ($tmpline[0] == 'backupcompressionalgorithms') {
-			$backupcompressionalgorithms = preg_replace('/[^a-z]/', '', $tmpline[1]);
 		}
 		if ($tmpline[0] == 'backuprsyncdayfrequency') {
 			$backuprsyncdayfrequency = $tmpline[1];
@@ -199,9 +216,31 @@ if (empty($backupdumpdayfrequency)) {
 
 print "***** ".$script_file." (".$version.") - mode = ".$mode." - ".dol_print_date(dol_now('gmt'), "%Y%m%d-%H%M%S", 'gmt')." *****\n";
 
-if (0 == posix_getuid()) {
-	echo "Script must not be ran with root (but with the 'admin' sellyoursaas account).\n";
-	exit(-1);
+if (preg_match('/:/', $dirroot)) {
+	// Restore from a remote server
+	if (0 != posix_getuid()) {
+		echo "Script must be ran with root.\n";
+		exit(-1);
+	}
+
+	// TODO Rsync to get backup into /tmp
+	dol_delete_dir_recursive('/tmp/restore_instance');
+	dol_mkdir('/tmp/restore_instance');
+
+
+
+	print 'TODO...';
+
+	// Now show message to say we must run the restore script with 'admin'
+	print "You must now run the script with 'admin': ".$script_file/" /tmp/restore_instance autoscan ".$instance." ".$mode."\n";
+
+	exit(0);
+} else {
+	// Restore from a local backup or local archive
+	if (0 == posix_getuid()) {
+		echo "Script must not be ran with root (but with the 'admin' sellyoursaas account).\n";
+		exit(-1);
+	}
 }
 
 $dbmaster=getDoliDBInstance('mysqli', $databasehost, $databaseuser, $databasepass, $database, $databaseport);
@@ -212,13 +251,16 @@ if ($dbmaster->error) {
 if ($dbmaster) {
 	$conf->setValues($dbmaster);
 }
-if (empty($db)) $db=$dbmaster;
+if (empty($db)) {
+	$db=$dbmaster;
+}
 
 if (empty($dirroot) || empty($instance) || empty($mode)) {
-	print "This script must be ran as 'admin' user.\n";
-	print "Usage:   $script_file backup_dir  autoscan|mysqldump_dbn...sql.zst|dayofmysqldump instance [testrsync|testdatabase|test|confirmrsync|confirmdatabase|confirm]\n";
-	print "Example: $script_file " . getDolGlobalString('DOLICLOUD_BACKUP_PATH')."/osu123456/dbn789012  myinstance  31  testrsync\n";
-	print "Note:    ssh public key of admin must be authorized in the .ssh/authorized_keys_support of targeted user to have testrsync and confirmrsync working.\n";
+	print "This script must be ran as 'admin' for a local restoration, as 'root' for a restoration from a remotebackup.\n";
+	print "Usage:   $script_file [remotebackup:]backup_dir  autoscan|mysqldump_dbn...sql.zst|dayofmonth instance [testrsync|testdatabase|test|confirmrsync|confirmdatabase|confirm]\n";
+	print "Example: $script_file " . getDolGlobalString('DOLICLOUD_BACKUP_PATH')."/osu123456/dbn789012  autoscan  myinstance  testrsync\n";
+	print "Example: $script_file remotebackup:/mnt/diskbackup/.snapshots/diskbackup-xxx/backup_servername/osu123456/dbn789012  autoscan  myinstance  testrsync\n";
+	print "Note:    the ssh public key of admin must be authorized in the .ssh/authorized_keys_support of targeted osu user to have testrsync and confirmrsync working.\n";
 	print "Return code: 0 if success, <>0 if error\n";
 	exit(-1);
 }
@@ -258,7 +300,9 @@ if ($num_rows > 1) {
 	exit(-2);
 } else {
 	$obj = $dbmaster->fetch_object($resql);
-	if ($obj) $idofinstancefound = $obj->rowid;
+	if ($obj) {
+		$idofinstancefound = $obj->rowid;
+	}
 }
 
 dol_include_once("/sellyoursaas/class/sellyoursaascontract.class.php");
@@ -352,7 +396,9 @@ if ($mode == 'testrsync' || $mode == 'test' || $mode == 'confirmrsync' || $mode 
 
 	$command="rsync";
 	$param=array();
-	if ($mode != 'confirm' && $mode != 'confirmrsync') $param[]="-n";
+	if ($mode != 'confirm' && $mode != 'confirmrsync') {
+		$param[]="-n";
+	}
 	//$param[]="-a";
 	$param[]="-rltz";
 	//$param[]="-vv";
@@ -467,11 +513,17 @@ if ($mode == 'testdatabase' || $mode == 'test' || $mode == 'confirmdatabase' || 
 	// Launch load
 	$fullcommand=$command." ".join(" ", $param);
 	if (command_exists("zstd") && "x$usecompressformatforarchive" == 'xzstd') {
-		if ($mode != 'confirm' && $mode != 'confirmdatabase') $fullcommand="cat '".$dirroot.'/../'.$dumpfiletoload."' | zstd -d -q > /dev/null";
-		else $fullcommand="cat '".$dirroot.'/../'.$dumpfiletoload."' | zstd -d -q  | ".$fullcommand;
+		if ($mode != 'confirm' && $mode != 'confirmdatabase') {
+			$fullcommand="cat '".$dirroot.'/../'.$dumpfiletoload."' | zstd -d -q > /dev/null";
+		} else {
+			$fullcommand="cat '".$dirroot.'/../'.$dumpfiletoload."' | zstd -d -q  | ".$fullcommand;
+		}
 	} else {
-		if ($mode != 'confirm' && $mode != 'confirmdatabase') $fullcommand="cat '".$dirroot.'/../'.$dumpfiletoload."' | gzip -d > /dev/null";
-		else $fullcommand="cat '".$dirroot.'/../'.$dumpfiletoload."' | gzip -d | ".$fullcommand;
+		if ($mode != 'confirm' && $mode != 'confirmdatabase') {
+			$fullcommand="cat '".$dirroot.'/../'.$dumpfiletoload."' | gzip -d > /dev/null";
+		} else {
+			$fullcommand="cat '".$dirroot.'/../'.$dumpfiletoload."' | gzip -d | ".$fullcommand;
+		}
 	}
 
 	$output=array();
@@ -562,8 +614,12 @@ if (empty($return_var) && empty($return_varmysql)) {
 		}
 	}
 } else {
-	if (! empty($return_var))      print "ERROR into restore process of rsync: ".$return_var."\n";
-	if (! empty($return_varmysql)) print "ERROR into restore process of mysqldump: ".$return_varmysql."\n";
+	if (! empty($return_var)) {
+		print "ERROR into restore process of rsync: ".$return_var."\n";
+	}
+	if (! empty($return_varmysql)) {
+		print "ERROR into restore process of mysqldump: ".$return_varmysql."\n";
+	}
 
 	if ($mode == 'confirm') {
 		$from = $emailfrom;

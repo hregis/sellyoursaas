@@ -26,7 +26,9 @@
  *      \brief      Script to run from master server to move an instance into another one.
  */
 
-if (!defined('NOSESSION')) define('NOSESSION', '1');
+if (!defined('NOSESSION')) {
+	define('NOSESSION', '1');
+}
 
 $sapi_type = php_sapi_name();
 $script_file = basename(__FILE__);
@@ -113,19 +115,38 @@ if (empty($masterserver)) {
 // Load Dolibarr environment
 $res=0;
 // Try master.inc.php into web root detected using web root caluclated from SCRIPT_FILENAME
-$tmp=empty($_SERVER['SCRIPT_FILENAME'])?'':$_SERVER['SCRIPT_FILENAME'];$tmp2=realpath(__FILE__); $i=strlen($tmp)-1; $j=strlen($tmp2)-1;
-while ($i > 0 && $j > 0 && isset($tmp[$i]) && isset($tmp2[$j]) && $tmp[$i]==$tmp2[$j]) { $i--; $j--; }
-if (! $res && $i > 0 && file_exists(substr($tmp, 0, ($i+1))."/master.inc.php")) $res=@include substr($tmp, 0, ($i+1))."/master.inc.php";
-if (! $res && $i > 0 && file_exists(dirname(substr($tmp, 0, ($i+1)))."/master.inc.php")) $res=@include dirname(substr($tmp, 0, ($i+1)))."/master.inc.php";
+$tmp=empty($_SERVER['SCRIPT_FILENAME']) ? '' : $_SERVER['SCRIPT_FILENAME'];$tmp2=realpath(__FILE__); $i=strlen($tmp)-1; $j=strlen($tmp2)-1;
+while ($i > 0 && $j > 0 && isset($tmp[$i]) && isset($tmp2[$j]) && $tmp[$i]==$tmp2[$j]) {
+	$i--;
+	$j--;
+}
+if (! $res && $i > 0 && file_exists(substr($tmp, 0, ($i+1))."/master.inc.php")) {
+	$res=@include substr($tmp, 0, ($i+1))."/master.inc.php";
+}
+if (! $res && $i > 0 && file_exists(dirname(substr($tmp, 0, ($i+1)))."/master.inc.php")) {
+	$res=@include dirname(substr($tmp, 0, ($i+1)))."/master.inc.php";
+}
 // Try master.inc.php using relative path
-if (! $res && file_exists("../master.inc.php")) $res=@include "../master.inc.php";
-if (! $res && file_exists("../../master.inc.php")) $res=@include "../../master.inc.php";
-if (! $res && file_exists("../../../master.inc.php")) $res=@include "../../../master.inc.php";
-if (! $res && file_exists(__DIR__."/../../master.inc.php")) $res=@include __DIR__."/../../master.inc.php";
-if (! $res && file_exists(__DIR__."/../../../master.inc.php")) $res=@include __DIR__."/../../../master.inc.php";
-if (! $res && file_exists($dolibarrdir."/htdocs/master.inc.php")) $res=@include $dolibarrdir."/htdocs/master.inc.php";
+if (! $res && file_exists("../master.inc.php")) {
+	$res=@include "../master.inc.php";
+}
+if (! $res && file_exists("../../master.inc.php")) {
+	$res=@include "../../master.inc.php";
+}
+if (! $res && file_exists("../../../master.inc.php")) {
+	$res=@include "../../../master.inc.php";
+}
+if (! $res && file_exists(__DIR__."/../../master.inc.php")) {
+	$res=@include __DIR__."/../../master.inc.php";
+}
+if (! $res && file_exists(__DIR__."/../../../master.inc.php")) {
+	$res=@include __DIR__."/../../../master.inc.php";
+}
+if (! $res && file_exists($dolibarrdir."/htdocs/master.inc.php")) {
+	$res=@include $dolibarrdir."/htdocs/master.inc.php";
+}
 if (! $res) {
-	print ("Include of master fails");
+	print("Include of master fails");
 	exit(-1);
 }
 // After this $db, $mysoc, $langs, $conf and $hookmanager are defined (Opened $db handler to database will be closed at end of file).
@@ -149,7 +170,7 @@ $oldinstance=isset($argv[1]) ? $argv[1] : '';
 
 $newinstance=isset($argv[2]) ? strtolower($argv[2]) : '';
 
-$mode=isset($argv[3])?$argv[3]:'';
+$mode=isset($argv[3]) ? $argv[3] : '';
 
 $langsen = new Translate('', $conf);
 $langsen->setDefaultLang($mysoc->default_lang);
@@ -167,14 +188,14 @@ $utils = new Utils($db);
 print "***** ".$script_file." ".$version." *****\n";
 
 if (empty($newinstance) || empty($mode)) {
-	print "Move an existing instance from an old server to a new server.\n";
+	print "Move an existing instance from an old server to a new server (with target instance not existing yet).\n";
 	print "Script must be ran from the master server with login admin.\n";
 	print "\n";
-	print "Usage: ".$script_file." oldinstance.withX.mysaasdomainname.com newinstance.withY.mysaasdomainname.com (test|confirm|confirmredirect|confirmmaintenance) [MYPRODUCTREF]\n";
-	print "Mode is test for a test mode.\n";
-	print "        confirm for real mode.\n";
-	print "        confirmredirect for real mode and set old instance as a redirect instance.\n";
-	print "        confirmmaintenance for real mode and set old instance into maintenance mode before the move.\n";
+	print "Usage: ".$script_file." oldinstance.withX.mysaasdomainname.com newinstance.withY.mysaasdomainname.com (test|confirm|confirmmaintenance|confirmredirect) [MYPRODUCTREF]\n";
+	print "Mode is: test                for a test mode.\n";
+	print "         confirm             for real mode.\n";
+	print "         confirmmaintenance  for real mode and replace old instance with a definitive message 'Suspended. A move is in progress.'.\n";
+	print "         confirmredirect     for real mode with a mesage during transfer and then make old instance a redirect instance.\n";
 	print "MYPRODUCTREF can be set to force a new hosting application service.\n";
 	print "Return code: 0 if success, <>0 if error\n";
 	print "\n";
@@ -209,7 +230,9 @@ if ($dbmaster->error) {
 if ($dbmaster) {
 	$conf->setValues($dbmaster);
 }
-if (empty($db)) $db=$dbmaster;
+if (empty($db)) {
+	$db=$dbmaster;
+}
 
 
 //$user = new User();
@@ -264,7 +287,11 @@ if ($db2->error)
 }*/
 
 $productref = '';
-if (isset($argv[4])) $productref = $argv[4];
+$forceproductref = '';
+if (isset($argv[4])) {
+	$productref = $argv[4];
+	$forceproductref = $argv[4];
+}
 if (empty($productref)) {
 	// Get tmppackage
 	foreach ($oldobject->lines as $keyline => $line) {
@@ -356,10 +383,10 @@ if ($mode == 'confirmredirect' || $mode == 'confirmmaintenance') {
 
 
 // Share certificate of old instance by copying them into the common crt dir (they should already be into this directory)
-// TODO If the certificate of the source instance are not into crt directory, we must copy them into the crt directory with read permission to admin user.
+// TODO If the certificate of the source instance are not into crt directory, we must copy them into the sellyoursaas master crt directory with read permission to admin user.
 $CERTIFFORCUSTOMDOMAIN = $oldinstance;
 if ($CERTIFFORCUSTOMDOMAIN) {
-	print '--- Check/copy the certificate files (.key, .crt and -intermediate.crt) of instance (generic and custom) into the crt directory (to reuse them on the new instance for backward compatibility).'."\n";
+	print '--- Check/copy the certificate files (.key, .crt and -intermediate.crt) of instance (generic and custom) into the sellyoursaas master crt directory (to reuse them on the new instance for backward compatibility).'."\n";
 	foreach (array('', '-custom') as $ext) {
 		foreach (array('.key', '.crt', '-intermediate.crt') as $ext2) {
 			$srcfile = '/etc/apache2/with.sellyoursaas.com'.$ext.$ext2;
@@ -437,18 +464,21 @@ if ($CERTIFFORCUSTOMDOMAIN) {
 }
 
 
-print '--- Check/copy the certificate files (.key, .crt and -intermediate.crt) for websites into the crt directory (to reuse them on the new instance for backward compatibility).'."\n";
+print '--- Check/copy the certificate files (.key, .crt and -intermediate.crt) for websites into the sellyoursaas master crt directory (to reuse them on the new instance for backward compatibility).'."\n";
 // TODO
 
 
 print '--- Create new container for new instance (need sql create/write access on master database with master database user)'."\n";
 
 $newpass = $oldobject->array_options['options_deployment_initial_password'];
-if (empty($newpass)) $newpass = getRandomPassword(true, array('I'), 16);
+if (empty($newpass)) {
+	$newpass = getRandomPassword(true, array('I'), 16);
+}
 
 $command='php '.DOL_DOCUMENT_ROOT."/custom/sellyoursaas/myaccount/register_instance.php ".escapeshellarg($productref)." ".escapeshellarg($newinstance)." ".escapeshellarg($newpass)." ".escapeshellarg($oldobject->thirdparty->id);
+$commandnopass='php '.DOL_DOCUMENT_ROOT."/custom/sellyoursaas/myaccount/register_instance.php ".escapeshellarg($productref)." ".escapeshellarg($newinstance)." --a-new-password-- ".escapeshellarg($oldobject->thirdparty->id);
 $command.=" ".escapeshellarg($oldinstance);
-echo $command."\n";
+echo $commandnopass."\n";
 
 $return_val = 0;
 if ($mode == 'confirm' || $mode == 'confirmredirect' || $mode == 'confirmmaintenance') {
@@ -496,9 +526,9 @@ $newdatabasedb=$newobject->array_options['options_database_db'];
 
 
 if ($result <= 0 || empty($newlogin) || empty($newdatabasedb)) {
-	print "Error: Failed to find instance '".$newinstance."'";
+	print "Error: Failed to find target instance '".$newinstance."'";
 	if ($mode == 'test') {
-		print " (it should have been created before but, in test mode, the instance can't be created).\n";
+		print " (it should have been created by this script but, in test mode, the instance can't be created).\n";
 	}
 	print "\n";
 	exit(-1);
@@ -515,7 +545,9 @@ if (! empty($oldobject->array_options['options_custom_url'])) {
 
 // Set the date of end of period with same value than the source
 $dateendperiod = 0;
+$oldpricesperproduct = array();
 foreach ($oldobject->lines as $line) {
+	$oldpricesperproduct[$line->fk_product] = array('price_ht' => $line->price_ht, 'discount' => $line->remise_percent, 'qty' => $line->qty);
 	if ($line->date_end && (empty($dateendperiod) || $line->date_end < $dateendperiod)) {
 		$dateendperiod = $line->date_end;
 	}
@@ -545,12 +577,46 @@ if ($mode == 'confirm' || $mode == 'confirmredirect' || $mode == 'confirmmainten
 	}
 }
 
+if (empty($forceproductref)) {
+	print "Update price, discount and qty of the new contract lines to match the one on the source.\n";
+
+	foreach ($oldpricesperproduct as $productid => $pricesperproduct) {
+		$sql = 'SELECT rowid FROM '.MAIN_DB_PREFIX."contratdet";
+		$sql .= " WHERE fk_contrat = ".((int) $newobject->id);
+		$sql .= " AND fk_product = ".((int) $productid);
+		print $sql."\n";
+		$resqlselect = $db->query($sql);
+		$objselect = $db->fetch_object($resqlselect);
+		if ($objselect && $objselect->rowid > 0) {
+			$contractline = new ContratLigne($db);
+			$contractline->fetch($objselect->rowid);
+
+			$contractline->qty = $pricesperproduct['qty'];
+			$contractline->remise_percent = $pricesperproduct['discount'];
+			$contractline->subprice = $pricesperproduct['price_ht'];
+			$contractline->price_ht = $pricesperproduct['price_ht'];	// deprecated
+
+			print "We update line ".$objselect->rowid." with price_ht = ".$pricesperproduct['price_ht']." discount = ".$pricesperproduct['discount']."\n";
+			if ($mode == 'confirm' || $mode == 'confirmredirect' || $mode == 'confirmmaintenance') {
+				$result = $contractline->update($user);
+				if ($result < 0) {
+					print 'Failed to set same prices, discount and qty than original contract'."\n";
+					exit(-1);
+				}
+			}
+		}
+	}
+} else {
+	print "A new product ref was forced, so we do not align prices on old contract.\n";
+}
+
 
 $newsftpconnectstring=$newlogin.'@'.$newserver.':' . getDolGlobalString('DOLICLOUD_INSTANCES_PATH').'/'.$newlogin.'/'.preg_replace('/_([a-zA-Z0-9]+)$/', '', $newdatabasedb);
 
 $createthirdandinstance=1;
 
-// Now sync files
+
+// Now we will sync files from source to target in 2 steps
 
 $tmptargetdir='/tmp/'.$newlogin.'/'.$newdatabasedb;
 $countdeleted = 0;
@@ -562,14 +628,23 @@ print '--- Synchro of files '.$oldsftpconnectstring.' to '.$tmptargetdir."\n";
 print 'SFTP connect string : '.$oldsftpconnectstring."\n";
 //print 'SFTP old password '.$oldospass."\n";
 
+
+// First we get the files of the source to move
 $command="rsync";
 $param=array();
 //if (! in_array($mode, array('confirm', 'confirmredirect', 'confirmmaintenance'))) $param[]="-n";
 //$param[]="-a";
-if (! in_array($mode, array('diff','diffadd','diffchange'))) $param[]="-rlt";
-else { $param[]="-rlD"; $param[]="--modify-window=1000000000"; $param[]="--delete -n"; }
+if (! in_array($mode, array('diff','diffadd','diffchange'))) {
+	$param[]="-rlt";
+} else {
+	$param[]="-rlD";
+	$param[]="--modify-window=1000000000";
+	$param[]="--delete -n";
+}
 //$param[]="-v";
-if (empty($createthirdandinstance)) $param[]="-u";		// If we have just created instance, we overwrite file during rsync
+if (empty($createthirdandinstance)) {
+	$param[]="-u";
+}		// If we have just created instance, we overwrite file during rsync
 $param[]="--exclude .buildpath";
 $param[]="--exclude .git";
 $param[]="--exclude .gitignore";
@@ -611,8 +686,9 @@ if ($return_var) {
 print $content_grabbed."\n";
 
 
-$sourcedir=$tmptargetdir;
-$targetdir=getDolGlobalString('DOLICLOUD_INSTANCES_PATH') . '/'.$newlogin.'/'.$newdatabasedb;
+// Now we copy files on the target directory
+$sourcedir = $tmptargetdir;
+$targetdir = getDolGlobalString('DOLICLOUD_INSTANCES_PATH') . '/'.$newlogin.'/'.$newdatabasedb;
 
 print '--- Synchro of files '.$sourcedir.' to '.$newsftpconnectstring."\n";
 print 'SFTP connect string : '.$newsftpconnectstring."\n";
@@ -620,12 +696,21 @@ print 'SFTP connect string : '.$newsftpconnectstring."\n";
 
 $command="rsync";
 $param=array();
-if (! in_array($mode, array('confirm', 'confirmredirect', 'confirmmaintenance'))) $param[]="-n";
+if (! in_array($mode, array('confirm', 'confirmredirect', 'confirmmaintenance'))) {
+	$param[]="-n";
+}
 //$param[]="-a";
-if (! in_array($mode, array('diff','diffadd','diffchange'))) $param[]="-rlt";
-else { $param[]="-rlD"; $param[]="--modify-window=1000000000"; $param[]="--delete -n"; }
+if (! in_array($mode, array('diff','diffadd','diffchange'))) {
+	$param[]="-rlt";
+} else {
+	$param[]="-rlD";
+	$param[]="--modify-window=1000000000";
+	$param[]="--delete -n";
+}
 //$param[]="-v";
-if (empty($createthirdandinstance)) $param[]="-u";		// If we have just created instance, we overwrite file during rsync
+if (empty($createthirdandinstance)) {
+	$param[]="-u";
+}		// If we have just created instance, we overwrite file during rsync
 $param[]="--exclude .buildpath";
 $param[]="--exclude .git";
 $param[]="--exclude .gitignore";
@@ -668,8 +753,12 @@ print "\n";
 print $content_grabbed."\n";
 
 
+// Now we copy database from source to target
+
 print '--- Dump database '.$olddbname.' into '.$tmptargetdir.'/mysqldump_'.$olddbname.'_'.dol_print_date(dol_now('gmt'), "%d", 'gmt').".sql\n";
 
+
+// First we backup the source database
 $command="mysqldump";
 $param=array();
 $param[]=$olddbname;
@@ -712,19 +801,9 @@ if ($return_var) {
 }
 
 
-$sqla = 'UPDATE '.MAIN_DB_PREFIX."facture_rec SET titre='".$dbmaster->escape('Template invoice for '.$newobject->ref.' '.$newobject->ref_customer)."'";
-$sqla .= ' WHERE rowid = (SELECT fk_target FROM '.MAIN_DB_PREFIX.'element_element';
-$sqla .= ' WHERE fk_source = '.((int) $oldobject->id)." AND sourcetype = 'contrat' AND targettype = 'facturerec')";
-
-$sqlb = 'UPDATE '.MAIN_DB_PREFIX.'element_element SET fk_source = '.((int) $newobject->id);
-$sqlb.= ' WHERE fk_source = '.((int) $oldobject->id)." AND sourcetype = 'contrat' AND (targettype = 'facturerec' OR targettype = 'facture')";
-
-$sqlc = 'UPDATE '.MAIN_DB_PREFIX.'element_element SET fk_target = '.((int) $newobject->id);
-$sqlc.= ' WHERE fk_target = '.((int) $oldobject->id)." AND targettype = 'contrat' AND (sourcetype = 'facturerec' OR sourcetype = 'facture')";
-
-
+// We load the backup on target database
 print '--- Load database '.$newdatabasedb.' from '.$tmptargetdir.'/mysqldump_'.$olddbname.'_'.dol_print_date(dol_now('gmt'), "%d", 'gmt').".sql\n";
-//print "If the load fails, try to run mysql -u".$newloginbase." -p".$newpasswordbase." -D ".$newobject->database_db."\n";
+//print "If the mysql fails, try to run mysql -u".$newloginbase." -p".$newpasswordbase." -D ".$newobject->database_db."\n";
 
 $fullcommanddropa='echo "drop table llx_accounting_account;" | mysql -A -h '.$newserverbase.' -u '.$newloginbase.' -p'.$newpasswordbase.' -D '.$newdatabasedb;
 $output=array();
@@ -781,6 +860,18 @@ if ($mode == 'confirm' || $mode == 'confirmredirect' || $mode == 'confirmmainten
 
 	print $content_grabbed."\n";
 }
+
+
+// Prepare SQL commands to execute after the load
+$sqla = 'UPDATE '.MAIN_DB_PREFIX."facture_rec SET titre='".$dbmaster->escape('Template invoice for '.$newobject->ref.' '.$newobject->ref_customer)."'";
+$sqla .= ' WHERE rowid = (SELECT fk_target FROM '.MAIN_DB_PREFIX.'element_element';
+$sqla .= ' WHERE fk_source = '.((int) $oldobject->id)." AND sourcetype = 'contrat' AND targettype = 'facturerec')";
+
+$sqlb = 'UPDATE '.MAIN_DB_PREFIX.'element_element SET fk_source = '.((int) $newobject->id);
+$sqlb.= ' WHERE fk_source = '.((int) $oldobject->id)." AND sourcetype = 'contrat' AND (targettype = 'facturerec' OR targettype = 'facture')";
+
+$sqlc = 'UPDATE '.MAIN_DB_PREFIX.'element_element SET fk_target = '.((int) $newobject->id);
+$sqlc.= ' WHERE fk_target = '.((int) $oldobject->id)." AND targettype = 'contrat' AND (sourcetype = 'facturerec' OR sourcetype = 'facture')";
 
 if ($return_var) {
 	print "-> Error during mysql load of instance ".$newobject->ref_customer."\n";
@@ -846,7 +937,7 @@ print $sql."\n";
 print "\n";
 
 
-
+$dnschangedone = 0;
 if ($mode != 'confirmredirect' && $mode != 'confirmmaintenance') {
 	print "DON'T FORGET TO REDIRECT INSTANCE ON OLD SYSTEM BY SETTING THE MAINTENANCE MODE WITH THE MESSAGE\n";
 	print "https://".$newobject->ref_customer."\n";
@@ -857,17 +948,22 @@ if ($mode != 'confirmredirect' && $mode != 'confirmmaintenance') {
 		dol_include_once('sellyoursaas/class/sellyoursaasutils.class.php');
 		$sellyoursaasutils = new SellYourSaasUtils($db);
 
-		$comment = 'https://'.$newinstance;
-		print '--- Switch old instance in redirect maintenance mode (redirect to '.$comment.")\n";
+		$suspendmessage = 'https://'.$newinstance;
+		$newip = $newobject->array_options['options_deployment_host'];
+		$comment = 'Move instance keeping a redirect to '.$suspendmessage.', we also set the new IP '.$newip.' into the old DNS file.';
+		print '--- Switch old instance in redirect maintenance mode (redirect to '.$suspendmessage.', new ip to '.$newip.")\n";
 
-		$result = $sellyoursaasutils->sellyoursaasRemoteAction('suspendmaintenance', $oldobject, 'admin', '', '', '0', $comment, 300);
+		$result = $sellyoursaasutils->sellyoursaasRemoteAction('suspendredirect', $oldobject, 'admin', '', '', '0', $comment, 300, $newip);
 		if ($result <= 0) {
 			print "Error calling sellyoursaasRemoteAction: ".$sellyoursaasutils->error."\n";
+			print "Try to call the service manually then update the instance to set the redirect to ".$suspendmessage."\n";
 			print "\n";
 			exit(-1);
+		} else {
+			$dnschangedone = 1;
 		}
 
-		$oldobject->array_options['options_suspendmaintenance_message'] = $comment;
+		$oldobject->array_options['options_suspendmaintenance_message'] = $suspendmessage;
 		$result = $oldobject->update($user);
 		if ($result < 0) {
 			print "Error updating contract with redirect url: ".$oldobject->error."\n";
@@ -875,14 +971,6 @@ if ($mode != 'confirmredirect' && $mode != 'confirmmaintenance') {
 			exit(-1);
 		}
 	}
-}
-
-$dnschangedone = 0;
-if ($mode == 'confirmredirect' && $mode == 'confirmmaintenance') {
-	// Change the DNS on deployment server
-	// TODO
-
-	//$dnschangedone = 1;
 }
 
 if (!$dnschangedone) {

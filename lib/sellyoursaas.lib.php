@@ -58,8 +58,11 @@ if (!function_exists('getDolGlobalInt')) {
  * @param 	int 	$b		Date B
  * @return 	boolean			Result of comparison
  */
-function cmp($a, $b)
+function sellyoursaasCmpDate($a, $b)
 {
+	if ($a->date == $b->date) {
+		return strcmp((string) $a->id, (string) $b->id);
+	}
 	return strcmp($a->date, $b->date);
 }
 
@@ -70,10 +73,10 @@ function cmp($a, $b)
  * @param 	int 	$b		Date B
  * @return 	boolean			Result of comparison
  */
-function cmpr_invoice_object_date_desc($a, $b)
+function sellyoursaasCmpDateDesc($a, $b)
 {
 	if ($a->date == $b->date) {
-		return strcmp($b->id, $a->id);
+		return strcmp((string) $b->id, (string) $a->id);
 	}
 	return strcmp($b->date, $a->date);
 }
@@ -128,7 +131,9 @@ function sellyoursaasThirdpartyHasPaymentMode($thirdpartyidtotest)
 			while ($i < $num_rows) {
 				$objtmp = $db->fetch_object($resqltmp);
 				if ($objtmp) {
-					if ($objtmp->default_rib != 1) continue;	// Keep the default payment mode only
+					if ($objtmp->default_rib != 1) {
+						continue;
+					}	// Keep the default payment mode only
 					$atleastonepaymentmode++;
 					break;
 				}
@@ -164,7 +169,9 @@ function sellyoursaasIsPaidInstance($contract, $mode = 0, $loadalsoobjects = 0)
 		}
 	}
 
-	if ($foundtemplate) return 1;
+	if ($foundtemplate) {
+		return 1;
+	}
 
 	if ($mode == 0) {
 		$foundinvoice=0;
@@ -175,7 +182,9 @@ function sellyoursaasIsPaidInstance($contract, $mode = 0, $loadalsoobjects = 0)
 			}
 		}
 
-		if ($foundinvoice) return 1;
+		if ($foundinvoice) {
+			return 1;
+		}
 	}
 
 	return 0;
@@ -236,8 +245,12 @@ function sellyoursaasHasOpenInvoices($contract)
 
 	if (isset($contract->linkedObjects['facture']) && is_array($contract->linkedObjects['facture'])) {
 		foreach ($contract->linkedObjects['facture'] as $rowidelementelement => $invoice) {
-			if ($invoice->statut == Facture::STATUS_CLOSED) continue;
-			if ($invoice->statut == Facture::STATUS_ABANDONED) continue;
+			if ($invoice->statut == Facture::STATUS_CLOSED) {
+				continue;
+			}
+			if ($invoice->statut == Facture::STATUS_ABANDONED) {
+				continue;
+			}
 			if (empty($invoice->paid)) {
 				$atleastoneopeninvoice++;
 			}
@@ -275,15 +288,20 @@ function sellyoursaasGetExpirationDate($contract, $onlyexpirationdate = 0)
 	include_once DOL_DOCUMENT_ROOT.'/product/class/product.class.php';
 
 	global $cachefortmpprod;
-	if (! isset($cachefortmpprod) || ! is_array($cachefortmpprod)) $cachefortmpprod = array();
+	if (! isset($cachefortmpprod) || ! is_array($cachefortmpprod)) {
+		$cachefortmpprod = array();
+	}
 
 	dol_syslog("sellyoursaasGetExpirationDate for contract id=".$contract->id." onlyexpirationdate=".$onlyexpirationdate);
 
 	// Loop on each line to get lowest expiration date
 	foreach ($contract->lines as $line) {
 		if ($line->date_end) {	// Planned end date of service
-			if ($expirationdate > 0) $expirationdate = min($expirationdate, $line->date_end);
-			else $expirationdate = $line->date_end;
+			if ($expirationdate > 0) {
+				$expirationdate = min($expirationdate, $line->date_end);
+			} else {
+				$expirationdate = $line->date_end;
+			}
 		}
 
 		if (empty($onlyexpirationdate) && $line->fk_product > 0) {
@@ -337,8 +355,12 @@ function sellyoursaasGetExpirationDate($contract, $onlyexpirationdate = 0)
  */
 function sellyoursaasIsSuspended($contract)
 {
-	if ($contract->nbofserviceswait > 0 || $contract->nbofservicesopened > 0 || $contract->nbofservicesexpired > 0) return false;
-	if ($contract->nbofservicesclosed > 0) return true;
+	if ($contract->nbofserviceswait > 0 || $contract->nbofservicesopened > 0 || $contract->nbofservicesexpired > 0) {
+		return false;
+	}
+	if ($contract->nbofservicesclosed > 0) {
+		return true;
+	}
 
 	return false;
 }
@@ -481,7 +503,9 @@ function getRemoteCheck($remoteip, $whitelisted, $email)
 	// Evaluate VPN probability with Getintel
 	if (!empty($conf->global->SELLYOURSAAS_GETIPINTEL_ON)) {
 		$emailforvpncheck='contact+checkcustomer@mysaasdomainname.com';
-		if (!empty($conf->global->SELLYOURSAAS_GETIPINTEL_EMAIL)) $emailforvpncheck = $conf->global->SELLYOURSAAS_GETIPINTEL_EMAIL;
+		if (!empty($conf->global->SELLYOURSAAS_GETIPINTEL_EMAIL)) {
+			$emailforvpncheck = $conf->global->SELLYOURSAAS_GETIPINTEL_EMAIL;
+		}
 		$url = 'http://check.getipintel.net/check.php?ip='.urlencode($remoteip).'&contact='.urlencode($emailforvpncheck).'&flag=f';
 		$result = getURLContent($url, 'GET', '', 1, array(), array('http', 'https'), 0);
 		/* The proxy check system will return negative values on error. For standard format (non-json), an additional HTTP 400 status code is returned
@@ -566,7 +590,7 @@ function getRemoteCheck($remoteip, $whitelisted, $email)
 			$conf->global->SELLYOURSAAS_IPQUALITY_KEY,
 			urlencode($remoteip),
 			$formatted_parameters
-			);
+		);
 
 		$result = getURLContent($url);
 		if (is_array($result) && $result['http_code'] == 200 && !empty($result['content'])) {
@@ -623,7 +647,7 @@ function getRemoteCheck($remoteip, $whitelisted, $email)
 			$conf->global->SELLYOURSAAS_IPQUALITY_KEY,
 			urlencode($email),
 			$formatted_parameters
-			);
+		);
 
 		$result = getURLContent($url);
 		if (is_array($result) && $result['http_code'] == 200 && !empty($result['content'])) {

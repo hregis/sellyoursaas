@@ -31,7 +31,7 @@ This is a list of some features supported by this project:
 - Scalable solution (install more servers if you have too much customers or users).
 - A lot of "ready in the box" tools (backups, migration, upgrades, ...) 
 - Multilang (both front and backoffice)
-- A cost of infrastucture lower than 0.5 USD per instance/customer.
+- A cost of infrastructure lower than 0.5 USD per instance/customer.
 - A 100% automated workflow.
 
 
@@ -40,7 +40,6 @@ This is a list of some features supported by this project:
 You may find asciidoc documentation here:
 
 * <a href="https://github.com/eldy/sellyoursaas/blob/master/doc/Documentation%20SellYourSaas%20-%20Master%20and%20Deployment%20Servers%20-%20EN.asciidoc">English version</a>
-* <a href="https://github.com/eldy/sellyoursaas/blob/master/doc/Documentation%20SellYourSaas%20-%20Master%20and%20Deployment%20Servers%20-%20FR.asciidoc">French version</a>
 
 
 ## Licenses

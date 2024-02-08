@@ -257,9 +257,11 @@ class InterfaceSellYourSaasTriggers extends DolibarrTriggers
 
 				// Do we change end of trial ?
 				if (isset($object->oldcopy) && $object->oldcopy->array_options['options_date_endfreeperiod'] != $object->array_options['options_date_endfreeperiod']) {
-					dol_syslog("We found a change in date of end of trial, so we check if you can and, if yes, we make the update of contract");
+					dol_syslog("We found a change in date of end of trial (old=".dol_print_date($object->oldcopy->array_options['options_date_endfreeperiod'], 'standard').", new=".dol_print_date($object->array_options['options_date_endfreeperiod'], 'standard').", so we check if we can and, if yes, we make the update of contract");
 
 					if ($object->oldcopy->array_options['options_date_endfreeperiod'] && ($object->oldcopy->array_options['options_date_endfreeperiod'] < $object->array_options['options_date_endfreeperiod'])) {
+						dol_syslog("The old date is older than the new one");
+
 						// Check there is no recurring invoice. If yes, we refuse to increase value.
 						$object->fetchObjectLinked();
 						//var_dump($object->linkedObjects);
@@ -272,6 +274,9 @@ class InterfaceSellYourSaasTriggers extends DolibarrTriggers
 					}
 
 					foreach ($object->lines as $line) {
+						/** var ContratLigne $line */
+						dol_syslog("Loop on the date of line id ".$line->id." (".dol_print_date($line->date_end, 'standard').") to compare with new date (".dol_print_date($object->array_options['options_date_endfreeperiod'], 'standard').")");
+
 						if ($line->date_end < $object->array_options['options_date_endfreeperiod']) {
 							$line->oldcopy = dol_clone($line);
 
@@ -468,7 +473,9 @@ class InterfaceSellYourSaasTriggers extends DolibarrTriggers
 
 							$i++;
 						}
-					} else dol_print_error($this->db);
+					} else {
+						dol_print_error($this->db);
+					}
 				}
 				break;
 		}
@@ -527,13 +534,21 @@ class InterfaceSellYourSaasTriggers extends DolibarrTriggers
 					$this->errors=$sellyoursaasutils->errors;
 				} else {
 					if (! preg_match('/sellyoursaas/', session_name())) {	// No popup message after trigger if we are not into the backoffice
-						if ($remoteaction == 'suspend') setEventMessage($langs->trans("InstanceWasSuspended", $contract->ref_customer.' ('.$contract->ref.')'));
-						elseif ($remoteaction == 'unsuspend') setEventMessage($langs->trans("InstanceWasUnsuspended", $contract->ref_customer.' ('.$contract->ref.')'));
-						elseif ($remoteaction == 'deploy') setEventMessage($langs->trans("InstanceWasDeployed", $contract->ref_customer.' ('.$contract->ref.')'));
-						elseif ($remoteaction == 'undeploy') setEventMessage($langs->trans("InstanceWasUndeployed", $contract->ref_customer.' ('.$contract->ref.')'));
-						elseif ($remoteaction == 'deployall') setEventMessage($langs->trans("InstanceWasDeployed", $contract->ref_customer.' ('.$contract->ref.')').' (deployall)');
-						elseif ($remoteaction == 'undeployall') setEventMessage($langs->trans("InstanceWasUndeployed", $contract->ref_customer.' ('.$contract->ref.')').' (undeployall)');
-						elseif ($remoteaction == 'rename') setEventMessage($langs->trans("InstanceWasRenamed", $contract->ref_customer.' '.$contract->array_options['options_custom_url'].' ('.$contract->ref.')'));
+						if ($remoteaction == 'suspend') {
+							setEventMessage($langs->trans("InstanceWasSuspended", $contract->ref_customer.' ('.$contract->ref.')'));
+						} elseif ($remoteaction == 'unsuspend') {
+							setEventMessage($langs->trans("InstanceWasUnsuspended", $contract->ref_customer.' ('.$contract->ref.')'));
+						} elseif ($remoteaction == 'deploy') {
+							setEventMessage($langs->trans("InstanceWasDeployed", $contract->ref_customer.' ('.$contract->ref.')'));
+						} elseif ($remoteaction == 'undeploy') {
+							setEventMessage($langs->trans("InstanceWasUndeployed", $contract->ref_customer.' ('.$contract->ref.')'));
+						} elseif ($remoteaction == 'deployall') {
+							setEventMessage($langs->trans("InstanceWasDeployed", $contract->ref_customer.' ('.$contract->ref.')').' (deployall)');
+						} elseif ($remoteaction == 'undeployall') {
+							setEventMessage($langs->trans("InstanceWasUndeployed", $contract->ref_customer.' ('.$contract->ref.')').' (undeployall)');
+						} elseif ($remoteaction == 'rename') {
+							setEventMessage($langs->trans("InstanceWasRenamed", $contract->ref_customer.' '.$contract->array_options['options_custom_url'].' ('.$contract->ref.')'));
+						}
 					}
 				}
 			}

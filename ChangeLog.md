@@ -1,8 +1,22 @@
 # CHANGELOG SELLYOURSAAS FOR <a href="https://www.dolibarr.org">DOLIBARR ERP CRM</a>
 
 
+## Unreleased
+
+* NEW Add support for a signature key of remote action messages.
+* NEW Length of database and user name is now 12 and password 14 min.
+* NEW Update the Stripe IPN service to be compatible with last Stripe API version (2023-10-16)
+* FIX Redirection instances must not appear in the count of backuped instances.
+* FIX letsencrypt for wildcard are now using 2 passes and needs 2 TXT entry in DNS.
+* FIX Debug master_move_instance.php - Price of old instance is kept/reused.
+
+
 ## 2.1
 
+* NEW Add ansible script to edit crontab on all servers.
+* NEW Show statistics (success/error) of remote backups in list of deployment servers
+* NEW Backup for instance is using localhostip if possible
+* FIX Event "Increase end date of services for contract" was not linked to the thirdparty.
 * NEW Better mesage on PDF in customer dashboard when PDF not yet available (SEPA payment).
 * NEW Add option --nostats to not update stats when doing a backup
 * NEW Show oldest date of backup ok/ko in popup on list of instances

@@ -25,6 +25,7 @@
     command: "/home/admin/wwwroot/dolibarr_sellyoursaas/scripts/ansible/info_users.php ip {{login}}"
     register: command_for_userip
     when: sellyoursaas_installed_rules.stat.exists == True
+    changed_when: false
 
   - name: Get public key into a variable
     command: "/home/admin/wwwroot/dolibarr_sellyoursaas/scripts/ansible/info_users.php public_key {{login}}"
@@ -32,6 +33,7 @@
     when: 
       - sellyoursaas_installed_rules.stat.exists == True
       - userpublickey is not defined
+    changed_when: false
 
   - name: Set var userip if not defined
     set_fact:
@@ -61,7 +63,7 @@
     user:
       name: '{{ login }}'
       shell: /bin/bash
-      comment: "User created from desktop_admin_users.php"
+      comment: "User created or modified from desktop_admin_users.php"
 
   - name: Set public key of user
     authorized_key:
@@ -72,7 +74,7 @@
       - userpublickey is defined
       - userpublickey|length > 0
 
-  - name: Add line for root access into file /etc/sudoers.d/{{login}}
+  - name: Process line for root access into file /etc/sudoers.d/{{login}}
     lineinfile:
       path: /etc/sudoers.d/{{ login }}
       line: "{{ login }} ALL=(ALL) ALL"
@@ -83,10 +85,38 @@
     when:
       - userpublickey is defined
       - userpublickey|length > 0
-      - userroot is defined > 0
+      - userroot is defined
       - userroot|length > 0
 
-  - name: Add first line into file /etc/sudoers.d/{{login}}
+  - name: Process line into file /etc/sudoers.d/{{login}} for su admin
+    lineinfile:
+      path: /etc/sudoers.d/{{ login }}
+      line: "{{ login }} ALL=(ALL) /usr/bin/su - admin"
+      owner: root
+      group: root
+      mode: '0440'
+      create: yes
+      state: present
+    when:
+      - userpublickey is defined
+      - userpublickey|length > 0
+      - userroot is not defined
+
+  - name: Process line into file /etc/sudoers.d/{{login}} for su osu
+    lineinfile:
+      path: /etc/sudoers.d/{{ login }}
+      line: "{{ login }} ALL=(ALL) /usr/bin/su - osu*"
+      owner: root
+      group: root
+      mode: '0440'
+      create: yes
+      state: present
+    when:
+      - userpublickey is defined
+      - userpublickey|length > 0
+      - userroot is not defined
+
+  - name: Remove deprecated line into file /etc/sudoers.d/{{login}} for su admin
     lineinfile:
       path: /etc/sudoers.d/{{ login }}
       line: "{{ login }} ALL=(ALL) NOPASSWD:/bin/su - admin"
@@ -94,11 +124,12 @@
       group: root
       mode: '0440'
       create: yes
+      state: absent
     when:
       - userpublickey is defined
       - userpublickey|length > 0
 
-  - name: Add second line into file /etc/sudoers.d/{{login}}
+  - name: Remove deprecated line into file /etc/sudoers.d/{{login}} for su osu
     lineinfile:
       path: /etc/sudoers.d/{{ login }}
       line: "{{ login }} ALL=(ALL) NOPASSWD:/bin/su - osu*"
@@ -106,13 +137,14 @@
       group: root
       mode: '0440'
       create: yes
+      state: absent
     when:
       - userpublickey is defined
       - userpublickey|length > 0
 
-  - name: Add user to AllowUsers in SSH sellyoursaas conf
+  - name: Add user to AllowUsers in SSH sellyoursaas-users.conf
     lineinfile:
-      path: /etc/ssh/sshd_config.d/sellyoursaas.conf
+      path: /etc/ssh/sshd_config.d/sellyoursaas-users.conf
       line: "AllowUsers {{ login }}"
       create: yes
     register: addlineinsshconf
@@ -147,7 +179,7 @@
     user:
       name: '{{ login }}'
       shell: /bin/bash
-      comment: "User created from desktop_admin_users.php"
+      comment: "User created or modified from desktop_admin_users.php"
       password: '{{ userpassword }}'
       update_password: always
     when: 

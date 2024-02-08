@@ -57,12 +57,14 @@ print '
 	          </div>
 ';
 
-if (! empty($conf->global->SELLYOURSAAS_DOLICLOUD_ON) && $mythirdpartyaccount->array_options['options_source'] == 'MIGRATIONV1') {
+if (getDolGlobalString('SELLYOURSAAS_DOLICLOUD_ON') && $mythirdpartyaccount->array_options['options_source'] == 'MIGRATIONV1') {
 	$sellyoursaasemail = $conf->global->SELLYOURSAAS_MAIN_EMAIL;
 	if (! empty($mythirdpartyaccount->array_options['options_domain_registration_page'])
 		&& $mythirdpartyaccount->array_options['options_domain_registration_page'] != $conf->global->SELLYOURSAAS_MAIN_DOMAIN_NAME) {
 		$newnamekey = 'SELLYOURSAAS_MAIN_EMAIL_FORDOMAIN-'.$mythirdpartyaccount->array_options['options_domain_registration_page'];
-		if (! empty($conf->global->$newnamekey)) $sellyoursaasemail = $conf->global->$newnamekey;
+		if (! empty($conf->global->$newnamekey)) {
+			$sellyoursaasemail = $conf->global->$newnamekey;
+		}
 	}
 
 	print $langs->trans('InvoiceBeforeAreAvailableOnDemandAt', dol_print_date($mythirdpartyaccount->array_options['options_date_registration'], 'day'), $sellyoursaasemail);
@@ -79,11 +81,17 @@ if (count($listofcontractid) > 0) {
 		$planlabel = $planref;
 
 		$color = "green";
-		if ($statuslabel == 'processing') $color = 'orange';
-		if ($statuslabel == 'suspended') $color = 'orange';
+		if ($statuslabel == 'processing') {
+			$color = 'orange';
+		}
+		if ($statuslabel == 'suspended') {
+			$color = 'orange';
+		}
 
 		$dbprefix = $contract->array_options['options_prefix_db'];
-		if (empty($dbprefix)) $dbprefix = 'llx_';
+		if (empty($dbprefix)) {
+			$dbprefix = 'llx_';
+		}
 
 		print '
 				<br>
@@ -91,7 +99,7 @@ if (count($listofcontractid) > 0) {
 
 		            <div class="row" style="border-bottom: 1px solid #ddd;">
 
-		              <div class="col-md-6">
+		              <div class="col-md-4">
 				          <a href="https://'.$contract->ref_customer.'" class="caption-subject bold uppercase font-green-sharp" title="'.$langs->trans("Contract").' '.$contract->ref.'" target="_blankinstance">'.$instancename.img_picto('', 'globe', 'class="paddingleft"').'</a><br>
 						  <span class="opacitymedium small">'.$langs->trans("ID").' : </span><span class="font-green-sharp small">'.$contract->ref.'</span>
 				          <span class="caption-helper"><!-- - '.$planlabel.'--></span>	<!-- This is service -->
@@ -103,6 +111,9 @@ if (count($listofcontractid) > 0) {
 		                '.$langs->trans("Amount").'
 		              </div>
 		              <div class="col-md-2 hideonsmartphone">
+
+		              </div>
+		              <div class="col-md-2 hideonsmartphone">
 		                '.$langs->trans("Status").'
 		              </div>
 		            </div> <!-- END ROW -->
@@ -111,18 +122,21 @@ if (count($listofcontractid) > 0) {
 		$contract->fetchObjectLinked();
 		$freqlabel = array('d'=>$langs->trans('Day'), 'm'=>$langs->trans('Month'), 'y'=>$langs->trans('Year'));
 		if (!empty($contract->linkedObjects['facture']) && is_array($contract->linkedObjects['facture']) && count($contract->linkedObjects['facture']) > 0) {
-			//var_dump($contract->linkedObjects['facture']);
-			usort($contract->linkedObjects['facture'], "cmpr_invoice_object_date_desc");	// function "cmp" to sort on ->date is inside sellyoursaas.lib.php
+			// Sort on ascending date
+			usort($contract->linkedObjects['facture'], "sellyoursaasCmpDateDesc");	// function "cmp" to sort on ->date is inside sellyoursaas.lib.php
 
 			//var_dump($contract->linkedObjects['facture']);
 			//dol_sort_array($contract->linkedObjects['facture'], 'date');
 			foreach ($contract->linkedObjects['facture'] as $idinvoice => $invoice) {
-				if ($invoice->statut == Facture::STATUS_DRAFT) continue;
+				/* @var Facture $invoice */
+				if ($invoice->statut == Facture::STATUS_DRAFT) {
+					continue;
+				}
 
 				print '
 					            <div class="row" style="margin-top:20px">
 
-					              <div class="col-md-6 nowraponall">
+					              <div class="col-md-4 nowraponall">
 									';
 
 				// Execute hook getLastMainDocLink
@@ -140,12 +154,22 @@ if (count($listofcontractid) > 0) {
 				}
 
 				print '</div>
+
+								  <!-- Date -->
 					              <div class="col-md-2">
 									'.dol_print_date($invoice->date, 'dayrfc', $langs).'
 					              </div>
+
+								  <!-- Price -->
 					              <div class="col-md-2">
 									'.price(price2num($invoice->total_ttc), 1, $langs, 0, 0, $conf->global->MAIN_MAX_DECIMALS_TOT, $conf->currency).'
 					              </div>
+
+								  <!-- Payment mode -->
+								  <div class="col-md-2 tdoverflowmax150" title="'.($invoice->mode_reglement_code ? dol_escape_htmltag($langs->transnoentitiesnoconv("PaymentTypeShort".$invoice->mode_reglement_code)) : '').'">
+									'.($invoice->mode_reglement_code ? dol_escape_htmltag($langs->transnoentitiesnoconv("PaymentTypeShort".$invoice->mode_reglement_code)) : '').'
+					              </div>
+
 					              <div class="col-md-2 nowrap">
 									';
 				$alreadypayed = $invoice->getSommePaiement();
@@ -270,7 +294,9 @@ if ($mythirdpartyaccount->array_options['options_checkboxnonprofitorga'] != 'non
 
 		$i = 0;
 		foreach ($arrayofcompanypaymentmode as $companypaymentmodetemp) {
-			if ($i > 0) print '<tr><td colspan="3"><br></td></tr>';
+			if ($i > 0) {
+				print '<tr><td colspan="3"><br></td></tr>';
+			}
 			if ($companypaymentmodetemp->type == 'card') {
 				print '<tr>';
 				print '<td colspan="3" class="wordbreak">';
@@ -333,14 +359,16 @@ if ($mythirdpartyaccount->array_options['options_checkboxnonprofitorga'] != 'non
 			} elseif ($companypaymentmodetemp->type == 'ban') {
 				print '<tr>';
 				print '<td colspan="3" class="wordbreak">';
-				print img_picto('', 'bank', '',  false, 0, 0, '', 'fa-2x');
+				print img_picto('', 'bank', '', false, 0, 0, '', 'fa-2x');
 				print $langs->trans("PaymentTypeShortPRE");
 				print '</td>';
 				print '</tr>';
 
 				print '<tr><td colspan="3">';
 				print $langs->trans("IBAN").': <span class="small">'.$companypaymentmodetemp->iban_prefix.'</span><br>';
-				if ($companypaymentmodetemp->rum) print $langs->trans("RUM").': <span class="small">'.$companypaymentmodetemp->rum.'</span>';
+				if ($companypaymentmodetemp->rum) {
+					print $langs->trans("RUM").': <span class="small">'.$companypaymentmodetemp->rum.'</span>';
+				}
 				print '</td></tr>';
 			} else {
 				print '<tr>';
@@ -369,8 +397,11 @@ if ($mythirdpartyaccount->array_options['options_checkboxnonprofitorga'] != 'non
 	print '
 	                <br><br>
 	                <center><a href="'.$urltoenterpaymentmode.'" class="wordbreak btn default green-stripe">';
-	if ($nbpaymentmodeok) print $langs->trans("ModifyPaymentMode").'...';
-	else print $langs->trans("AddAPaymentMode").'...';
+	if ($nbpaymentmodeok) {
+		print $langs->trans("ModifyPaymentMode").'...';
+	} else {
+		print $langs->trans("AddAPaymentMode").'...';
+	}
 	print '</a></center>
 
 	            </p>

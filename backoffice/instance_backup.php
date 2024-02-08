@@ -24,16 +24,31 @@
 // Load Dolibarr environment
 $res=0;
 // Try main.inc.php into web root known defined into CONTEXT_DOCUMENT_ROOT (not always defined)
-if (! $res && ! empty($_SERVER["CONTEXT_DOCUMENT_ROOT"])) $res=@include $_SERVER["CONTEXT_DOCUMENT_ROOT"]."/main.inc.php";
+if (! $res && ! empty($_SERVER["CONTEXT_DOCUMENT_ROOT"])) {
+	$res=@include $_SERVER["CONTEXT_DOCUMENT_ROOT"]."/main.inc.php";
+}
 // Try main.inc.php into web root detected using web root caluclated from SCRIPT_FILENAME
-$tmp=empty($_SERVER['SCRIPT_FILENAME'])?'':$_SERVER['SCRIPT_FILENAME'];$tmp2=realpath(__FILE__); $i=strlen($tmp)-1; $j=strlen($tmp2)-1;
-while ($i > 0 && $j > 0 && isset($tmp[$i]) && isset($tmp2[$j]) && $tmp[$i]==$tmp2[$j]) { $i--; $j--; }
-if (! $res && $i > 0 && file_exists(substr($tmp, 0, ($i+1))."/main.inc.php")) $res=@include substr($tmp, 0, ($i+1))."/main.inc.php";
-if (! $res && $i > 0 && file_exists(dirname(substr($tmp, 0, ($i+1)))."/main.inc.php")) $res=@include dirname(substr($tmp, 0, ($i+1)))."/main.inc.php";
+$tmp=empty($_SERVER['SCRIPT_FILENAME']) ? '' : $_SERVER['SCRIPT_FILENAME'];$tmp2=realpath(__FILE__); $i=strlen($tmp)-1; $j=strlen($tmp2)-1;
+while ($i > 0 && $j > 0 && isset($tmp[$i]) && isset($tmp2[$j]) && $tmp[$i]==$tmp2[$j]) {
+	$i--;
+	$j--;
+}
+if (! $res && $i > 0 && file_exists(substr($tmp, 0, ($i+1))."/main.inc.php")) {
+	$res=@include substr($tmp, 0, ($i+1))."/main.inc.php";
+}
+if (! $res && $i > 0 && file_exists(dirname(substr($tmp, 0, ($i+1)))."/main.inc.php")) {
+	$res=@include dirname(substr($tmp, 0, ($i+1)))."/main.inc.php";
+}
 // Try main.inc.php using relative path
-if (! $res && file_exists("../../main.inc.php")) $res=@include "../../main.inc.php";
-if (! $res && file_exists("../../../main.inc.php")) $res=@include "../../../main.inc.php";
-if (! $res) die("Include of main fails");
+if (! $res && file_exists("../../main.inc.php")) {
+	$res=@include "../../main.inc.php";
+}
+if (! $res && file_exists("../../../main.inc.php")) {
+	$res=@include "../../../main.inc.php";
+}
+if (! $res) {
+	die("Include of main fails");
+}
 
 require_once DOL_DOCUMENT_ROOT."/comm/action/class/actioncomm.class.php";
 require_once DOL_DOCUMENT_ROOT."/contact/class/contact.class.php";
@@ -72,7 +87,7 @@ $hookmanager->initHooks(array('contractcard','globalcard'));
 
 
 if ($id > 0 || $ref) {
-	$result = $object->fetch($id?$id:$instanceoldid, $ref?$ref:$refold);
+	$result = $object->fetch($id ? $id : $instanceoldid, $ref ? $ref : $refold);
 	if ($result < 0) {
 		setEventMessages('Failed to read remote customer instance: '.$object->error, null, 'warnings');
 		$error++;
@@ -110,6 +125,8 @@ if ($ispaid) {
 
 		$restorestringfromarchiveshort = getDolGlobalString('DOLICLOUD_SCRIPTS_PATH') . '/restore_instance.php ' . getDolGlobalString('SELLYOURSAAS_PAID_ARCHIVES_PATH').'/'.$object->array_options['options_username_os'].'/'.$object->array_options['options_database_db'].' autoscan';
 		$restorestringfromarchive = getDolGlobalString('DOLICLOUD_SCRIPTS_PATH') . '/restore_instance.php ' . getDolGlobalString('SELLYOURSAAS_PAID_ARCHIVES_PATH').'/'.$object->array_options['options_username_os'].'/'.$object->array_options['options_database_db'].' autoscan '.$object->ref_customer;
+
+		$restorestringfromremotebackup = getDolGlobalString('DOLICLOUD_SCRIPTS_PATH') . '/restore_instance.php remoteserver:/mnt/diskbackup/.snapshots/diskbackup-xxx/'. getDolGlobalString('SELLYOURSAAS_PAID_ARCHIVES_PATH').'/'.$object->array_options['options_username_os'].' autoscan';
 	} else {
 		//$restorestringpretoshow = 'sudo chown -R admin '.$conf->global->SELLYOURSAAS_PAID_ARCHIVES_PATH.'/'.$object->array_options['options_username_os']."\n";
 		$restorestringpretoshow .= "cd " . getDolGlobalString('SELLYOURSAAS_PAID_ARCHIVES_PATH').'/'.$object->array_options['options_username_os']."\n";
@@ -128,11 +145,13 @@ if ($ispaid) {
 
 		$restorestringposttoshow .= "# Then restore the conf .undeployed file into new conf file.\n";
 
-		$restorestringfrombackupshort = getDolGlobalString('DOLICLOUD_SCRIPTS_PATH') . '/restore_instance.php ' . getDolGlobalString('DOLICLOUD_BACKUP_PATH').'/'.$object->array_options['options_username_os'].'/'.$object->array_options['options_database_db'].' autoscan';
-		$restorestringfrombackup = getDolGlobalString('DOLICLOUD_SCRIPTS_PATH') . '/restore_instance.php ' . getDolGlobalString('DOLICLOUD_BACKUP_PATH').'/'.$object->array_options['options_username_os'].'/'.$object->array_options['options_database_db'].' autoscan '.$object->ref_customer;
+		$restorestringfrombackupshort = 'Not possible. Redeploy the instance first.';
+		$restorestringfrombackup = 'Not possible. Redeploy the instance first.';
 
-		$restorestringfromarchiveshort = getDolGlobalString('DOLICLOUD_SCRIPTS_PATH') . '/restore_instance.php ' . getDolGlobalString('SELLYOURSAAS_PAID_ARCHIVES_PATH').'/'.$object->array_options['options_username_os'].'/'.$object->array_options['options_database_db'].' autoscan';
-		$restorestringfromarchive = getDolGlobalString('DOLICLOUD_SCRIPTS_PATH') . '/restore_instance.php ' . getDolGlobalString('SELLYOURSAAS_PAID_ARCHIVES_PATH').'/'.$object->array_options['options_username_os'].'/'.$object->array_options['options_database_db'].' autoscan '.$object->ref_customer;
+		$restorestringfromarchiveshort = 'Not possible. Redeploy the instance first.';
+		$restorestringfromarchive = 'Not possible. Redeploy the instance first.';
+
+		$restorestringfromremotebackup = 'Not possible. Redeploy the instance first.';
 	}
 } else {
 	if ($object->array_options['options_deployment_status'] != 'undeployed') {
@@ -157,6 +176,8 @@ if ($ispaid) {
 
 		$restorestringfromarchiveshort = getDolGlobalString('DOLICLOUD_SCRIPTS_PATH') . '/restore_instance.php ' . getDolGlobalString('SELLYOURSAAS_TEST_ARCHIVES_PATH').'/'.$object->array_options['options_username_os'].'/'.$object->array_options['options_database_db'].' autoscan ';
 		$restorestringfromarchive = getDolGlobalString('DOLICLOUD_SCRIPTS_PATH') . '/restore_instance.php ' . getDolGlobalString('SELLYOURSAAS_TEST_ARCHIVES_PATH').'/'.$object->array_options['options_username_os'].'/'.$object->array_options['options_database_db'].' autoscan '.$object->ref_customer;
+
+		$restorestringfromremotebackup = getDolGlobalString('DOLICLOUD_SCRIPTS_PATH') . '/restore_instance.php remoteserver:/mnt/diskbackup/.snapshots/diskbackup-xxx/'. getDolGlobalString('SELLYOURSAAS_PAID_ARCHIVES_PATH').'/'.$object->array_options['options_username_os'].' autoscan';
 	} else {
 		$restorestringpretoshow .= "cd " . getDolGlobalString('SELLYOURSAAS_TEST_ARCHIVES_PATH').'/'.$object->array_options['options_username_os']."\n";
 		// If there is an old dir used by a previous extract, we remove it
@@ -176,22 +197,28 @@ if ($ispaid) {
 
 		$restorestringposttoshow .= "# Then restore the conf .undeployed file into new conf file.\n";
 
-		$restorestringfromarchiveshort = getDolGlobalString('DOLICLOUD_SCRIPTS_PATH') . '/restore_instance.php ' . getDolGlobalString('SELLYOURSAAS_TEST_ARCHIVES_PATH').'/'.$object->array_options['options_username_os'].'/'.$object->array_options['options_database_db'].' autoscan ';
-		$restorestringfromarchive = getDolGlobalString('DOLICLOUD_SCRIPTS_PATH') . '/restore_instance.php ' . getDolGlobalString('SELLYOURSAAS_TEST_ARCHIVES_PATH').'/'.$object->array_options['options_username_os'].'/'.$object->array_options['options_database_db'].' autoscan '.$object->ref_customer;
+		//$restorestringfrombackupshort = 'Not possible. Redeploy the instance first. Also backup may not have been done as it was not a validated/paid instance.';
+		//$restorestringfrombackup = 'Not possible. Redeploy the instance first. Also backup may not have been done as it was not a validated/paid instance.';
+
+		$restorestringfromarchiveshort = 'Not possible. Redeploy the instance first.';
+		$restorestringfromarchive = 'Not possible. Redeploy the instance first.';
+
+		$restorestringfromremotebackup = 'Not possible. Redeploy the instance first.';
 	}
 }
 
 $tmparray = explode('.', $object->ref_customer);
 
-$moveinstancestringtoshow .= "# check that the master server can connect with ssh and user admin on the source instance server with\n";
-$moveinstancestringtoshow .= "# ssh admin@".getDomainFromURL($object->ref_customer, 2)."\n";
-$moveinstancestringtoshow .= "# If not, do on ".getDomainFromURL($object->ref_customer, 2).":\n";
+$moveinstancestringtoshow .= "# First, check that the master server can connect with ssh and user admin on the source instance server with:\n";
+$moveinstancestringtoshow .= "# ssh admin@".getDomainFromURL($object->ref_customer, 2)." wc /etc/apache2/with.sellyoursaas.com*.*\n";
+$moveinstancestringtoshow .= "# If ssh connect fails, do this on ".getDomainFromURL($object->ref_customer, 2).":\n";
 $moveinstancestringtoshow .= "# cp /etc/skel/.ssh/authorized_keys_support /home/admin/.ssh/authorized_keys_support; chown admin.admin /home/admin/.ssh/authorized_keys_support\n";
+//$moveinstancestringtoshow .= "# - If some cert files read is denied, do this on ".getDomainFromURL($object->ref_customer, 2).":\n";
+//$moveinstancestringtoshow .= "#   gpasswd -a admin www-data\n";
 $moveinstancestringtoshow .= "su - admin\n";
 $moveinstancestringtoshow .= getDolGlobalString('DOLICLOUD_SCRIPTS_PATH') . '/master_move_instance.php '.$object->ref_customer.' '.$tmparray[0].'.withNEW.'.getDomainFromURL($object->ref_customer, 1).' (test|confirm|confirmredirect|confirmmaintenance)'."\n";
 // Remove read in certif file.
-$moveinstancestringtoshow .= "chmod o-r /etc/apache2/".getDomainFromURL($object->ref_customer, 2).".key\n";
-
+//$moveinstancestringtoshow .= "# On src server: gpasswd -d admin www-data\n";
 
 // Increase limit of time. Works only if we are not in safe mode
 $ExecTimeLimit = 1800; // 30mn
@@ -318,7 +345,7 @@ if (($id > 0 || $instanceoldid > 0) && $action != 'edit' && $action != 'create')
 
 	// Object card
 	// ------------------------------------------------------------
-	$linkback = '<a href="'.DOL_URL_ROOT.'/contrat/list.php?restore_lastsearch_values=1'.(! empty($socid)?'&socid='.$socid:'').'">'.$langs->trans("BackToList").'</a>';
+	$linkback = '<a href="'.DOL_URL_ROOT.'/contrat/list.php?restore_lastsearch_values=1'.(! empty($socid) ? '&socid='.$socid : '').'">'.$langs->trans("BackToList").'</a>';
 
 	$morehtmlref = '<div class="refidno">';
 	// Ref customer
@@ -360,7 +387,7 @@ if (($id > 0 || $instanceoldid > 0) && $action != 'edit' && $action != 'create')
 
 	$nodbprefix=0;
 
-	dol_banner_tab($object, ($instanceoldid?'refold':'ref'), $linkback, 1, ($instanceoldid?'name':'ref'), 'ref', $morehtmlref, '', $nodbprefix, '', '', 1);
+	dol_banner_tab($object, ($instanceoldid ? 'refold' : 'ref'), $linkback, 1, ($instanceoldid ? 'name' : 'ref'), 'ref', $morehtmlref, '', $nodbprefix, '', '', 1);
 }
 
 if ($id > 0 || $instanceoldid > 0) {
@@ -405,7 +432,9 @@ if ($id > 0 && $action != 'edit' && $action != 'create') {
 	print '<tr class="oddeven">';
 	print '<td>'.$langs->trans("DateLastBackup").'</td>';
 	print '<td>';
-	if ($object->array_options['options_latestbackup_date']) print dol_print_date($object->array_options['options_latestbackup_date'], 'dayhour', 'tzuser');
+	if ($object->array_options['options_latestbackup_date']) {
+		print dol_print_date($object->array_options['options_latestbackup_date'], 'dayhour', 'tzuser');
+	}
 	print '</td>';
 	print '</tr>';
 
@@ -413,7 +442,9 @@ if ($id > 0 && $action != 'edit' && $action != 'create') {
 	print '<tr class="oddeven">';
 	print '<td>'.$langs->trans("DateLastBackupOK").'</td>';
 	print '<td>';
-	if ($object->array_options['options_latestbackup_date_ok']) print dol_print_date($object->array_options['options_latestbackup_date_ok'], 'dayhour', 'tzuser');
+	if ($object->array_options['options_latestbackup_date_ok']) {
+		print dol_print_date($object->array_options['options_latestbackup_date_ok'], 'dayhour', 'tzuser');
+	}
 	print '</td>';
 	print '</tr>';
 
@@ -421,9 +452,9 @@ if ($id > 0 && $action != 'edit' && $action != 'create') {
 	print '<tr class="oddeven">';
 	print '<td>'.$langs->trans("CurrentBackupStatus").'</td>';
 	print '<td>';
-	print ($object->array_options['options_latestbackup_status'] == 'KO' ? '<span class="error">' : '');
+	print($object->array_options['options_latestbackup_status'] == 'KO' ? '<span class="error">' : '');
 	print $object->array_options['options_latestbackup_status'];
-	print ($object->array_options['options_latestbackup_status'] == 'KO' ? '</span>' : '');
+	print($object->array_options['options_latestbackup_status'] == 'KO' ? '</span>' : '');
 	print '</td>';
 	print '</tr>';
 
@@ -457,7 +488,7 @@ if ($id > 0 && $action != 'edit' && $action != 'create') {
 // Backup command line
 $backupstringtoshow=$backupstring.' confirm --nostats --forcersync --forcedump';
 $backupstringtoshow2=$backupstring.' confirm';
-print '<span class="fa fa-database secondary"></span> -> <span class="fa fa-file paddingright"></span> Backup command line string <span class="opacitymedium">(to run on the server where to store the backup)</span><br>';
+print '<span class="fa fa-database secondary"></span> -> <span class="fa fa-file paddingright"></span> Backup command line string <span class="opacitymedium">(to run by root from the server where to store the backup)</span><br>';
 print '<input type="text" name="backupstring" id="backupstring" value="'.$backupstringtoshow.'" class="quatrevingtpercent"><br>';
 print ajax_autoselect('backupstring');
 
@@ -466,9 +497,19 @@ print '<br>';
 // Restore command line from backup
 if ($restorestringfrombackup) {
 	$restorestringtoshow=$restorestringfrombackup.' (test|confirm)';
-	print '<span class="fa fa-file paddingright"></span> -> <span class="fa fa-database secondary paddingright"></span> Restore command line string from Backup <span class="opacitymedium">(to run from the server hosting the backup)</span><br>';
+	print '<span class="fa fa-file paddingright"></span> -> <span class="fa fa-database secondary paddingright"></span> Restore command line string from local Backup <span class="opacitymedium">(to run by admin from the server hosting the backup)</span><br>';
 	print '<input type="text" name="restorestring" id="restorestring" value="'.$restorestringtoshow.'" class="quatrevingtpercent"><br>';
 	print ajax_autoselect('restorestring');
+
+	print '<br>';
+}
+
+// Restore commands from remote backup
+if ($restorestringfromremotebackup) {
+	$restorestringtoshow=$restorestringfromremotebackup.' (test|confirm)';
+	print '<span class="fa fa-file paddingright"></span> -> <span class="fa fa-database secondary paddingright"></span> Restore command line string from remote Backup <span class="opacitymedium">(to run by root from the deployment server)</span><br>';
+	print '<input type="text" name="restorestringfromremotebackup" id="restorestringfromremotebackup" value="'.$restorestringtoshow.'" class="quatrevingtpercent"><br>';
+	print ajax_autoselect('restorestringfromremotebackup');
 
 	print '<br>';
 }
@@ -476,7 +517,7 @@ if ($restorestringfrombackup) {
 // Restore commands from archive
 if ($restorestringfromarchive) {
 	$restorestringtoshow=$restorestringfromarchive.' (test|confirm)';
-	print '<span class="fa fa-file-archive paddingright"></span> -> <span class="fa fa-database secondary paddingright"></span> Restore command line string from Archive <span class="opacitymedium">(to run from the server hosting the archives)</span><br>';
+	print '<span class="fa fa-file-archive paddingright"></span> -> <span class="fa fa-database secondary paddingright"></span> Restore command line string from local Archive <span class="opacitymedium">(to run by admin from the server hosting the archives)</span><br>';
 	print '<textarea name="restorestringfromarchive" id="restorestringfromarchive" class="centpercent" rows="'.ROWS_9.'">';
 	print $restorestringpretoshow."\n";
 	print $restorestringtoshow."\n";
@@ -488,10 +529,11 @@ if ($restorestringfromarchive) {
 	print '<br>';
 }
 
+
 // Duplicate an instance into another instance (already existing instance)
 if ($restorestringfrombackupshort) {
 	$restorestringtoshow=$restorestringfrombackupshort.' nameoftargetinstance (test|confirm)';
-	print '<span class="fa fa-database secondary"></span><span class="fa fa-database"></span> -> <span class="fa fa-database secondary"></span><span class="fa fa-database secondary paddingright"></span> Duplicate an instance into another instance (already existing instance) <span class="opacitymedium">(can be run on master, source OR taget server. recommended: source server)</span><br>';
+	print '<span class="fa fa-database secondary"></span><span class="fa fa-database"></span> -> <span class="fa fa-database secondary"></span><span class="fa fa-database secondary paddingright"></span> Duplicate an instance into another instance (already existing instance) <span class="opacitymedium">(can be run by admin on master, source OR target server. recommended: source server)</span><br>';
 	print '<textarea name="restorestringfromarchive" id="restorestringfromarchive" class="centpercent" rows="'.ROWS_2.'">';
 	print $backupstringtoshow."\n";
 	print $restorestringtoshow;
@@ -504,8 +546,8 @@ if ($restorestringfrombackupshort) {
 // Move instance into another server (non existing target instance)
 if ($moveinstancestringtoshow) {
 	//$restorestringtoshow=$restorestringfrombackupshort.' nameoftargetinstance (test|confirm)';
-	print '<span class="fa fa-database secondary"></span> -> <span class="fa fa-database opacitymedium"></span><span class="fa fa-database secondary paddingright"></span> Move an instance into another server (non existing target instance) <span class="opacitymedium">(to run on master server)</span><br>';
-	print '<textarea name="moveinstancestring" id="moveinstancestring" class="centpercent" rows="'.ROWS_3.'">';
+	print '<span class="fa fa-database secondary"></span> -> <span class="fa fa-database opacitymedium"></span><span class="fa fa-database secondary paddingright"></span> Move an instance into another server (non existing target instance) <span class="opacitymedium">(to run by admin on master server)</span><br>';
+	print '<textarea name="moveinstancestring" id="moveinstancestring" class="centpercent" rows="'.ROWS_8.'">';
 	print $moveinstancestringtoshow;
 	print '</textarea>';
 

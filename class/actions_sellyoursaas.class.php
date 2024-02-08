@@ -117,7 +117,7 @@ class ActionsSellyoursaas
 				}
 
 				if ($url) {
-					$this->resprints = (empty($parameters['notiret'])?' -':'').'<!-- Added by getNomUrl hook of SellYourSaas -->';
+					$this->resprints = (empty($parameters['notiret']) ? ' -' : '').'<!-- Added by getNomUrl hook of SellYourSaas -->';
 					$this->resprints .= '<a href="'.$url.'" target="_myaccount" alt="'.$sellyoursaasname.' '.$langs->trans("Dashboard").'"><span class="fa fa-desktop paddingleft"></span></a>';
 				}
 			}
@@ -184,13 +184,13 @@ class ActionsSellyoursaas
 				$objref = $parameters['objref'];
 				$url = 'https://'.$parameters['objref'];
 
-				$this->results['objref'] = $objref.' <a href="'.$url.'" target="_blank">'.img_picto($url, 'object_globe').'</a>';
+				$this->results['objref'] = '<a href="'.$url.'" target="_blank">'.img_picto($url, 'object_globe').'</a> '.$objref;
 
 				// Add also link to custom url
 				if (! empty($object->array_options['options_custom_url'])) {
 					$objref = $object->array_options['options_custom_url'];
 					$url = 'https://'.$object->array_options['options_custom_url'];
-					$this->results['objref'] .= ' <a href="'.$url.'" target="_blank" class="opacitymedium">'.img_picto($url, 'object_globe').'</a>';
+					$this->results['objref'] = '<a href="'.$url.'" target="_blank" class="opacitymedium">'.img_picto($url, 'object_globe').'</a> '.$this->results['objref'];
 				}
 
 				if ($parameters['currentcontext'] == 'contractcard') {
@@ -199,11 +199,11 @@ class ActionsSellyoursaas
 						$this->results['objref'] .= ' &nbsp; <a href="/aa">'.$langs->trans("SeeChain").'</a>';
 					}*/
 					if (!empty($object->array_options['options_spammer'])) {
-						$this->results['objref'] .= ' '.img_picto($langs->trans("EvilInstance"), 'fa-book-dead', 'class="paddingleft"');
+						$this->results['objref'] = img_picto($langs->trans("EvilInstance"), 'fa-book-dead', 'class="paddingleft"').' '.$this->results['objref'];
 					}
 
 					if (!empty($object->array_options['options_spammer']) && $object->array_options['options_deployment_status'] == 'done') {
-						$this->results['objref'] .= ' '.img_warning($langs->trans('ActiveInstanceOfASpammer'));
+						$this->results['objref'] = img_warning($langs->trans('ActiveInstanceOfASpammer')).' '.$this->results['objref'];
 					}
 				}
 
@@ -365,7 +365,8 @@ class ActionsSellyoursaas
 				$foundtemplate=0;
 				$freqlabel = array('d'=>$langs->trans('Day'), 'm'=>$langs->trans('Month'), 'y'=>$langs->trans('Year'));
 				if (is_array($object->linkedObjects['facturerec']) && count($object->linkedObjects['facturerec']) > 0) {
-					usort($object->linkedObjects['facturerec'], "cmp");
+					// Sort on ascending date
+					usort($object->linkedObjects['facturerec'], "sellyoursaasCmpDate");	// function "cmp" to sort on ->date is inside sellyoursaas.lib.php
 
 					//var_dump($object->linkedObjects['facture']);
 					//dol_sort_array($object->linkedObjects['facture'], 'date');
@@ -449,6 +450,7 @@ class ActionsSellyoursaas
 			if ($action == 'confirm_undeploy') {
 				$db->begin();
 
+
 				// SAME CODE THAN INTO MYACCOUNT INDEX.PHP
 
 				// Disable template invoice
@@ -457,7 +459,8 @@ class ActionsSellyoursaas
 				$foundtemplate=0;
 				$freqlabel = array('d'=>$langs->trans('Day'), 'm'=>$langs->trans('Month'), 'y'=>$langs->trans('Year'));
 				if (is_array($object->linkedObjects['facturerec']) && count($object->linkedObjects['facturerec']) > 0) {
-					usort($object->linkedObjects['facturerec'], "cmp");
+					// Sort on ascending date
+					usort($object->linkedObjects['facturerec'], "sellyoursaasCmpDate");	// function "cmp" to sort on ->date is inside sellyoursaas.lib.php
 
 					//var_dump($object->linkedObjects['facture']);
 					//dol_sort_array($object->linkedObjects['facture'], 'date');
@@ -508,6 +511,7 @@ class ActionsSellyoursaas
 					$object->array_options['options_deployment_status'] = 'undeployed';
 					$object->array_options['options_undeployment_date'] = dol_now();
 					$object->array_options['options_undeployment_ip'] = $_SERVER['REMOTE_ADDR'];
+					$object->array_options['options_suspendmaintenance_message'] = '';
 
 					$result = $object->update($user);
 					if ($result < 0) {
@@ -607,12 +611,24 @@ class ActionsSellyoursaas
 					$this->errors=$sellyoursaasutils->errors;
 					//setEventMessages($this->error, $this->errors, 'errors'); // We already return errors with this->errors, no need to seEventMessages()
 				} else {
-					if ($action == 'refresh') setEventMessages($langs->trans("ResourceComputed"), null, 'mesgs');
-					if ($action == 'refreshmetrics') setEventMessages($langs->trans("ResourceComputed"), null, 'mesgs');
-					if ($action == 'refreshfilesonly') setEventMessages($langs->trans("ResourceComputed"), null, 'mesgs');
-					if ($action == 'recreateauthorizedkeys') setEventMessages($langs->trans("FileCreated"), null, 'mesgs');
-					if ($action == 'recreatelock') setEventMessages($langs->trans("FileCreated"), null, 'mesgs');
-					if ($action == 'deletelock') setEventMessages($langs->trans("FilesDeleted"), null, 'mesgs');
+					if ($action == 'refresh') {
+						setEventMessages($langs->trans("ResourceComputed"), null, 'mesgs');
+					}
+					if ($action == 'refreshmetrics') {
+						setEventMessages($langs->trans("ResourceComputed"), null, 'mesgs');
+					}
+					if ($action == 'refreshfilesonly') {
+						setEventMessages($langs->trans("ResourceComputed"), null, 'mesgs');
+					}
+					if ($action == 'recreateauthorizedkeys') {
+						setEventMessages($langs->trans("FileCreated"), null, 'mesgs');
+					}
+					if ($action == 'recreatelock') {
+						setEventMessages($langs->trans("FileCreated"), null, 'mesgs');
+					}
+					if ($action == 'deletelock') {
+						setEventMessages($langs->trans("FilesDeleted"), null, 'mesgs');
+					}
 				}
 			}
 
@@ -692,7 +708,7 @@ class ActionsSellyoursaas
 	 */
 	public function formConfirm($parameters, &$object, &$action)
 	{
-		global $db, $langs, $conf, $user, $form;
+		global $langs, $conf, $user, $form;
 
 		dol_syslog(get_class($this).'::doActions action='.$action);
 		$langs->load("sellyoursaas@sellyoursaas");
@@ -720,7 +736,7 @@ class ActionsSellyoursaas
 		if ($action == 'suspendmaintenancetoconfirm') {
 			// Switch to maintenance mode confirmation
 			$formquestion = array(array('type' => 'textarea', 'name' => 'suspendmaintenancemessage', 'label' => $langs->trans("MaintenanceMessage"), 'value' =>'', 'morecss'=>'centpercent'));
-			$formconfirm = $form->formconfirm($_SERVER["PHP_SELF"] . '?id=' . $object->id, $langs->trans('Confirmation'), $langs->trans("ConfirmMaintenance", $conf->global->SELLYOURSAAS_LOGIN_FOR_SUPPORT), 'suspendmaintenance', $formquestion, 'no', 1, 350);
+			$formconfirm = $form->formconfirm($_SERVER["PHP_SELF"] . '?id=' . $object->id, $langs->trans('Confirmation'), $langs->trans("ConfirmMaintenance", $conf->global->SELLYOURSAAS_LOGIN_FOR_SUPPORT), 'suspendmaintenance', $formquestion, 'no', 1, 350, 600);
 			$this->resprints = $formconfirm;
 		}
 
@@ -779,7 +795,7 @@ class ActionsSellyoursaas
 	 */
 	public function moreHtmlStatus($parameters, $object = null, $action = '')
 	{
-		global $conf, $langs, $user;
+		global $conf, $langs;
 		global $object;
 
 		if ($parameters['currentcontext'] == 'contractcard') {
@@ -880,8 +896,11 @@ class ActionsSellyoursaas
 		if ($user->hasRight('sellyoursaas', 'read')) {
 			if (is_object($object)) {
 				$thirdparty = null;
-				if (is_object($object->thirdparty)) $thirdparty = $object->thirdparty;
-				elseif ($object->element == 'societe') $thirdparty = $object;
+				if (is_object($object->thirdparty)) {
+					$thirdparty = $object->thirdparty;
+				} elseif ($object->element == 'societe') {
+					$thirdparty = $object;
+				}
 
 				if (is_object($thirdparty)) {
 					$categ_customer_sellyoursaas = $conf->global->SELLYOURSAAS_DEFAULT_CUSTOMER_CATEG;
@@ -926,7 +945,7 @@ class ActionsSellyoursaas
 	 */
 	public function ODTSubstitution($parameters)
 	{
-		global $conf, $langs;
+		global $langs;
 		global $object;
 
 		$langs->load("sellyoursaas@sellyoursaas");
@@ -936,15 +955,25 @@ class ActionsSellyoursaas
 			// Read version
 			$server = $contract->ref_customer;
 			$hostname_db = $object->hostname_db;
-			if (empty($hostname_db)) $hostname_db = $object->array_options['options_hostname_db'];
+			if (empty($hostname_db)) {
+				$hostname_db = $object->array_options['options_hostname_db'];
+			}
 			$port_db = $object->port_db;
-			if (empty($port_db)) $port_db = (! empty($object->array_options['options_port_db']) ? $object->array_options['options_port_db'] : 3306);
+			if (empty($port_db)) {
+				$port_db = (! empty($object->array_options['options_port_db']) ? $object->array_options['options_port_db'] : 3306);
+			}
 			$username_db = $contract->username_db;
-			if (empty($username_db)) $username_db = $contract->array_options['options_username_db'];
+			if (empty($username_db)) {
+				$username_db = $contract->array_options['options_username_db'];
+			}
 			$password_db = $object->password_db;
-			if (empty($password_db)) $password_db = $contract->array_options['options_password_db'];
+			if (empty($password_db)) {
+				$password_db = $contract->array_options['options_password_db'];
+			}
 			$database_db = $object->database_db;
-			if (empty($database_db)) $database_db = $contract->array_options['options_database_db'];
+			if (empty($database_db)) {
+				$database_db = $contract->array_options['options_database_db'];
+			}
 
 			$server = (! empty($hostname_db) ? $hostname_db : $server);
 
@@ -989,10 +1018,12 @@ class ActionsSellyoursaas
 
 		if ($parameters['currentcontext'] == 'contractlist' && in_array($contextpage, array('sellyoursaasinstances','sellyoursaasinstancesvtwo'))) {
 			$langs->load("sellyoursaas@sellyoursaas");
-			if (empty($conf->global->SELLYOURSAAS_DISABLE_TRIAL_OR_PAID))
+			if (empty($conf->global->SELLYOURSAAS_DISABLE_TRIAL_OR_PAID)) {
 				print_liste_field_titre("TrialOrPaid", $_SERVER["PHP_SELF"], '', '', $param, ' align="center"', $sortfield, $sortorder);
-			if (empty($conf->global->SELLYOURSAAS_DISABLE_PAYMENT_MODE_SAVED))
+			}
+			if (empty($conf->global->SELLYOURSAAS_DISABLE_PAYMENT_MODE_SAVED)) {
 				print_liste_field_titre("PaymentModeSaved", $_SERVER["PHP_SELF"], '', '', $param, ' align="center"', $sortfield, $sortorder);
+			}
 		}
 		if ($parameters['currentcontext'] == 'thirdpartybancard') {
 			$langs->load("sellyoursaas@sellyoursaas");
@@ -1079,7 +1110,9 @@ class ActionsSellyoursaas
 
 					$atleastonepaymentmode = sellyoursaasThirdpartyHasPaymentMode($parameters['obj']->socid);
 
-					if ($atleastonepaymentmode) print $langs->trans("Yes");
+					if ($atleastonepaymentmode) {
+						print $langs->trans("Yes");
+					}
 				}
 				print '</td>';
 			}
@@ -1160,7 +1193,7 @@ class ActionsSellyoursaas
 		// If this is a customer of SellYourSaas, we add logo of SellYourSaas
 		$outputlangs=$langs;
 
-		$this->marge_haute =isset($conf->global->MAIN_PDF_MARGIN_TOP)?$conf->global->MAIN_PDF_MARGIN_TOP:10;
+		$this->marge_haute =isset($conf->global->MAIN_PDF_MARGIN_TOP) ? $conf->global->MAIN_PDF_MARGIN_TOP : 10;
 
 		//var_dump($parameters['object']);
 
@@ -1266,10 +1299,10 @@ class ActionsSellyoursaas
 		}
 
 		//if ($parameters['tabfamily'] == 'sellyoursaas') {
-			$head[$h][0] = 'customreports.php?objecttype='.$parameters['objecttype'].(empty($parameters['tabfamily'])?'':'&tabfamily='.$parameters['tabfamily']);
-			$head[$h][1] = $langs->trans("CustomReports");
-			$head[$h][2] = 'customreports';
-			$h++;
+		$head[$h][0] = 'customreports.php?objecttype='.$parameters['objecttype'].(empty($parameters['tabfamily']) ? '' : '&tabfamily='.$parameters['tabfamily']);
+		$head[$h][1] = $langs->trans("CustomReports");
+		$head[$h][2] = 'customreports';
+		$h++;
 		//}
 
 		if ($parameters['tabfamily'] == 'sellyoursaas') {

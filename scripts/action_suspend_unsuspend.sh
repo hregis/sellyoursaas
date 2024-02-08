@@ -10,6 +10,7 @@
 
 
 export now=`date +'%Y-%m-%d %H:%M:%S'`
+export nowlog=`date +'%Y%m%d-%H%M%S'`
 
 echo
 echo
@@ -350,21 +351,31 @@ if [[ "$mode" == "rename" ]]; then
 			# No $CERTIFFORCUSTOMDOMAIN forced (no cert file was created initially), so we will generate one
 			export domainnameorcustomurl=`echo $customurl | cut -d "." -f 1`
 			# We must create it using letsencrypt if not yet created
-			#if [[ ! -e /home/admin/wwwroot/dolibarr_documents/sellyoursaas_local/crt/$fqn.crt ]]; then
-					# Generate the letsencrypt certificate
-					
-					# certbot certonly --webroot -w $instancedir -d $customurl 
-					# create links					
-
-					# If links does not exists, we disable SSL
-					#SSLON="Off"
-			#fi
+			if [[ ! -e /home/admin/wwwroot/dolibarr_documents/sellyoursaas_local/crt/$fqn-custom.crt ]]; then
+				# When we rename, it may be because we change abc.with... into def.with..., or
+				# because we added a custom url 
+				
+				# Generate the letsencrypt certificate
+				# @TODO
+				
+                # certbot certonly --webroot -w $instancedir -d $customurl 
+                # create links                                  
+			fi
 			
-			export webCustomSSLCertificateCRT=$webSSLCertificateCRT
-			export webCustomSSLCertificateKEY=$webSSLCertificateKEY
-			export webCustomSSLCertificateIntermediate=$webSSLCertificateIntermediate
-			export CERTIFFORCUSTOMDOMAIN="with.sellyoursaas.com"
+			# If custom cert not found, we fallback on the wildcard one for server (will generate a warning, but it will works !)
+			if [[ -e /home/admin/wwwroot/dolibarr_documents/sellyoursaas_local/crt/$fqn-custom.crt ]]; then
+				export webCustomSSLCertificateCRT=$webSSLCertificateCRT
+				export webCustomSSLCertificateKEY=$webSSLCertificateKEY
+				export webCustomSSLCertificateIntermediate=$webSSLCertificateIntermediate
+				export CERTIFFORCUSTOMDOMAIN="with.sellyoursaas.com"
+			else
+				export webCustomSSLCertificateCRT=/home/admin/wwwroot/dolibarr_documents/sellyoursaas_local/crt/$fqn-custom.crt
+				export webCustomSSLCertificateKEY=/home/admin/wwwroot/dolibarr_documents/sellyoursaas_local/crt/$fqn-custom.key
+				export webCustomSSLCertificateIntermediate=/home/admin/wwwroot/dolibarr_documents/sellyoursaas_local/crt/$fqn-custom-intermediate.key
+				export CERTIFFORCUSTOMDOMAIN="$fqn-custom"
+			fi
 		fi
+		
 		
 		# If the certificate file is not found, we disable SSL
 		if [[ ! -e /etc/apache2/$webCustomSSLCertificateCRT ]]; then
@@ -506,12 +517,18 @@ fi
 
 
 # Suspend
+# 'suspend' = change virtual host with a page with a message 'Suspended' and disable cron
+# 'suspendmaintenance' = change virtual host with a page with a message 'Offline' and keep cron alive
+# 'suspendredirect' = change virtual host with a page with a message 'Offline', will alos update the DNS entry
 
-if [[ "$mode" == "suspend" || $mode == "suspendmaintenance" ]]; then
+if [[ "$mode" == "suspend" || $mode == "suspendmaintenance" || $mode == "suspendredirect" ]]; then
 	echo `date +'%Y-%m-%d %H:%M:%S'`" ***** Suspend instance in $targetdir/$osusername/$dbname"
 
+	# Will use the virtual host template file vhostHttps-sellyoursaas-suspended.template
 	export vhostfiletouse=$vhostfilesuspended;
-	if [[ $mode == "suspendmaintenance" ]]; then
+	if [[ $mode == "suspendmaintenance" || $mode == "suspendredirect" ]]; then
+		# Will use the virtual host template file vhostHttps-sellyoursaas-maintenance.template that call the page maintenance.php
+		# This page will make a redirect instea dof showing a maintenance message if the message start with http...
 		export vhostfiletouse=$vhostfilemaintenance;
 	fi	
 	
@@ -613,33 +630,32 @@ if [[ "$mode" == "suspend" || $mode == "suspendmaintenance" ]]; then
                                 ln -fs /etc/apache2/$webSSLCertificateIntermediate $pathforcertiflocal/$webCustomSSLCertificateIntermediate
                         fi
                 fi
-        else
-                # No $CERTIFFORCUSTOMDOMAIN forced (no cert file was created initially), so we will use existing one or generic one
-                export domainnameorcustomurl=`echo $customurl | cut -d "." -f 1`
-                # We must create it using letsencrypt if not yet created
-				# Create disabled for suspend action
-                #if [[ ! -e /home/admin/wwwroot/dolibarr_documents/sellyoursaas_local/crt/$fqn.crt ]]; then
-                                # Generate the letsencrypt certificate
+		else
+			# No $CERTIFFORCUSTOMDOMAIN forced (no cert file was created initially), so we will use existing one or generic one
+            export domainnameorcustomurl=`echo $customurl | cut -d "." -f 1`
 
-                                # certbot certonly --webroot -w $instancedir -d $customurl 
-                                # create links                                  
+			# When we suspend, there is no need to generate the cert for the custom URL. Cert should already exists if a custom url has been defined.
 
-                                # If links does not exists, we disable SSL
-                                #SSLON="Off"
-                #fi
-
-                export webCustomSSLCertificateCRT=$webSSLCertificateCRT
-                export webCustomSSLCertificateKEY=$webSSLCertificateKEY
-                export webCustomSSLCertificateIntermediate=$webSSLCertificateIntermediate
-                export CERTIFFORCUSTOMDOMAIN="with.sellyoursaas.com"
+            # But if custom cert not found, we fallback on the wildcard one for server (will generate a warning, but it will works !)
+			if [[ -e /home/admin/wwwroot/dolibarr_documents/sellyoursaas_local/crt/$fqn-custom.crt ]]; then
+	            export webCustomSSLCertificateCRT=$webSSLCertificateCRT
+    	        export webCustomSSLCertificateKEY=$webSSLCertificateKEY
+        	    export webCustomSSLCertificateIntermediate=$webSSLCertificateIntermediate
+            	export CERTIFFORCUSTOMDOMAIN="with.sellyoursaas.com"
+			else
+				export webCustomSSLCertificateCRT=/home/admin/wwwroot/dolibarr_documents/sellyoursaas_local/crt/$fqn-custom.crt
+				export webCustomSSLCertificateKEY=/home/admin/wwwroot/dolibarr_documents/sellyoursaas_local/crt/$fqn-custom.key
+				export webCustomSSLCertificateIntermediate=/home/admin/wwwroot/dolibarr_documents/sellyoursaas_local/crt/$fqn-custom-intermediate.key
+				export CERTIFFORCUSTOMDOMAIN="$fqn-custom"
+			fi
 		fi	
 	
 		
         # If the certificate file is not found, we disable SSL
         if [[ ! -e /etc/apache2/$webCustomSSLCertificateCRT ]]; then
-                SSLON="Off"
+			SSLON="Off"
         else
-                SSLON="On"
+			SSLON="On"
         fi
 
         export apacheconf="/etc/apache2/sellyoursaas-available/$fqn.custom.conf"
@@ -836,32 +852,31 @@ if [[ "$mode" == "unsuspend" ]]; then
                         fi
                 fi
         else
-                # No $CERTIFFORCUSTOMDOMAIN forced (no cert file was created initially), so we will use existing one or generic one
-                export domainnameorcustomurl=`echo $customurl | cut -d "." -f 1`
-                # We must create it using letsencrypt if not yet created
-				# Create disabled for suspend action
-                #if [[ ! -e /home/admin/wwwroot/dolibarr_documents/sellyoursaas_local/crt/$fqn.crt ]]; then
-                                # Generate the letsencrypt certificate
+			# No $CERTIFFORCUSTOMDOMAIN forced (no cert file was created initially), so we will use existing one or generic one
+            export domainnameorcustomurl=`echo $customurl | cut -d "." -f 1`
 
-                                # certbot certonly --webroot -w $instancedir -d $customurl 
-                                # create links                                  
+			# When we unsuspend, there is no need to generate the cert for the custom URL. Cert should already exists if a custom url has been defined.
 
-                                # If links does not exists, we disable SSL
-                                #SSLON="Off"
-                #fi
-
-                export webCustomSSLCertificateCRT=$webSSLCertificateCRT
-                export webCustomSSLCertificateKEY=$webSSLCertificateKEY
-                export webCustomSSLCertificateIntermediate=$webSSLCertificateIntermediate
-                export CERTIFFORCUSTOMDOMAIN="with.sellyoursaas.com"
+			# If custom cert not found, we fallback on the wildcard one for server (will generate a warning, but it will works !)
+			if [[ -e /home/admin/wwwroot/dolibarr_documents/sellyoursaas_local/crt/$fqn-custom.crt ]]; then
+	            export webCustomSSLCertificateCRT=$webSSLCertificateCRT
+    	        export webCustomSSLCertificateKEY=$webSSLCertificateKEY
+        	    export webCustomSSLCertificateIntermediate=$webSSLCertificateIntermediate
+            	export CERTIFFORCUSTOMDOMAIN="with.sellyoursaas.com"
+			else
+				export webCustomSSLCertificateCRT=/home/admin/wwwroot/dolibarr_documents/sellyoursaas_local/crt/$fqn-custom.crt
+				export webCustomSSLCertificateKEY=/home/admin/wwwroot/dolibarr_documents/sellyoursaas_local/crt/$fqn-custom.key
+				export webCustomSSLCertificateIntermediate=/home/admin/wwwroot/dolibarr_documents/sellyoursaas_local/crt/$fqn-custom-intermediate.key
+				export CERTIFFORCUSTOMDOMAIN="$fqn-custom"
+			fi
 		fi	
 	
 		
         # If the certificate file is not found, we disable SSL
         if [[ ! -e /etc/apache2/$webCustomSSLCertificateCRT ]]; then
-                SSLON="Off"
+			SSLON="Off"
         else
-                SSLON="On"
+			SSLON="On"
         fi
         	
 		export apacheconf="/etc/apache2/sellyoursaas-available/$fqn.custom.conf"
@@ -978,7 +993,8 @@ if [[ "$mode" == "unsuspend" ]]; then
 	chmod 600 /var/spool/cron/crontabs/$osusername
 fi
 
-if [[ "$mode" == "suspend" ]]; then
+
+if [[ "$mode" == "suspend" || "$mode" == "suspendredirect" ]]; then
 
 	echo `date +'%Y-%m-%d %H:%M:%S'`" ***** Remove cron file /var/spool/cron/crontabs/$osusername"
 	if [ -s /var/spool/cron/crontabs/$osusername ]; then
@@ -998,6 +1014,23 @@ if [[ "$mode" == "suspend" ]]; then
 		echo cron file /var/spool/cron/crontabs/$osusername already removed or empty
 	fi 
 
+fi
+
+
+if [[ "$mode" == "suspendredirect" ]]; then
+
+	export ZONE="$domainname.hosts" 
+
+	echo `date +'%Y-%m-%d %H:%M:%S'`" ***** If IP for $instancename in DNS files /etc/bind/${ZONE} has changed and is not $REMOTEIP, we must also change the DNS entry."
+
+	echo "Entry $instancename not found into host /etc/bind/${ZONE}, we must add it with: /home/admin/wwwroot/dolibarr/scripts/deployment_update_dnszone.php set ${ZONE} $instancename $REMOTEIP"
+
+	/home/admin/wwwroot/dolibarr_sellyoursaas/scripts/deployment_update_dnszone.php set "$domainname" "$instancename" "$REMOTEIP"
+
+	if [[ "$?x" != "0x" ]]; then
+		echo error: Failed to update the DNS file.
+		exit 15
+	fi
 fi
 
 
