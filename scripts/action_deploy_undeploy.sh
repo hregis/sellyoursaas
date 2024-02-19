@@ -1446,9 +1446,11 @@ if [[ "$mode" == "deploy" || "$mode" == "deployall" ]]; then
 	# If we use mysql and not mariadb, we set password differently
 	dpkg -l | grep mariadb > /dev/null
 	if [[ $? == "1" || $dbforcesetpassword == "1" ]]; then
-		# For mysql 8.0.32+
-		Q2a="GRANT FLUSH_TABLES ON *.* TO '$dbusername'@'localhost'; "
-		Q2b="GRANT FLUSH_TABLES ON *.* TO '$dbusername'@'%'; "
+		if [ $dbforcesetpassword == "1" ]; then
+			# For mysql 8.0.32+
+			Q2a="GRANT FLUSH_TABLES ON *.* TO '$dbusername'@'localhost'; "
+			Q2b="GRANT FLUSH_TABLES ON *.* TO '$dbusername'@'%'; "
+		fi
 
 		# For all mysql
 		Q3="SET PASSWORD FOR '$dbusername' = PASSWORD('$dbpassword'); "
