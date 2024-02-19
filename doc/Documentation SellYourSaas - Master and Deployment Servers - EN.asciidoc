@@ -1053,7 +1053,7 @@ There are two scenarios depending on your version of Ubuntu. Follow the instruct
 [source,bash]
 ---------------
 sudo apt update
-sudo apt install -y ntp git gzip zip zstd memcached ncdu duc iotop acl ufw sudo
+sudo apt install -y systemd-timesyncd git gzip zip zstd memcached ncdu duc iotop acl ufw sudo
 sudo apt install -y mariadb-server mariadb-client
 sudo apt install -y apache2 apache2-bin lynx
 sudo apt install -y php php-cli libapache2-mod-php php-fpm php-gd php-imap php-json php-ldap php-mysqlnd php-curl php-memcached php-imagick php-geoip php-mcrypt php-intl php-xml php-zip php-bz2 php-ssh2 php-mbstring php-soap
@@ -2792,7 +2792,13 @@ Sometimes, a reboot of server may be required to take into account any change on
 
 All the disabled profiles are visible into */etc/apparmor.d/disable*
 
-The log are visible into */var/log/kern.log* or */var/log/audit/audit.log*. You can use *aa-logprof* to know the log file used and convert its content into real rules into existing profiles.
+The log are visible into */var/log/kern.log* or */var/log/audit/audit.log*. 
+To solve a problem of permission, you can use 
+[source,bash]
+---------------
+aa-logprof
+---------------
+Then execut the failed command or access and answer S to update the profile.
 
 
 * Note: From Ubuntu 20.04+, to unload ALL apparmor profiles and reload them:
@@ -4283,9 +4289,11 @@ so the old URL will still works (temporarily until the old instance is closed)
 */home/admin/wwwroot/dolibarr/htdocs/custom/sellyoursaas/scripts/batch_customers.php updatestatsonly*
 
 
-=== Increase size of disk
+=== Increase/extend size of disk
 
 * Take a snapshot of the disk to resize for backup. Create a new disk from this snapshot and attach it to another server (see chapter <<adding_a_disk>>) to ensure it is readable and you have backup files handy.
+
+If this is not a file system:
 
 * Unmount the filesystem:
 
@@ -4316,7 +4324,7 @@ Y		  (the num of the part)
 q
 ---------------
 
-* Remount the disk for acknowledgement and resizing without erasing data.
+* If the partition has the good size, remount the disk for acknowledgement and resize the filesystem (this should not erase data).
 
 [source,bash]
 ---------------
@@ -6068,6 +6076,7 @@ Please make sure that the snapd.apparmor service is enabled and started
 ---------------
 
 It means the package snapd is not install. Launch "apt install snapd" to fix this.
+If package was already installed, try "service snapd.apparmor restart"
 
 
 ==== Error DataDog Unable to get disk metrics
