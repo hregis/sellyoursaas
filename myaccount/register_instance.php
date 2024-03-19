@@ -638,13 +638,13 @@ if (empty($remoteip)) {
 }
 
 $tmpblacklistip = new Blacklistip($db);
-$tmparrayblacklist = $tmpblacklistip->fetchAll('', '', 1000, 0, array('status'=>1));
+$tmparrayblacklist = $tmpblacklistip->fetchAll('', '', 1000, 0, '(status:=:1)');
 if (is_numeric($tmparrayblacklist) && $tmparrayblacklist < 0) {
 	echo "Erreur: failed to get blacklistip elements.\n";
 	exit(-61);
 }
 $tmpwhitelistip = new Whitelistip($db);
-$tmparraywhitelist = $tmpwhitelistip->fetchAll('', '', 1000, 0, array('status'=>1));
+$tmparraywhitelist = $tmpwhitelistip->fetchAll('', '', 1000, 0, '(status:=:1)');
 if (is_numeric($tmparraywhitelist) && $tmparraywhitelist < 0) {
 	echo "Erreur: failed to get whitelistip elements.\n";
 	exit(-61);
@@ -1530,12 +1530,12 @@ if (! $error) {
 		}
 
 		$substitutionarray=getCommonSubstitutionArray($langs, 0, null, $contract);
-		$substitutionarray['__PACKAGEREF__']=$tmppackage->ref;
-		$substitutionarray['__PACKAGELABEL__']=$tmppackage->label;
-		$substitutionarray['__PACKAGEEMAILHEADER__']=$tmppackage->header;	// TODO
-		$substitutionarray['__PACKAGEEMAILFOOTER__']=$tmppackage->footer;	// TODO
-		$substitutionarray['__APPUSERNAME__']=$_SESSION['initialapplogin'];
-		$substitutionarray['__APPPASSWORD__']=$password;
+		$substitutionarray['__PACKAGEREF__'] = $tmppackage->ref;
+		$substitutionarray['__PACKAGELABEL__'] = $tmppackage->label;
+		$substitutionarray['__PACKAGEEMAILHEADER__'] = property_exists($tmppackage, 'header') ? $tmppackage->header : '';	// TODO
+		$substitutionarray['__PACKAGEEMAILFOOTER__'] = property_exists($tmppackage, 'footer') ? $tmppackage->footer : '';	// TODO
+		$substitutionarray['__APPUSERNAME__'] = $_SESSION['initialapplogin'];
+		$substitutionarray['__APPPASSWORD__'] = $password;
 
 		// TODO Replace this with $tmppackage->header and $tmppackage->footer
 		dol_syslog('Set substitution var for __EMAIL_FOOTER__ with $tmppackage->ref='.strtoupper($tmppackage->ref));

@@ -1523,7 +1523,7 @@ class SellYourSaasUtils
 									} else {
 										$paiement->multicurrency_amounts = array($invoice->id => $amounttopay);   // Array with all payments dispatching
 
-										$postactionmessages[] = 'Payment was done in a different currency than currency expected of company';
+										$postactionmessages[] = 'Payment was done in a currency ('.$currencyCodeType.') other than the expected currency of company ('.$conf->currency.')';
 										$ispostactionok = -1;
 										// Not yet supported, so error
 										$error++;
@@ -3897,18 +3897,18 @@ class SellYourSaasUtils
 				$generatedunixlogin    = $contract->array_options['options_username_os'];
 				$generatedunixpassword = $contract->array_options['options_password_os'];
 				$generateddbname       = $contract->array_options['options_database_db'];
-				$generateddbport       = ($contract->array_options['options_port_db'] ? $contract->array_options['options_port_db'] : 3306);
+				$generateddbport       = (empty($contract->array_options['options_port_db']) ? 3306 : $contract->array_options['options_port_db']);
 				$generateddbusername   = $contract->array_options['options_username_db'];
 				$generateddbpassword   = $contract->array_options['options_password_db'];
-				$generateddbprefix     = ($contract->array_options['options_prefix_db'] ? $contract->array_options['options_prefix_db'] : 'llx_');
+				$generateddbprefix     = (empty($contract->array_options['options_prefix_db']) ? 'llx_' : $contract->array_options['options_prefix_db']);
 				$generatedunixhostname = $contract->array_options['options_hostname_os'];
 				$generateddbhostname   = $contract->array_options['options_hostname_db'];
 				$generateduniquekey    = getRandomPassword(true);
 
 				$sshaccesstype         = (empty($contract->array_options['options_sshaccesstype']) ? 0 : $contract->array_options['options_sshaccesstype']);
-				$customurl             = $contract->array_options['options_custom_url'];
-				$customvirtualhostline = $contract->array_options['options_custom_virtualhostline'];   // Set with value 'php_value date.timezone "'.$_POST["tz_string"].'"'; into file register_instance.php
-				$customvirtualhostdir  = $contract->array_options['options_custom_virtualhostdir'];
+				$customurl             = (empty($contract->array_options['options_custom_url']) ? '' : $contract->array_options['options_custom_url']);
+				$customvirtualhostline = (empty($contract->array_options['options_custom_virtualhostline']) ? '' : $contract->array_options['options_custom_virtualhostline']);   // Set with value 'php_value date.timezone "'.$_POST["tz_string"].'"'; into file register_instance.php
+				$customvirtualhostdir  = (empty($contract->array_options['options_custom_virtualhostdir']) ? '' : $contract->array_options['options_custom_virtualhostdir']);
 
 				$SSLON='On';	// Is SSL enabled on the custom url virtual host ?
 
@@ -4290,7 +4290,7 @@ class SellYourSaasUtils
 						'__APPDOMAIN__'=>$sldAndSubdomain.'.'.$domainname,
 						'__ALLOWOVERRIDE__'=>'',
 						'__VIRTUALHOSTHEAD__'=>$customvirtualhostline,
-						'__SELLYOURSAAS_LOGIN_FOR_SUPPORT__'=>$conf->global->SELLYOURSAAS_LOGIN_FOR_SUPPORT,
+						'__SELLYOURSAAS_LOGIN_FOR_SUPPORT__'=>getDolGlobalString('SELLYOURSAAS_LOGIN_FOR_SUPPORT'),
 						'__CONTRACTREF__'=>$contract->ref,
 					);
 
@@ -4465,9 +4465,12 @@ class SellYourSaasUtils
 							dol_syslog($this->error, LOG_ERR);
 						}
 					} elseif ($tmparray[0] === 'PHPMETHOD') {
-						// keyword : PHPMETHOD then function name to call, then args (use ':' as sep.)
+						// Keyword PHPMETHOD then : then function name to call ; args seaprated with ;
 						// ex: PHPMETHOD:caprelCountDoliSCANUsers;__CONTRACTREF__;__INSTANCEDBPREFIX__;
+						// ex: PHPMETHOD:sellyoursaasGetNbUsersContract;__CONTRACTREF__;name of extrafield;SELECT to count
 						$arguments = make_substitutions($tmparray[1], $substitarray);
+						// TODO @LMR Replace param __OBJECTREF__ with $object contract instead of __CONTRACTREF__.
+						// TODO @LMR Replace param name of extrafield with $tmpobject->options['options_'.name_of_extrafield].
 						$argsArray = explode(';', $arguments);
 						$customFunctionToCall = array_shift($argsArray);
 
@@ -4501,7 +4504,7 @@ class SellYourSaasUtils
 								// Test if there is template invoice linked
 								$contract->fetchObjectLinked(null, '', null, '', 'OR', 1, 'sourcetype', 'facturerec');
 
-								if (is_array($contract->linkedObjects['facturerec']) && count($contract->linkedObjects['facturerec']) > 0) {
+								if (!empty($contract->linkedObjects['facturerec']) && is_array($contract->linkedObjects['facturerec']) && count($contract->linkedObjects['facturerec']) > 0) {
 									//dol_sort_array($contract->linkedObjects['facture'], 'date');
 									$sometemplateinvoice=0;
 									$lasttemplateinvoice=null;
