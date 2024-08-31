@@ -235,7 +235,7 @@ if (count($listofcontractidreseller) == 0) {
 		// Customer (link to login on customer dashboard)
 		print '<span class="opacitymedium">'.$langs->trans("Customer").' : </span>'.$tmpcustomer->name;
 		$dol_login_hash=dol_hash(getDolGlobalString('SELLYOURSAAS_KEYFORHASH') . $tmpcustomer->email.dol_print_date(dol_now(), 'dayrfc'), 5);	// hash is valid one hour
-		print ' &nbsp;-&nbsp;  <a target="_blankcustomer" href="'.$_SERVER["PHP_SELF"].'?mode=logout_dashboard&username='.$tmpcustomer->email.'&password=&login_hash='.$dol_login_hash.'"><span class="fa fa-desktop"></span><span class="hideonsmartphone"> '.$langs->trans("LoginWithCustomerAccount").'</span></a>';
+		print ' &nbsp;-&nbsp; <a target="_blankcustomer" href="'.$_SERVER["PHP_SELF"].'?mode=logout_dashboard&username='.urlencode($tmpcustomer->email).'&password=&login_hash='.urlencode($dol_login_hash).'"><span class="fa fa-desktop"></span><span class="hideonsmartphone"> '.$langs->trans("LoginWithCustomerAccount").'</span></a>';
 		print '<br>';
 
 		// URL
@@ -421,16 +421,16 @@ if (count($listofcontractidreseller) == 0) {
 					print $tmpduration;
 					print '</span>';
 				} else {
-					if (empty($conf->global->SELLYOURSAAS_HIDE_PRODUCT_PRICE_IF_NULL)) {
+					if (!getDolGlobalString('SELLYOURSAAS_HIDE_PRODUCT_PRICE_IF_NULL')) {
 						print '<span class="opacitymedium small">'.price($line->price_ht, 1, $langs, 0, -1, -1, $conf->currency);
 						// TODO
 						print $tmpduration;
 						print '</span>';
 					} else {
 						// TODO
-						if (! empty($conf->global->SELLYOURSAAS_TRANSKEY_WHEN_PRODUCT_PRICE_IF_NULL)) {
+						if (getDolGlobalString('SELLYOURSAAS_TRANSKEY_WHEN_PRODUCT_PRICE_IF_NULL')) {
 							print '<span class="opacitymedium small">';
-							print $langs->trans($conf->global->SELLYOURSAAS_TRANSKEY_WHEN_PRODUCT_PRICE_IF_NULL);
+							print $langs->trans(getDolGlobalString('SELLYOURSAAS_TRANSKEY_WHEN_PRODUCT_PRICE_IF_NULL'));
 							print '</span>';
 						}
 					}
@@ -507,12 +507,12 @@ if (count($listofcontractidreseller) == 0) {
 			print '<!-- Billing information of contract -->'."\n";
 			print '<span class="caption-helper spanbilling"><span class="opacitymedium">'.$langs->trans("Billing").' : </span>';
 			if ($foundtemplate > 1) {
-				$sellyoursaasemail = $conf->global->SELLYOURSAAS_MAIN_EMAIL;
+				$sellyoursaasemail = getDolGlobalString('SELLYOURSAAS_MAIN_EMAIL');
 				if (! empty($tmpcustomer->array_options['options_domain_registration_page'])
 					&& $tmpcustomer->array_options['options_domain_registration_page'] != $conf->global->SELLYOURSAAS_MAIN_DOMAIN_NAME) {
 					$newnamekey = 'SELLYOURSAAS_MAIN_EMAIL_FORDOMAIN-'.$tmpcustomer->array_options['options_domain_registration_page'];
-					if (! empty($conf->global->$newnamekey)) {
-						$sellyoursaasemail = $conf->global->$newnamekey;
+					if (getDolGlobalString($newnamekey)) {
+						$sellyoursaasemail = getDolGlobalString($newnamekey);
 					}
 				}
 
@@ -891,7 +891,7 @@ if (getDolGlobalInt('SELLYOURSAAS_DISABLE_NEW_INSTANCES') && !in_array(getUserRe
 	$domainname = getDomainFromURL($_SERVER["SERVER_NAME"], 1);
 
 	// listofdomain can be:  with1.mydomain.com,with2.mydomain.com:ondomain1.com+ondomain2.com,...
-	if (empty(getDolGlobalString('SELLYOURSAAS_OBJECT_DEPLOYMENT_SERVER_MIGRATION'))) {
+	if (!getDolGlobalString('SELLYOURSAAS_OBJECT_DEPLOYMENT_SERVER_MIGRATION')) {
 		$listofdomain = explode(',', getDolGlobalString('SELLYOURSAAS_SUB_DOMAIN_NAMES'));
 	} else {
 		$staticdeploymentserver = new Deploymentserver($db);

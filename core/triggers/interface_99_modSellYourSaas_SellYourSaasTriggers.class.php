@@ -102,10 +102,13 @@ class InterfaceSellYourSaasTriggers extends DolibarrTriggers
 			case 'CATEGORY_LINK':
 				// Test if this is a partner. If yes, send an email
 				include_once DOL_DOCUMENT_ROOT.'/categories/class/categorie.class.php';
-
-				if ($object->type === Categorie::TYPE_SUPPLIER || Categorie::$MAP_ID_TO_CODE[$object->type] == Categorie::TYPE_SUPPLIER) {
+				$categorytype = $object->type;
+				if (is_numeric($categorytype)) {	// For backward compatibility
+					$categorytype = Categorie::$MAP_ID_TO_CODE[$categorytype];
+				}
+				if ($categorytype === Categorie::TYPE_SUPPLIER) {
 					// We link a supplier categorie to a thirdparty
-					if ($object->id == $conf->global->SELLYOURSAAS_DEFAULT_RESELLER_CATEG) {
+					if ($object->id == getDolGlobalInt('SELLYOURSAAS_DEFAULT_RESELLER_CATEG')) {
 						$reseller = $object->context['linkto'];
 
 						// $object->context['linkto'] is Societe object
@@ -123,7 +126,7 @@ class InterfaceSellYourSaasTriggers extends DolibarrTriggers
 						if (empty($reseller->array_options['options_password'])) {
 							$password = dol_string_nospecial(dol_string_unaccent(strtolower($reseller->name)));
 
-							$reseller->oldcopy = dol_clone($reseller);
+							$reseller->oldcopy = dol_clone($reseller, 0);
 
 							$reseller->array_options['options_password']=dol_hash($password);
 
@@ -203,10 +206,12 @@ class InterfaceSellYourSaasTriggers extends DolibarrTriggers
 				|| $object->oldcopy->array_options['options_custom_url'] != $object->array_options['options_custom_url'])) {
 					$testok = 1;
 
+					/* Disabled. We must accept custom url from old server (for scripts and backoffice). A protection can be added in myaccount page however to avoid this.
 					if (preg_match('/\.with\./', $object->array_options['options_custom_url'])) {
 						$this->errors[]="Value of URL including .with. is not allowed as custom URL";
 						return -1;
 					}
+					*/
 
 					// Clean new value
 					$nametotest = $object->ref_customer;
@@ -278,7 +283,7 @@ class InterfaceSellYourSaasTriggers extends DolibarrTriggers
 						dol_syslog("Loop on the date of line id ".$line->id." (".dol_print_date($line->date_end, 'standard').") to compare with new date (".dol_print_date($object->array_options['options_date_endfreeperiod'], 'standard').")");
 
 						if ($line->date_end < $object->array_options['options_date_endfreeperiod']) {
-							$line->oldcopy = dol_clone($line);
+							$line->oldcopy = dol_clone($line, 0);
 
 							$line->date_end = $object->array_options['options_date_endfreeperiod'];
 							$line->date_fin_validite = $object->array_options['options_date_endfreeperiod'];	// deprecated
@@ -342,7 +347,7 @@ class InterfaceSellYourSaasTriggers extends DolibarrTriggers
 				dol_syslog("We trap trigger PAYMENT_CUSTOMER_CREATE for id = ".$object->id);
 
 				// Send to DataDog (metric + event)
-				if (! empty($conf->global->SELLYOURSAAS_DATADOG_ENABLED) && preg_match('/SellYourSaas/i', ($object->note ? $object->note : $object->note_public))) {
+				if (getDolGlobalString('SELLYOURSAAS_DATADOG_ENABLED') && preg_match('/SellYourSaas/i', ($object->note ? $object->note : $object->note_public))) {
 					$totalamount = 0;
 					foreach ($object->amounts as $key => $amount) {
 						$totalamount+=$amount;
@@ -353,8 +358,8 @@ class InterfaceSellYourSaasTriggers extends DolibarrTriggers
 						dol_include_once('/sellyoursaas/core/includes/php-datadogstatsd/src/DogStatsd.php');
 
 						$arrayconfig=array();
-						if (! empty($conf->global->SELLYOURSAAS_DATADOG_APIKEY)) {
-							$arrayconfig=array('apiKey'=>$conf->global->SELLYOURSAAS_DATADOG_APIKEY, 'app_key' => $conf->global->SELLYOURSAAS_DATADOG_APPKEY);
+						if (getDolGlobalString('SELLYOURSAAS_DATADOG_APIKEY')) {
+							$arrayconfig=array('apiKey'=>getDolGlobalString('SELLYOURSAAS_DATADOG_APIKEY'), 'app_key' => getDolGlobalString('SELLYOURSAAS_DATADOG_APPKEY'));
 						}
 
 						$statsd = new DataDog\DogStatsd($arrayconfig);
@@ -371,13 +376,13 @@ class InterfaceSellYourSaasTriggers extends DolibarrTriggers
 				dol_syslog("We trap trigger PAYMENT_CUSTOMER_DELETE for id = ".$object->id);
 
 				// Send to DataDog (metric + event)
-				if (! empty($conf->global->SELLYOURSAAS_DATADOG_ENABLED) && preg_match('/SellYourSaas/i', ($object->note ? $object->note : $object->note_public))) {
+				if (getDolGlobalString('SELLYOURSAAS_DATADOG_ENABLED') && preg_match('/SellYourSaas/i', ($object->note ? $object->note : $object->note_public))) {
 					try {
 						dol_include_once('/sellyoursaas/core/includes/php-datadogstatsd/src/DogStatsd.php');
 
 						$arrayconfig=array();
-						if (! empty($conf->global->SELLYOURSAAS_DATADOG_APIKEY)) {
-							$arrayconfig=array('apiKey'=>$conf->global->SELLYOURSAAS_DATADOG_APIKEY, 'app_key' => $conf->global->SELLYOURSAAS_DATADOG_APPKEY);
+						if (getDolGlobalString('SELLYOURSAAS_DATADOG_APIKEY')) {
+							$arrayconfig=array('apiKey'=>getDolGlobalString('SELLYOURSAAS_DATADOG_APIKEY'), 'app_key' => getDolGlobalString('SELLYOURSAAS_DATADOG_APPKEY'));
 						}
 
 						$statsd = new DataDog\DogStatsd($arrayconfig);

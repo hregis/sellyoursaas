@@ -66,7 +66,7 @@ class Packages extends CommonObject
 	 *         Note: Filter can be a string like "(t.ref:like:'SO-%') or (t.date_creation:<:'20160101') or (t.nature:is:NULL)"
 	 *  'label' the translation key.
 	 *  'picto' is code of a picto to show before value in forms
-	 *  'enabled' is a condition when the field must be managed (Example: 1 or '$conf->global->MY_SETUP_PARAM)
+	 *  'enabled' is a condition when the field must be managed (Example: 1 or 'getDolGlobalString("MY_SETUP_PARAM")'
 	 *  'position' is the sort order of field.
 	 *  'notnull' is set to 1 if not null in database. Set to -1 if we must set data to null if empty ('' or 0).
 	 *  'visible' says if field is visible in list (Examples: 0=Not visible, 1=Visible on list and create/update/view forms, 2=Visible on list only, 3=Visible on create/update/view form only (not list), 4=Visible on list and update/view form only (not create). 5=Visible on list and view only (not create/not update). Using a negative value means field is not shown by default on list but can be selected for viewing)
@@ -109,7 +109,7 @@ class Packages extends CommonObject
 		'targetconffile1' => array('type'=>'varchar(255)', 'label'=>'Target relative file for config file 1', 'visible'=>-1, 'enabled'=>1, 'position'=>58, 'notnull'=>-1, 'css'=>'minwidth500', 'csslist'=>'tdoverflowmax400', 'cssview'=>'wordbreak'),
 		'datafile1' => array('type'=>'varchar(255)', 'label'=>'Dir with dump files', 'visible'=>-1, 'enabled'=>1, 'position'=>59, 'notnull'=>-1, 'css'=>'minwidth500', 'csslist'=>'tdoverflowmax400', 'help'=>'You can set here __DOL_DATA_ROOT__/sellyoursaas/packages/__PACKAGEREF__ so you can put the sql dump files from the tab "Linked files"'),
 		'crontoadd' => array('type'=>'text', 'label'=>'Template of cron file', 'visible'=>3, 'enabled'=>1, 'position'=>60, 'notnull'=>-1, 'help'=>'Content will be used to add a file into /var/spool/cron/crontabs<br><br>Can use substitution vars like<br>__INSTALLMINUTES__<br>__INSTALLHOURS__<br>__INSTANCEDIR__<br>__OSUSERNAME__<br>...'),
-		'cliafter' => array('type'=>'text', 'label'=>'Shell after deployment', 'visible'=>3, 'enabled'=>1, 'position'=>65, 'notnull'=>-1, 'help'=>"Cli shell executed after deployment.<br><br>For example, you can use the following shell sequence to enable a module:<br>rm -fr __INSTANCEDIR__/documents/install.lock;<br>cd __INSTANCEDIR__/htdocs/install/;<br>php __INSTANCEDIR__/htdocs/install/upgrade2.php 0.0.0 0.0.0 MAIN_MODULE_MYMODULE;<br>touch __INSTANCEDIR__/documents/install.lock;<br>chown -R __OSUSERNAME__.__OSUSERNAME__ __INSTANCEDIR__/documents;"),
+		'cliafter' => array('type'=>'text', 'label'=>'Shell after deployment', 'visible'=>3, 'enabled'=>1, 'position'=>65, 'notnull'=>-1, 'help'=>"Cli shell executed after deployment.<br><br>For example, you can use the following shell sequence to enable a module:<br>rm -fr __INSTANCEDIR__/documents/install.lock;<br>cd __INSTANCEDIR__/htdocs/install/;<br>php __INSTANCEDIR__/htdocs/install/upgrade2.php 0.0.0 0.0.0 MAIN_MODULE_MYMODULE;<br>touch __INSTANCEDIR__/documents/install.lock;<br>chown -R __OSUSERNAME__:__OSUSERNAME__ __INSTANCEDIR__/documents;"),
 		'cliafterpaid' => array('type'=>'text', 'label'=>'Shell after switch to paying mode', 'visible'=>3, 'enabled'=>1, 'position'=>66, 'notnull'=>-1, 'help'=>"Cli shell executed after entering a payment (or after a deployment if customer is already a paying customer)."),
 		'sqlafter' => array('type'=>'text', 'label'=>'Sql after deployment', 'visible'=>3, 'enabled'=>1, 'position'=>70, 'notnull'=>-1, 'help'=>'Sql executed after deployment.<br><br>Can use substitution vars like<br>__APPORGNAME__<br>__APPEMAIL__<br>__APPDOMAIN__<br>__APPCOUNTRYIDCODELABEL__<br>__SMTP_SPF_STRING__<br>__OSUSERNAME__<br>__APPPASSWORD0__<br>__APPPASSWORD0SALTED__<br>__APPPASSWORDSHA256__<br>__APPPASSWORDSHA256SALTED__<br>...'),
 		'sqlpasswordreset' => array('type'=>'text', 'label'=>'Sql to reset password of a deployed instance user', 'visible'=>3, 'enabled'=>1, 'position'=>71, 'notnull'=>-1, 'help'=>'Sql executed after clicking on cogs on backoffice/instance_users.php after a deployment <br><br> Can use substitution vars like<br>__REMOTEUSERID__<br>__NEWUSERPASSWORD__<br>__NEWUSERPASSWORDCRYPTED__'),
@@ -166,7 +166,7 @@ class Packages extends CommonObject
 
 		$this->db = $db;
 
-		if (empty($conf->global->MAIN_SHOW_TECHNICAL_ID)) {
+		if (!getDolGlobalString('MAIN_SHOW_TECHNICAL_ID')) {
 			$this->fields['rowid']['visible']=0;
 		}
 	}
@@ -345,7 +345,7 @@ class Packages extends CommonObject
 
 		$linkclose = '';
 		if (empty($notooltip)) {
-			if (!empty($conf->global->MAIN_OPTIMIZEFORTEXTBROWSER)) {
+			if (getDolGlobalString('MAIN_OPTIMIZEFORTEXTBROWSER')) {
 				$label = $langs->trans("ShowPackages");
 				$linkclose .= ' alt="'.dol_escape_htmltag($label, 1).'"';
 			}

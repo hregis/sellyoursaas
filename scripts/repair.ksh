@@ -8,7 +8,9 @@
 
 if [ "x$1" == "x" ]
 then
-        echo "Usage: repair.ksh param"
+        echo "Usage:  repair.ksh param"
+        echo "Exmple: repair.ksh -3"
+        echo "Exmple: repair.ksh 12"
         exit 1
 fi
 
@@ -27,8 +29,9 @@ export databaseuser=`grep '^databaseuser=' /etc/sellyoursaas.conf | cut -d '=' -
 uptime > /var/log/repair02_uptime$$.log
 cat /proc/meminfo > /var/log/repair02_meminfo$$.log
 /usr/bin/mysqladmin -h localhost --verbose processlist > /var/log/repair02_mysqlprocesslist$$.log 2>&1
-ps fauxww > /var/log/repair02_ps$$.log
+iostat -p -x > /var/log/repair02_iostat$$.log
 iotop -P -b -n 2 > /var/log/repair02_iotop$$.log
+ps fauxww > /var/log/repair02_ps$$.log
 
 /usr/sbin/apachectl fullstatus > /var/log/repair03_status$$.log 2>&1
 
@@ -80,10 +83,15 @@ cat /proc/meminfo > /var/log/repair09_meminfo$$.log
 touch /var/log/repair.lock
 
 # Return 0 to avoid reboot
+# $1 is 253 or -3 if load too high => default action on linux is reboot 
+# $1 is 252 or -4 if too hot => default action on linux is power off
+# $1 is 12 if memory too low => default action on linux is reboot
+# $1 is 24 if too many open files => default action on linux is reboot
 if [ "x$1" == "x12" ]
 then
-        exit 0
+	# no reboot is done
+    exit 0
 else
-        exit $1
-        #exit 0
+    #exit $1
+    exit 0
 fi

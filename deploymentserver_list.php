@@ -408,7 +408,7 @@ $num = $db->num_rows($resql);
 
 
 // Direct jump if only one record found
-if ($num == 1 && !empty($conf->global->MAIN_SEARCH_DIRECT_OPEN_IF_ONLY_ONE) && $search_all && !$page) {
+if ($num == 1 && getDolGlobalInt('MAIN_SEARCH_DIRECT_OPEN_IF_ONLY_ONE') && $search_all && !$page) {
 	$obj = $db->fetch_object($resql);
 	$id = $obj->rowid;
 	header("Location: ".dol_buildpath('/sellyoursaas/deploymentserver_card.php', 1).'?id='.$id);
@@ -543,7 +543,8 @@ if (!empty($moreforfilter)) {
 }
 
 $varpage = empty($contextpage) ? $_SERVER["PHP_SELF"] : $contextpage;
-$selectedfields = ($mode != 'kanban' ? $form->multiSelectArrayWithCheckbox('selectedfields', $arrayfields, $varpage, getDolGlobalString('MAIN_CHECKBOX_LEFT_COLUMN')) : ''); // This also change content of $arrayfields
+$htmlofselectarray = $form->multiSelectArrayWithCheckbox('selectedfields', $arrayfields, $varpage, getDolGlobalString('MAIN_CHECKBOX_LEFT_COLUMN'));  // This also change content of $arrayfields with user setup
+$selectedfields = ($mode != 'kanban' ? $htmlofselectarray : '');
 $selectedfields .= (count($arrayofmassactions) ? $form->showCheckAddButtons('checkforselect', 1) : '');
 
 print '<div class="div-table-responsive">'; // You can use div-table-responsive-no-min if you dont need reserved height for your table
@@ -588,7 +589,7 @@ foreach ($object->fields as $key => $val) {
 		} elseif ($key == 'lang') {
 			require_once DOL_DOCUMENT_ROOT.'/core/class/html.formadmin.class.php';
 			$formadmin = new FormAdmin($db);
-			print $formadmin->select_language($search[$key], 'search_lang', 0, null, 1, 0, 0, 'minwidth150 maxwidth200', 2);
+			print $formadmin->select_language($search[$key], 'search_lang', 0, null, 1, 0, 0, 'minwidth100imp maxwidth125', 2);
 		} else {
 			print '<input type="text" class="flat maxwidth75" name="search_'.$key.'" value="'.dol_escape_htmltag(isset($search[$key]) ? $search[$key] : '').'">';
 		}
@@ -873,7 +874,7 @@ while ($i < $imaxinloop) {
 			$html .= '<br>';
 			$html .= $langs->trans("CommandToPutInstancesOnOffline").' <span class="opacitymedium">(to run from a deployment server)</span>:<br>';
 			$html .= '<div class="urllink"><input type="text" class="quatrevingtpercent" value="';
-			$html .= 'sudo '.getDolGlobalString('DOLICLOUD_SCRIPTS_PATH').'/make_instances_offline.sh '.getDolGlobalString('DOLICLOUD_SCRIPTS_PATH').'/offline.php test|offline|online';
+			$html .= 'sudo '.getDolGlobalString('DOLICLOUD_SCRIPTS_PATH').'/make_instances_offline.sh offline.php test|offline|online';
 			$html .= '">';
 			$html .= '</div>';
 
@@ -936,7 +937,7 @@ while ($i < $imaxinloop) {
 			$titletoshow .= '<br>Latest backup OK: '.dol_print_date($tmpdata['maxokok'], 'dayhoursec', 'tzuserrel');
 			print '<td class="right classfortooltip" title="'.dol_escape_htmltag($titletoshow).'">';
 			if (!empty($backuptotalinstances[$obj->ipaddress])) {
-				print '<a href="'.DOL_URL_ROOT.'/contrat/list.php?search_options_deployment_status[]=done&search_options_deployment_status[]=processing&search_options_latestbackup_status='.urlencode('KO|OK').'&search_options_deployment_host='.urlencode($obj->ipaddress).'">';
+				print '<a href="'.DOL_URL_ROOT.'/contrat/list.php?search_options_deployment_status[]=done&search_options_deployment_status[]=processing&search_options_latestbackup_status='.urlencode('KO|OK').'&search_options_deployment_host='.urlencode($obj->ipaddress).'&search_options_suspendmaintenance_message=%21http%25">';
 				if ($backupokinstances[$obj->ipaddress] != $backuptotalinstances[$obj->ipaddress]) {
 					print img_warning($langs->trans("Errors"), '', 'paddingrightonly');
 					print '<span class="error">';
@@ -966,7 +967,7 @@ while ($i < $imaxinloop) {
 			$titletoshow .= '<br>Latest remote backup OK: '.dol_print_date($tmpdata['maxokok'], 'dayhoursec', 'tzuserrel');
 			print '<td class="right classfortooltip" title="'.dol_escape_htmltag($titletoshow).'">';
 			if (!empty($backuptotalinstancesremote[$obj->ipaddress])) {
-				print '<a href="'.DOL_URL_ROOT.'/contrat/list.php?search_options_deployment_status[]=done&search_options_deployment_status[]=processing&search_options_latestbackup_status='.urlencode('KO|OK').'&search_options_deployment_host='.urlencode($obj->ipaddress).'">';
+				print '<a href="'.DOL_URL_ROOT.'/contrat/list.php?search_options_deployment_status[]=done&search_options_deployment_status[]=processing&search_options_latestbackupremote_status='.urlencode('KO|OK').'&search_options_deployment_host='.urlencode($obj->ipaddress).'&search_options_suspendmaintenance_message=%21http%25">';
 				if ($backupokinstancesremote[$obj->ipaddress] != $backuptotalinstancesremote[$obj->ipaddress]) {
 					print img_warning($langs->trans("Errors"), '', 'paddingrightonly');
 					print '<span class="error">';

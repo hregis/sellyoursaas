@@ -715,7 +715,13 @@ if [[ "$mode" == "deploy" || "$mode" == "deployall" || "$mode" == "deployoption"
 			mkdir -p $targetdirwithsources1
 			
 			# Check local cache
-			datesource=`date -r $dirwithsources1 +"%Y%m%d"`
+			
+			if [ -f "$dirwithsources1.tar.zst" ]; then
+				datesource=`date -r $dirwithsources1.tar.zst +"%Y%m%d"`
+			else
+				datesource=0
+			fi
+			
 			if [ -f "/tmp/cache$dirwithsources1.tar.zst" ]; then
 				datecache=`date -r /tmp/cache$dirwithsources1.tar.zst +"%Y%m%d"`
 			else
@@ -733,6 +739,7 @@ if [[ "$mode" == "deploy" || "$mode" == "deployall" || "$mode" == "deployoption"
 				#echo "cp -r $dirwithsources1/. /tmp/cache$dirwithsources1"
 
 				if [[ -f $dirwithsources1.tar.zst ]]; then
+					# Archive file available into the NFS remote directory /home/admin/wwwroot/dolibarr_documents/sellyoursaas/git, so we copy it locally into /tmp/... 
 					echo "cp $dirwithsources1.tar.zst  /tmp/cache$dirwithsources1.tar.zst"
 					cp $dirwithsources1.tar.zst  /tmp/cache$dirwithsources1.tar.zst
 				else
@@ -770,7 +777,13 @@ if [[ "$mode" == "deploy" || "$mode" == "deployall" || "$mode" == "deployoption"
 			mkdir -p $targetdirwithsources2
 			
 			# Check local cache
-			datesource=`date -r $dirwithsources2 +"%Y%m%d"`
+
+			if [ -f "$dirwithsources2.tar.zst" ]; then
+				datesource=`date -r $dirwithsources2.tar.zst +"%Y%m%d"`
+			else
+				datesource=0
+			fi
+			
 			if [ -f "/tmp/cache$dirwithsources2.tar.zst" ]; then
 				datecache=`date -r /tmp/cache$dirwithsources2.tar.zst +"%Y%m%d"`
 			else
@@ -788,6 +801,7 @@ if [[ "$mode" == "deploy" || "$mode" == "deployall" || "$mode" == "deployoption"
 				#echo "cp -r $dirwithsources2/. /tmp/cache$dirwithsources2"
 
 				if [[ -f $dirwithsources2.tar.zst ]]; then
+					# Archive file available into the NFS remote directory /home/admin/wwwroot/dolibarr_documents/sellyoursaas/git, so we copy it locally into /tmp/... 
 					echo "cp $dirwithsources2.tar.zst  /tmp/cache$dirwithsources2.tar.zst"
 					cp $dirwithsources2.tar.zst  /tmp/cache$dirwithsources2.tar.zst
 				else
@@ -825,7 +839,13 @@ if [[ "$mode" == "deploy" || "$mode" == "deployall" || "$mode" == "deployoption"
 			mkdir -p $targetdirwithsources3
 			
 			# Check local cache
-			datesource=`date -r $dirwithsources3 +"%Y%m%d"`
+			
+			if [ -f "$dirwithsources3.tar.zst" ]; then
+				datesource=`date -r $dirwithsources3.tar.zst +"%Y%m%d"`
+			else
+				datesource=0
+			fi
+			
 			if [ -f "/tmp/cache$dirwithsources3.tar.zst" ]; then
 				datecache=`date -r /tmp/cache$dirwithsources3.tar.zst +"%Y%m%d"`
 			else
@@ -843,6 +863,7 @@ if [[ "$mode" == "deploy" || "$mode" == "deployall" || "$mode" == "deployoption"
 				#echo "cp -r $dirwithsources3/. /tmp/cache$dirwithsources3"
 
 				if [[ -f $dirwithsources3.tar.zst ]]; then
+					# Archive file available into the NFS remote directory /home/admin/wwwroot/dolibarr_documents/sellyoursaas/git, so we copy it locally into /tmp/... 
 					echo "cp $dirwithsources3.tar.zst  /tmp/cache$dirwithsources3.tar.zst"
 					cp $dirwithsources3.tar.zst  /tmp/cache$dirwithsources3.tar.zst
 				else
@@ -876,9 +897,9 @@ if [[ "$mode" == "deploy" || "$mode" == "deployall" || "$mode" == "deployoption"
 	fi
 
 	echo `date +'%Y-%m-%d %H:%M:%S'`" Force permissions and owner on $targetdir/$osusername/$dbname"
-	echo `date +'%Y-%m-%d %H:%M:%S'`" chown -R $osusername.$osusername $targetdir/$osusername/$dbname"
-	chown $osusername.$osusername $targetdir/$osusername
-	chown -R $osusername.$osusername $targetdir/$osusername/$dbname
+	echo `date +'%Y-%m-%d %H:%M:%S'`" chown -R $osusername:$osusername $targetdir/$osusername/$dbname"
+	chown $osusername:$osusername $targetdir/$osusername
+	chown -R $osusername:$osusername $targetdir/$osusername/$dbname
 	echo `date +'%Y-%m-%d %H:%M:%S'`" chmod -R go-rwxs $targetdir/$osusername/$dbname"
 	chmod -R go-rwxs $targetdir/$osusername/$dbname
 fi
@@ -1020,7 +1041,7 @@ if [[ "$mode" == "deploy" || "$mode" == "deployall" ]]; then
 				cp $fileforconfig1 $targetfileforconfig1
 			fi
 		fi
-		chown -R $osusername.$osusername $targetfileforconfig1
+		chown -R $osusername:$osusername $targetfileforconfig1
 		chmod -R go-rwx $targetfileforconfig1
 		chmod -R g-s $targetfileforconfig1
 		chmod -R a-wx $targetfileforconfig1
@@ -1143,8 +1164,8 @@ if [[ "$mode" == "deploy" || "$mode" == "deployall" ]]; then
 				fi
 			fi
 			
-			echo `date +'%Y-%m-%d %H:%M:%S'`" chown -R admin.www-data $pathforcertiflocal/"
-			chown -R admin.www-data $pathforcertiflocal/
+			echo `date +'%Y-%m-%d %H:%M:%S'`" chown -R admin:www-data $pathforcertiflocal/"
+			chown -R admin:www-data $pathforcertiflocal/
 
 			# Create also the link in /etc/apache2 for the case we use old virtual host using this file
 			if [ -e $pathforcertiflocal/$webCustomSSLCertificateCRT -a ! -e /etc/apache2/$webCustomSSLCertificateCRT ]; then
@@ -1384,7 +1405,7 @@ if [[ "$mode" == "deploy" || "$mode" == "deployall" ]]; then
 			cp $cronfile /var/spool/cron/crontabs/$osusername
 		fi
 	
-		chown $osusername.$osusername /var/spool/cron/crontabs/$osusername
+		chown $osusername:$osusername /var/spool/cron/crontabs/$osusername
 		chmod 600 /var/spool/cron/crontabs/$osusername
 	else
 		echo There is no cron file to install
@@ -1440,9 +1461,12 @@ if [[ "$mode" == "deploy" || "$mode" == "deployall" ]]; then
 	Q2="GRANT CREATE,CREATE TEMPORARY TABLES,CREATE VIEW,DROP,DELETE,INSERT,SELECT,UPDATE,ALTER,INDEX,LOCK TABLES,REFERENCES,SHOW VIEW ON $dbname.* TO '$dbusername'@'%'; "
 	Q2a=""
 	Q2b=""
-	Q3="UPDATE mysql.user SET Password=PASSWORD('$dbpassword') WHERE User='$dbusername'; "
-	Q3a=""
-	Q3b=""
+	
+	# Replaced with SET PASSWORD done later. Obsolete since MariaDB 10.4
+	#Q3="UPDATE mysql.user SET Password=PASSWORD('$dbpassword') WHERE User='$dbusername'; "
+	#Q3a=""
+	#Q3b=""
+	
 	# If we use mysql and not mariadb, we set password differently
 	dpkg -l | grep mariadb > /dev/null
 	if [[ $? == "1" || $dbforcesetpassword == "1" ]]; then
@@ -1451,10 +1475,15 @@ if [[ "$mode" == "deploy" || "$mode" == "deployall" ]]; then
 		Q2b="GRANT FLUSH_TABLES ON *.* TO '$dbusername'@'%'; "
 
 		# For all mysql
-		Q3="SET PASSWORD FOR '$dbusername' = PASSWORD('$dbpassword'); "
-		Q3a="SET PASSWORD FOR '$dbusername'@'localhost' = PASSWORD('$dbpassword'); "
-		Q3b="SET PASSWORD FOR '$dbusername'@'%' = PASSWORD('$dbpassword'); "
+		#Q3="SET PASSWORD FOR '$dbusername' = PASSWORD('$dbpassword'); "
+		#Q3a="SET PASSWORD FOR '$dbusername'@'localhost' = PASSWORD('$dbpassword'); "
+		#Q3b="SET PASSWORD FOR '$dbusername'@'%' = PASSWORD('$dbpassword'); "
 	fi
+	
+	# For all mysql and mariadb
+	Q3="SET PASSWORD FOR '$dbusername' = PASSWORD('$dbpassword'); "
+	Q3a="SET PASSWORD FOR '$dbusername'@'localhost' = PASSWORD('$dbpassword'); "
+	Q3b="SET PASSWORD FOR '$dbusername'@'%' = PASSWORD('$dbpassword'); "
 	
 	Q4="FLUSH PRIVILEGES; "
 	SQL="${Q1}${Q2}${Q2a}${Q2b}${Q3}${Q3a}${Q3b}${Q4}"

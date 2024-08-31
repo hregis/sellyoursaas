@@ -171,6 +171,8 @@ class modSellYourSaas extends DolibarrModules
 
 			1 =>array('priority'=>62, 'label'=>'SellYourSaasAlertSoftEndTrial',                 'jobtype'=>'method', 'class'=>'/sellyoursaas/class/sellyoursaasutils.class.php', 'objectname'=>'SellYourSaasUtils', 'method'=>'doAlertSoftEndTrial',                 'parameters'=>'',      'comment'=>'Search contracts of sellyoursaas customers that are deployed + with open lines + about to expired (= date between (end date - SELLYOURSAAS_NBDAYS_BEFORE_TRIAL_END_FOR_SOFT_ALERT) and (end date - SELLYOURSAAS_NBDAYS_BEFORE_TRIAL_END_FOR_SOFT_ALERT + 7)) + not yet already warned (date_softalert_endfreeperiod is null), then send email remind', 'frequency'=>30, 'unitfrequency'=>60, 'status'=>$statusatinstall, 'test'=>'isModEnabled("sellyoursaas")', 'datestart'=>$datestart),
 
+			1 =>array('priority'=>64, 'label'=>'SellYourSaasAlertHardEndTrial',                 'jobtype'=>'method', 'class'=>'/sellyoursaas/class/sellyoursaasutils.class.php', 'objectname'=>'SellYourSaasUtils', 'method'=>'doAlertHardEndTrial',                 'parameters'=>'',      'comment'=>'Search contracts of sellyoursaas customers that are deployed + with open lines + about to expired (= date between (end date - SELLYOURSAAS_NBDAYS_BEFORE_TRIAL_END_FOR_HARD_ALERT) and (end date - SELLYOURSAAS_NBDAYS_BEFORE_TRIAL_END_FOR_HARD_ALERT + 7)) + not yet already warned (date_hardalert_endfreeperiod is null), then send email remind', 'frequency'=>30, 'unitfrequency'=>60, 'status'=>$statusatinstall, 'test'=>'isModEnabled("sellyoursaas")', 'datestart'=>$datestart),
+
 			2 =>array('priority'=>65, 'label'=>'SellYourSaasAlertCreditCardExpiration',         'jobtype'=>'method', 'class'=>'/sellyoursaas/class/sellyoursaasutils.class.php', 'objectname'=>'SellYourSaasUtils', 'method'=>'doAlertCreditCardExpiration',         'parameters'=>'1, 20', 'comment'=>'Send warning to sellyoursaas customers with an active recurring invoice when default payment mode is credit card and it will expire at end of month', 'frequency'=>1, 'unitfrequency'=>86400, 'status'=>$statusatinstall, 'test'=>'isModEnabled("sellyoursaas")', 'datestart'=>$datestart),
 			//3 =>array('priority'=>66, 'label'=>'SellYourSaasAlertPaypalExpiration',             'jobtype'=>'method', 'class'=>'/sellyoursaas/class/sellyoursaasutils.class.php', 'objectname'=>'SellYourSaasUtils', 'method'=>'doAlertPaypalExpiration',             'parameters'=>'1, 20', 'comment'=>'Send warning when paypal preapproval will expire to sellyoursaas customers', 'frequency'=>1, 'unitfrequency'=>86400, 'status'=>$statusatinstall, 'test'=>'isModEnabled("sellyoursaas")'),
 
@@ -758,7 +760,7 @@ class modSellYourSaas extends DolibarrModules
 		$param=array('options'=>array('0'=>'No','1'=>'Yes','2'=>'DuringTestPeriodOnly','3'=>'AfterTestPeriodOnly','4'=>'OnDemand'));
 		$resultx=$extrafields->addExtraField('directaccess', "AccessToResources", 'select', 114, '', 'product', 0, 0, '', $param, 1, '', -1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
 		$param=array('options'=>array('0'=>'SystemDefault','1'=>'CommonUserJail','2'=>'PrivateUserJail'));
-		$resultx=$extrafields->addExtraField('sshaccesstype', "SshAccessType", 'select', 114, '', 'product', 0, 0, '', $param, 1, '', 'isModEnabled("SELLYOURSAAS_SSH_JAILKIT_ENABLED")', 'HelpOnSshAccessType', '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
+		$resultx=$extrafields->addExtraField('sshaccesstype', "SshAccessType", 'select', 114, '', 'product', 0, 0, '', $param, 1, '', 'getDolGlobalInt("SELLYOURSAAS_SSH_JAILKIT_ENABLED")', 'HelpOnSshAccessType', '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
 		$param=array('options'=>array('basic'=>'Basic','premium'=>'Premium','none'=>'None'));
 		$resultx=$extrafields->addExtraField('typesupport', "TypeOfSupport", 'select', 115, '', 'product', 0, 0, '', $param, 1, '', 1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
 		$resultx=$extrafields->addExtraField('register_text', "RegisterText", 'varchar', 120, '255', 'product', 0, 0, '', '', 1, '', -1, 'EnterHereTranslationKeyToUseOnRegisterPage', '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")', 0, 0, array('csslist'=>'tdoverflowmax150'));
@@ -785,7 +787,7 @@ class modSellYourSaas extends DolibarrModules
 		$resultx=$extrafields->addExtraField('source_utm', "SourceUtm", 'varchar', 104, '64', 'thirdparty', 0, 0, '', '', 1, '', 1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")', 0, 0, array('csslist'=>'tdoverflowmax150'));
 		$resultx=$extrafields->addExtraField('firstname', "FirstName", 'varchar', 105, '64', 'thirdparty', 0, 0, '', '', 1, '', 1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
 		$resultx=$extrafields->addExtraField('lastname', "LastName", 'varchar', 106, '64', 'thirdparty', 0, 0, '', '', 1, '', 1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
-		$param=array('options'=>array('dolcrypt'=>null));
+		$param=array('options'=>array('auto'=>null));	// Must use a non reversible password.
 		$resultx=$extrafields->addExtraField('password', "DashboardPassword", 'password', 150, '128', 'thirdparty', 0, 0, '', $param, 1, '', 1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
 		$resultx=$extrafields->addExtraField('oldpassword', "OldDashboardPassword", 'password', 151, '128', 'thirdparty', 0, 0, '', $param, 0, '', -2, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
 		$resultx=$extrafields->addExtraField('pass_temp', "HashForPasswordReset", 'varchar', 152, '128', 'thirdparty', 0, 0, '', '', 1, '', 0, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
@@ -810,7 +812,7 @@ class modSellYourSaas extends DolibarrModules
 		$param=array('options'=>array(1=>1));
 		$resultx=$extrafields->addExtraField('separatorcontract', "SELLYOURSAAS_NAME", 'separate', 100, '', 'contrat', 0, 0, '', $param, 1, '', 1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
 		$resultx=$extrafields->addExtraField('plan', "Plan", 'varchar', 102, '64', 'contrat', 0, 0, '', '', 1, '', 1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")', 0, 0, array('csslist'=>'tdoverflowmax150'));
-		$param=array('options'=>array('dolcrypt'=>null));
+		$param=array('options'=>array('dolcrypt'=>null));	// Must be reversible to be reused if install failed.
 		$resultx=$extrafields->addExtraField('deployment_init_adminpass', "DeploymentInitPassword", 'password', 103, '64', 'contrat', 0, 0, '', $param, 1, '', -2, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
 		$param=array('options'=>array('processing'=>'Processing','done'=>'Done','undeployed'=>'Undeployed'));
 		$resultx=$extrafields->addExtraField('deployment_status', "DeploymentStatus", 'select', 104, '', 'contrat', 0, 0, '', $param, 1, '', 1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")', 0, 0, array('csslist'=>'tdoverflowmax100'));
@@ -825,32 +827,39 @@ class modSellYourSaas extends DolibarrModules
 		$resultx=$extrafields->addExtraField('deployment_emailquality', "DeploymentEmailQuality", 'varchar', 110, '255', 'contrat', 0, 0, '', '', 1, '', -1, 'DeploymentEmailQualityDesc:ipquality', '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
 		$resultx=$extrafields->addExtraField('deployment_ua', "DeploymentUserAgent", 'varchar', 111, '255', 'contrat', 0, 0, '', '', 1, '', -1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
 		$resultx=$extrafields->addExtraField('date_softalert_endfreeperiod', "DateSoftAlertEndTrial", 'datetime', 112, '', 'contrat', 0, 0, '', '', 1, '', 1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
-		$resultx=$extrafields->addExtraField('date_endfreeperiod', "DateEndTrial", 'datetime', 113, '', 'contrat', 0, 0, '', '', 1, '', 1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
-		$resultx=$extrafields->addExtraField('undeployment_date', "UndeploymentDate", 'datetime', 114, '', 'contrat', 0, 0, '', '', 1, '', 1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
-		$resultx=$extrafields->addExtraField('undeployment_ip', "UndeploymentIP", 'varchar', 115, '128', 'contrat', 0, 0, '', '', 1, '', -1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
-		$resultx=$extrafields->addExtraField('custom_url', "CustomURL", 'varchar', 117, '128', 'contrat', 0, 0, '', '', 1, '', -1, 'CustomUrlDesc:tooltipcustomurl', '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
-		$resultx=$extrafields->addExtraField('custom_virtualhostline', "CustomVirtualHostLine", 'varchar', 118, '255', 'contrat', 0, 0, '', '', 1, '', -1, 'EnterAVirtualHostLine:virthostline', '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
-		$resultx=$extrafields->addExtraField('custom_virtualhostdir', "CustomVirtualHostDir", 'varchar', 119, '255', 'contrat', 0, 0, '', '', 1, '', -1, 'EnterAVirtualHostDirLine:virthostdirline', '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
-		$resultx=$extrafields->addExtraField('hostname_os', "Hostname OS", 'varchar', 120, '128', 'contrat', 0, 0, '', '', 1, '', -1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
-		$resultx=$extrafields->addExtraField('username_os', "Username OS", 'varchar', 121, '32', 'contrat', 1, 0, '', '', 1, '', -1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
+		$resultx=$extrafields->addExtraField('date_hardalert_endfreeperiod', "DateHardAlertEndTrial", 'datetime', 113, '', 'contrat', 0, 0, '', '', 1, '', 1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
+		$resultx=$extrafields->addExtraField('date_endfreeperiod', "DateEndTrial", 'datetime', 114, '', 'contrat', 0, 0, '', '', 1, '', 1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
+		$resultx=$extrafields->addExtraField('undeployment_date', "UndeploymentDate", 'datetime', 118, '', 'contrat', 0, 0, '', '', 1, '', 1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
+		$resultx=$extrafields->addExtraField('undeployment_ip', "UndeploymentIP", 'varchar', 119, '128', 'contrat', 0, 0, '', '', 1, '', -1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
+		$resultx=$extrafields->addExtraField('custom_url', "CustomURL", 'varchar', 122, '128', 'contrat', 0, 0, '', '', 1, '', -1, 'CustomUrlDesc:tooltipcustomurl', '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
+		$resultx=$extrafields->addExtraField('custom_virtualhostline', "CustomVirtualHostLine", 'varchar', 123, '255', 'contrat', 0, 0, '', '', 1, '', -1, 'EnterAVirtualHostLine:virthostline', '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
+		$resultx=$extrafields->addExtraField('custom_virtualhostdir', "CustomVirtualHostDir", 'varchar', 124, '255', 'contrat', 0, 0, '', '', 1, '', -1, 'EnterAVirtualHostDirLine:virthostdirline', '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
+
+		$resultx=$extrafields->addExtraField('hostname_os', "Hostname OS", 'varchar', 125, '128', 'contrat', 0, 0, '', '', 1, '', -1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
+		$resultx=$extrafields->addExtraField('username_os', "Username OS", 'varchar', 126, '32', 'contrat', 1, 0, '', '', 1, '', -1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
 		$param=array('options'=>array('dolcrypt'=>null));
-		$resultx=$extrafields->addExtraField('password_os', "Password OS", 'password', 122, '32', 'contrat', 0, 0, '', $param, 1, '', -1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
+		$resultx=$extrafields->addExtraField('password_os', "Password OS", 'password', 127, '32', 'contrat', 0, 0, '', $param, 1, '', -1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
 		$param=array('options'=>array('0'=>'SystemDefault','1'=>'CommonUserJail','2'=>'PrivateUserJail'));
-		$resultx=$extrafields->addExtraField('sshaccesstype', "SshAccessType", 'select', 123, '', 'contrat', 0, 0, '', $param, 1, '', '($conf->global->SELLYOURSAAS_SSH_JAILKIT_ENABLED?1:0)', 'HelpOnSshAccessType', '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
-		$resultx=$extrafields->addExtraField('hostname_db', "Hostname DB", 'varchar', 124, '128', 'contrat', 0, 0, '', '', 1, '', -1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
-		$resultx=$extrafields->addExtraField('database_db', "Database DB", 'varchar', 125, '32', 'contrat', 1, 0, '', '', 1, '', -1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
-		$resultx=$extrafields->addExtraField('port_db', "Port DB", 'varchar', 126, '8', 'contrat', 0, 0, '', '', 1, '', -1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
-		$resultx=$extrafields->addExtraField('username_db', "Username DB", 'varchar', 127, '32', 'contrat', 1, 0, '', '', 1, '', -1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
+
+		$resultx=$extrafields->addExtraField('sshaccesstype', "SshAccessType", 'select', 128, '', 'contrat', 0, 0, '', $param, 1, '', 'getDolGlobalInt("SELLYOURSAAS_SSH_JAILKIT_ENABLED")', 'HelpOnSshAccessType', '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
+		$param=array('options'=>array('0'=>'DefaultFromAppService','1'=>'Yes'));
+		$resultx=$extrafields->addExtraField('directaccess', "AccessToResources", 'select', 129, '', 'contrat', 0, 0, '', $param, 1, '', -1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
+
+		$resultx=$extrafields->addExtraField('hostname_db', "Hostname DB", 'varchar', 130, '128', 'contrat', 0, 0, '', '', 1, '', -1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
+		$resultx=$extrafields->addExtraField('database_db', "Database DB", 'varchar', 131, '32', 'contrat', 1, 0, '', '', 1, '', -1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
+		$resultx=$extrafields->addExtraField('port_db', "Port DB", 'varchar', 132, '8', 'contrat', 0, 0, '', '', 1, '', -1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
+		$resultx=$extrafields->addExtraField('username_db', "Username DB", 'varchar', 133, '32', 'contrat', 1, 0, '', '', 1, '', -1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
 		$param=array('options'=>array('dolcrypt'=>null));
-		$resultx=$extrafields->addExtraField('password_db', "Password DB", 'password', 128, '64', 'contrat', 0, 0, '', $param, 1, '', -1, 'ToUpdateDBPassword', '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
-		$resultx=$extrafields->addExtraField('username_ro_db', "Read-only Username DB", 'varchar', 129, '32', 'contrat', 1, 0, '', '', 1, '', -1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
+		$resultx=$extrafields->addExtraField('password_db', "Password DB", 'password', 134, '64', 'contrat', 0, 0, '', $param, 1, '', -1, 'ToUpdateDBPassword:password_db', '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
+		$resultx=$extrafields->addExtraField('username_ro_db', "Read-only Username DB", 'varchar', 135, '32', 'contrat', 1, 0, '', '', 1, '', -1, 'ToCreateDBUserManualy:username_ro_db', '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
 		$param=array('options'=>array('dolcrypt'=>null));
-		$resultx=$extrafields->addExtraField('password_ro_db', "Read-only Password DB", 'password', 130, '64', 'contrat', 0, 0, '', $param, 1, '', -1, 'ToCreateDBUserManualy', '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
+		$resultx=$extrafields->addExtraField('password_ro_db', "Read-only Password DB", 'password', 136, '64', 'contrat', 0, 0, '', $param, 1, '', -1, 'ToUpdateDBPassword:password_ro_db', '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
 		$resultx=$extrafields->addExtraField('prefix_db', "Special table prefix DB", 'varchar', 140, '64', 'contrat', 0, 0, '', '', 1, '', -1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
 		$resultx=$extrafields->addExtraField('timezone', "TimeZone", 'varchar', 141, '64', 'contrat', 0, 0, '', '', 1, '', -1, 'SellYourSaasTimeZoneDesc', '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")', 0, 0, array('csslist'=>'tdoverflowmax150'));
 		$resultx=$extrafields->addExtraField('fileauthorizekey', "DateFileauthorizekey", 'datetime', 150, '', 'contrat', 0, 0, '', '', 1, '', -1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
 		$resultx=$extrafields->addExtraField('filelock', "DateFilelock", 'datetime', 151, '', 'contrat', 0, 0, '', '', 1, '', -1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
 		$resultx=$extrafields->addExtraField('fileinstallmoduleslock', "DateFileInstallmoduleslock", 'datetime', 152, '', 'contrat', 0, 0, '', '', 1, '', -1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
+		$resultx=$extrafields->addExtraField('fileupgradeunlock', "DateFileUpgradeUnlock", 'datetime', 153, '', 'contrat', 0, 0, '', '', 1, '', -1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
 		$resultx=$extrafields->addExtraField('latestresupdate_date', "LatestResUpdateDate", 'datetime', 155, '', 'contrat', 0, 0, '', '', 1, '', -1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
 		$resultx=$extrafields->addExtraField('instanceversion', "InstanceVersion", 'varchar', 156, '128', 'contrat', 0, 0, '', '', 1, '', -1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
 		//$resultx=$extrafields->addExtraField('instancemodules', "InstanceModules", 'text', 157, '', 'contrat', 0, 0, '', '', 1, '', -1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');

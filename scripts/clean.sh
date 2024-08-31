@@ -629,6 +629,7 @@ find $archivedircron -maxdepth 1 -type f -path '*cron*' -mtime +15 -delete
 # Now clean miscellaneous files
 echo "***** Now clean miscellaneous files"
 rm /var/log/repair.lock > /dev/null 2>&1
+rm -fr /tmp/cache > /dev/null 2>&1
 
 # Now clean old journalctl files
 echo "***** Now clean journal files older than 60 days"
@@ -731,7 +732,7 @@ do
 		else
 			echo "# ----- $fic - $noyoungfile" >> /tmp/deletedirs.sh
 			echo "# NOTE Dir $archivedirpaid/$osusername does not exists. It means instance was not archived !!! Do it with:" >> /tmp/deletedirs.sh
-			echo "mv $backupdir/$osusername $archivedirpaid/$osusername; chown -R root.root $archivedirpaid/$osusername" >> /tmp/deletedirs.sh
+			echo "mv $backupdir/$osusername $archivedirpaid/$osusername; chown -R root:root $archivedirpaid/$osusername" >> /tmp/deletedirs.sh
 		fi
 	else
         echo "# ----- $fic - $noyoungfile - backup dir $dirtoscan exists with a very old last_mysqldump* file but was still active recently in backup. We must keep it." >> /tmp/deletedirs.sh

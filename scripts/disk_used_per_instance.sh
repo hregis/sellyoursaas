@@ -9,6 +9,11 @@
 
 source /etc/lsb-release
 
+export RED='\033[0;31m'
+export GREEN='\033[0;32m'
+export BLUE='\033[0;34m'
+export YELLOW='\033[0;33m'
+
 export now=`date +'%Y-%m-%d %H:%M:%S'`
 
 #echo
@@ -100,7 +105,7 @@ for fic in `ls -A`; do
 	if [ "x$1" == "xupdate" ]; then
 		echo Update duc for $homedir/$fic
 		duc index $homedir/$fic -x -m 3 -d "$homedir/$fic/.duc.db"
-		chown $fic.$fic "$homedir/$fic/.duc.db"
+		chown $fic:$fic "$homedir/$fic/.duc.db"
 	fi 
 	if [ "x$1" == "xdelete" ]; then
 		rm "$fic/.duc.db"

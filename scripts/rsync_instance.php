@@ -171,14 +171,14 @@ if (empty($dirroot) || empty($instance) || empty($mode)) {
 	exit(-1);
 }
 
-if (0 == posix_getuid() && empty($conf->global->SELLYOURSAAS_SCRIPT_BYPASS_ROOT_RESTRICTION)) {
+if (0 == posix_getuid() && !getDolGlobalString('SELLYOURSAAS_SCRIPT_BYPASS_ROOT_RESTRICTION')) {
 	echo "Script must not be ran with root (but with the 'admin' sellyoursaas account).\n";
 	exit(-1);
 }
 
 // Forge complete name of instance
 if (! empty($instance) && ! preg_match('/\./', $instance) && ! preg_match('/\.home\.lan$/', $instance)) {
-	if (empty(getDolGlobalString('SELLYOURSAAS_OBJECT_DEPLOYMENT_SERVER_MIGRATION'))) {
+	if (!getDolGlobalString('SELLYOURSAAS_OBJECT_DEPLOYMENT_SERVER_MIGRATION')) {
 		$tmparray = explode(',', getDolGlobalString('SELLYOURSAAS_SUB_DOMAIN_NAMES'));
 	} else {
 		dol_include_once('sellyoursaas/class/deploymentserver.class.php');
@@ -367,7 +367,7 @@ if ($mode != 'test') {
 	dol_syslog("Add event into database");
 
 	$user = new User($db);
-	$user->fetch($conf->global->SELLYOURSAAS_ANONYMOUSUSER);
+	$user->fetch(getDolGlobalString('SELLYOURSAAS_ANONYMOUSUSER'));
 
 	if ($user->id > 0) {
 		$actioncomm=new ActionComm($db);

@@ -33,6 +33,11 @@ if (!is_object($sellyoursaasutils)) {
 	$sellyoursaasutils = new SellYourSaasUtils($db);
 }
 
+$isfreemodeenabled = 0;
+if ($action == 'validatefreemode' && getDolGlobalInt("SELLYOURSAAS_ENABLE_FREE_PAYMENT_MODE") && $mythirdpartyaccount->array_options["options_checkboxnonprofitorga"] == "nonprofit") {
+	$isfreemodeenabled = 1;
+}
+
 // Create a recurring invoice (+real invoice + contract renewal) for all contracts of the customer, if there is no recurring invoice yet
 if (! $error) {
 	foreach ($listofcontractid as $contract) {
@@ -46,7 +51,7 @@ if (! $error) {
 			dol_syslog("--- Deployment status is not 'done', we discard this contract", LOG_DEBUG, 0);
 			continue;							// This is a not valid contract (undeployed or not yet completely deployed), so we discard this contract to avoid to create template not expected
 		}
-		if ($contract->total_ht == 0) {
+		if (!$isfreemodeenabled && $contract->total_ht == 0) {
 			dol_syslog("--- Amount is null, we discard this contract", LOG_DEBUG, 0);
 			continue;							// Amount is null, so we do not create recurring invoice for that. Note: This should not happen.
 		}
@@ -203,7 +208,7 @@ if (! $error) {
 				$discount = $lines[$i]->remise_percent;
 
 				// Extrafields
-				if (empty($conf->global->MAIN_EXTRAFIELDS_DISABLED) && method_exists($lines[$i], 'fetch_optionals')) {
+				if (!getDolGlobalString('MAIN_EXTRAFIELDS_DISABLED') && method_exists($lines[$i], 'fetch_optionals')) {
 					$lines[$i]->fetch_optionals($lines[$i]->rowid);
 					$array_options = $lines[$i]->array_options;
 				}
@@ -292,7 +297,11 @@ if (! $error) {
 
 			//$frequency=1;
 			//$frequency_unit='m';
-			$frequency = (! empty($frequency) ? $frequency : 1);	// read frequency of product app
+			if ($isfreemodeenabled) {
+				$frequency = 0;
+			} else {
+				$frequency = (! empty($frequency) ? $frequency : 1);	// read frequency of product app
+			}
 			$frequency_unit = (! empty($frequency_unit) ? $frequency_unit : 'm');	// read frequency_unit of product app
 			$tmp = dol_getdate($date_start ? $date_start : $now);
 			$reyear = $tmp['year'];
@@ -369,7 +378,7 @@ if (! $error) {
 			}
 
 			// A template invoice was just created, we run generation of invoice if template invoice date is already in past
-			if (! $error) {
+			if (! $error && !$isfreemodeenabled) {
 				dol_syslog("--- A template invoice was generated with id ".$invoicerecid.", now we run createRecurringInvoices to build real invoice", LOG_DEBUG, 0);
 				$facturerec = new FactureRec($db);
 
@@ -396,7 +405,7 @@ if (! $error) {
 			}
 
 			// Now try to take the payment if payment is OK and payment mode is not a differed payment mode
-			if (! $error && $paymentmode != 'ban') {
+			if (! $error && $paymentmode != 'ban' && !$isfreemodeenabled) {
 				if (empty($paymentmode)) {
 					$paymentmode = 'card';
 				}
@@ -428,7 +437,7 @@ if (! $error) {
 			}
 
 			// Make renewals on contracts of customer if payment is OK and payment mode is not a differed payment mode
-			if (! $error && $paymentmode != 'ban') {
+			if (! $error && $paymentmode != 'ban' && !$isfreemodeenabled) {
 				dol_syslog("--- Now we make renewal of contracts for thirdpartyid=".$mythirdpartyaccount->id." if payments were ok and contract are not unsuspended", LOG_DEBUG, 0);
 
 				$sellyoursaasutils = new SellYourSaasUtils($db);
@@ -457,7 +466,11 @@ if (! $error) {
 
 if (! $error) {
 	// Payment mode successfully recorded
-	setEventMessages($langs->trans("PaymentModeRecorded"), null, 'mesgs');
+	if (!$isfreemodeenabled) {
+		setEventMessages($langs->trans("PaymentModeRecorded"), null, 'mesgs');
+	} else {
+		setEventMessages($langs->trans("InstanceValidated"), null, 'mesgs');
+	}
 
 	$db->commit();
 
@@ -475,13 +488,13 @@ if (! $error) {
 		$url.=(preg_match('/\?/', $url) ? '&' : '?').'paymentmodified=1';
 
 		// Send to DataDog (metric + event)
-		if (! empty($conf->global->SELLYOURSAAS_DATADOG_ENABLED)) {
+		if (getDolGlobalString('SELLYOURSAAS_DATADOG_ENABLED')) {
 			try {
 				dol_include_once('/sellyoursaas/core/includes/php-datadogstatsd/src/DogStatsd.php');
 
 				$arrayconfig=array();
-				if (! empty($conf->global->SELLYOURSAAS_DATADOG_APIKEY)) {
-					$arrayconfig=array('apiKey'=>$conf->global->SELLYOURSAAS_DATADOG_APIKEY, 'app_key' => $conf->global->SELLYOURSAAS_DATADOG_APPKEY);
+				if (getDolGlobalString('SELLYOURSAAS_DATADOG_APIKEY')) {
+					$arrayconfig=array('apiKey'=>getDolGlobalString('SELLYOURSAAS_DATADOG_APIKEY'), 'app_key' => getDolGlobalString('SELLYOURSAAS_DATADOG_APPKEY'));
 				}
 
 				$statsd = new DataDog\DogStatsd($arrayconfig);
@@ -500,13 +513,13 @@ if (! $error) {
 		$url.=(preg_match('/\?/', $url) ? '&' : '?').'paymentrecorded=1';
 
 		// Send to DataDog (metric + event)
-		if (! empty($conf->global->SELLYOURSAAS_DATADOG_ENABLED)) {
+		if (getDolGlobalString('SELLYOURSAAS_DATADOG_ENABLED')) {
 			try {
 				dol_include_once('/sellyoursaas/core/includes/php-datadogstatsd/src/DogStatsd.php');
 
 				$arrayconfig=array();
-				if (! empty($conf->global->SELLYOURSAAS_DATADOG_APIKEY)) {
-					$arrayconfig=array('apiKey' => $conf->global->SELLYOURSAAS_DATADOG_APIKEY, 'app_key' => $conf->global->SELLYOURSAAS_DATADOG_APPKEY);
+				if (getDolGlobalString('SELLYOURSAAS_DATADOG_APIKEY')) {
+					$arrayconfig=array('apiKey' => getDolGlobalString('SELLYOURSAAS_DATADOG_APIKEY'), 'app_key' => getDolGlobalString('SELLYOURSAAS_DATADOG_APPKEY'));
 				}
 
 				$statsd = new DataDog\DogStatsd($arrayconfig);
@@ -519,12 +532,12 @@ if (! $error) {
 				$urlwithroot=$urlwithouturlroot.DOL_URL_ROOT;		// This is to use external domain name found into config file
 				//$urlwithroot=DOL_MAIN_URL_ROOT;					// This is to use same domain name than current
 
-				$sellyoursaasname = $conf->global->SELLYOURSAAS_NAME;
+				$sellyoursaasname = getDolGlobalString('SELLYOURSAAS_NAME');
 				if (! empty($mythirdpartyaccount->array_options['options_domain_registration_page'])
 					&& $mythirdpartyaccount->array_options['options_domain_registration_page'] != $conf->global->SELLYOURSAAS_MAIN_DOMAIN_NAME) {
 					$newnamekey = 'SELLYOURSAAS_NAME_FORDOMAIN-'.$mythirdpartyaccount->array_options['options_domain_registration_page'];
-					if (! empty($conf->global->$newnamekey)) {
-						$sellyoursaasname = $conf->global->$newnamekey;
+					if (getDolGlobalString($newnamekey)) {
+						$sellyoursaasname = getDolGlobalString($newnamekey);
 					}
 				}
 

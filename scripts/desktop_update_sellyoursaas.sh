@@ -2,10 +2,16 @@
 #---------------------------------------------------------
 # Script to run remotely the git_update_sellyour_saas.sh
 #
-# /pathto/git_update_sellyoursaas_remote.sh hostfile [hostgrouporname]
+# /pathto/desktop_update_sellyoursaas_remote.sh hostfile [hostgrouporname]
 #---------------------------------------------------------
 
 source /etc/lsb-release
+
+export RED='\033[0;31m'
+export GREEN='\033[0;32m'
+export BLUE='\033[0;34m'
+export YELLOW='\033[0;33m'
+
 
 if [ "x$1" == "x" ]; then
    echo "Usage:   $0  hostfile  [hostgrouporname]  [unlock]"

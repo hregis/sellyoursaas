@@ -1,19 +1,19 @@
 <?php
 /* Copyright (C) 2004-2023 Laurent Destailleur  <eldy@users.sourceforge.net>
  *
-* This program is free software; you can redistribute it and/or modify
-* it under the terms of the GNU General Public License as published by
-* the Free Software Foundation; either version 3 of the License, or
-* (at your option) any later version.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-* GNU General Public License for more details.
-*
-* You should have received a copy of the GNU General Public License
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
  * along with this program. If not, see <https://www.gnu.org/licenses/>.
-*/
+ */
 
 /**
  *       \file       htdocs/sellyoursaas/backoffice/instance_links.php
@@ -59,8 +59,10 @@ require_once DOL_DOCUMENT_ROOT."/core/lib/company.lib.php";
 require_once DOL_DOCUMENT_ROOT."/core/lib/date.lib.php";
 require_once DOL_DOCUMENT_ROOT."/core/lib/security2.lib.php";
 require_once DOL_DOCUMENT_ROOT."/core/class/html.formcompany.class.php";
-dol_include_once("/sellyoursaas/core/lib/sellyoursaas.lib.php");
-dol_include_once("/sellyoursaas/class/sellyoursaascontract.class.php");
+dol_include_once("sellyoursaas/core/lib/sellyoursaas.lib.php");
+dol_include_once("sellyoursaas/class/sellyoursaascontract.class.php");
+dol_include_once("sellyoursaas/class/sellyoursaasutils.class.php");
+dol_include_once('sellyoursaas/class/packages.class.php');
 
 $langs->loadLangs(array("admin","companies","users","contracts","other","commercial","sellyoursaas@sellyoursaas"));
 
@@ -205,8 +207,8 @@ if (empty($reshook)) {
 					&& $tmpthirdparty->array_options['options_domain_registration_page'] != $conf->global->SELLYOURSAAS_MAIN_DOMAIN_NAME) {
 					$constforaltname = $tmpthirdparty->array_options['options_domain_registration_page'];
 					$newurlkey = 'SELLYOURSAAS_ACCOUNT_URL-'.$constforaltname;
-					if (! empty($conf->global->$newurlkey)) {
-						$urlmyaccount = $conf->global->$newurlkey;
+					if (getDolGlobalString($newurlkey)) {
+						$urlmyaccount = getDolGlobalString($newurlkey);
 					} else {
 						$urlmyaccount = preg_replace('/' . getDolGlobalString('SELLYOURSAAS_MAIN_DOMAIN_NAME').'/', $tmpthirdparty->array_options['options_domain_registration_page'], $urlmyaccount);
 					}
@@ -254,6 +256,86 @@ if (empty($reshook)) {
 		}
 
 		exit;
+	}
+
+	if ($action == 'upgradeinstance') {
+		include_once DOL_DOCUMENT_ROOT.'/core/lib/functions.lib.php';
+		$dataofcontract = sellyoursaasGetExpirationDate($object, 0);
+		$tmpproduct = new Product($db);
+		$tmppackage = new Packages($db);
+
+		$type_db = $conf->db->type;
+		$hostname_db  = $object->array_options['options_hostname_db'];
+		$username_db  = $object->array_options['options_username_db'];
+		$password_db  = $object->array_options['options_password_db'];
+		$database_db  = $object->array_options['options_database_db'];
+		$port_db      = (!empty($object->array_options['options_port_db']) ? $object->array_options['options_port_db'] : 3306);
+		$prefix_db    = (!empty($object->array_options['options_prefix_db']) ? $object->array_options['options_prefix_db'] : 'llx_');
+		$hostname_os  = $object->array_options['options_hostname_os'];
+		$username_os  = $object->array_options['options_username_os'];
+		$password_os  = $object->array_options['options_password_os'];
+		$username_web = $object->thirdparty->email;
+		$password_web = $object->thirdparty->array_options['options_password'];
+
+		$newdb = getDoliDBInstance($type_db, $hostname_db, $username_db, $password_db, $database_db, $port_db);
+		$newdb->prefix_db = $prefix_db;
+		$lastversiondolibarrinstance = "";
+		if (is_object($newdb) && $newdb->connected) {
+			$confinstance = new Conf();
+			$confinstance->setValues($newdb);
+			$lastinstallinstance = isset($confinstance->global->MAIN_VERSION_LAST_INSTALL) ? explode(".", $confinstance->global->MAIN_VERSION_LAST_INSTALL)[0] : "0";
+			$lastupgradeinstance = isset($confinstance->global->MAIN_VERSION_LAST_UPGRADE) ? explode(".", $confinstance->global->MAIN_VERSION_LAST_UPGRADE)[0] : "0";
+			$lastversiondolibarrinstance = max($lastinstallinstance, $lastupgradeinstance);
+		}
+
+		if ($dataofcontract['appproductid'] > 0) {
+			$tmpproduct->fetch($dataofcontract['appproductid']);
+			$tmppackage->fetch($tmpproduct->array_options['options_package']);
+			$dirforexampleforsources = preg_replace('/__DOL_DATA_ROOT__/', DOL_DATA_ROOT, preg_replace('/\/htdocs\/?$/', '', $tmppackage->srcfile1));
+			$dirforexampleforsourcesinstalldir = $dirforexampleforsources.'/htdocs/install/mysql/migration/';
+			$filelist = dol_dir_list($dirforexampleforsourcesinstalldir, 'files');
+			$laststableupgradeversion = 0;
+			foreach ($filelist as $key => $value) {
+				$version = explode("-", $value["name"])[1];
+				$version = explode(".", $version)[0];
+				$laststableupgradeversion = max($laststableupgradeversion, $version);
+			}
+			$object->array_options["dirforexampleforsources"] = $dirforexampleforsources;
+			$object->array_options["laststableupgradeversion"] = $laststableupgradeversion;
+			$object->array_options["lastversiondolibarrinstance"] = $lastversiondolibarrinstance;
+		} else {
+			$errortab[] = $langs->trans("ErrorFetchingProductOrPackage");
+			$errors++;
+		}
+		// Launch the remote action backup
+		$sellyoursaasutils = new SellYourSaasUtils($db);
+
+		dol_syslog("Launch the remote action upgrade for ".$object->ref);
+
+		$db->begin();
+
+		$errorforlocaltransaction = 0;
+
+		$comment = 'Launch upgrade from backoffice on contract '.$object->ref;
+		// First launch update of resources: This update status of install.lock+authorized key and update qty of contract lines + linked template invoice
+		$result = $sellyoursaasutils->sellyoursaasRemoteAction('upgrade', $object, 'admin', '', '', '0', $comment);	// This include add of event if qty has changed
+
+		if ($result <= 0) {
+			$error++;
+			$errorforlocaltransaction++;
+			setEventMessages($sellyoursaasutils->error, $sellyoursaasutils->errors, 'errors');
+		} else {
+			setEventMessages('UpgradeOK', null, 'mesgs');
+		}
+
+		if (! $errorforlocaltransaction) {
+			$db->commit();
+
+			// Reload object to get updated values
+			$result = $object->fetch($object->id);
+		} else {
+			$db->rollback();
+		}
 	}
 
 	$action = 'view';
@@ -488,7 +570,7 @@ if ($id > 0 && $action != 'edit' && $action != 'create') {
 	$morehtmlref.=$form->editfieldval("RefSupplier", 'ref_supplier', $object->ref_supplier, $object, 0, 'string'.(isset($conf->global->THIRDPARTY_REF_INPUT_SIZE) ? ':' . getDolGlobalString('THIRDPARTY_REF_INPUT_SIZE') : ''), '', null, null, '', 1, 'getFormatedSupplierRef');
 	// Thirdparty
 	$morehtmlref .= '<br>'.$object->thirdparty->getNomUrl(1, 'customer');
-	if (empty($conf->global->MAIN_DISABLE_OTHER_LINK) && $object->thirdparty->id > 0) {
+	if (!getDolGlobalString('MAIN_DISABLE_OTHER_LINK') && $object->thirdparty->id > 0) {
 		$morehtmlref .= ' (<a href="'.DOL_URL_ROOT.'/contrat/list.php?socid='.$object->thirdparty->id.'&search_societe='.urlencode($object->thirdparty->name).'">'.$langs->trans("OtherContracts").'</a>)';
 	}
 	// Project
@@ -527,7 +609,7 @@ if ($id > 0 && $action != 'edit' && $action != 'create') {
 
 	print '<div class="fichecenter">';
 
-	$backupdir=$conf->global->DOLICLOUD_BACKUP_PATH;
+	$backupdir=getDolGlobalString('DOLICLOUD_BACKUP_PATH');
 
 	$dirdb = preg_replace('/_([a-zA-Z0-9]+)/', '', $object->database_db);
 	$login = $username_web;
@@ -592,6 +674,7 @@ if (empty($object->nbofusers)) {
 					/*'__PACKAGEREF__'=> $tmppackage->ref,
 					'__PACKAGENAME__'=> $tmppackage->label,
 					'__APPUSERNAME__'=>$appusername,
+					'__APPUSERNAME_URLENCODED__'=>urlencode($appusername),
 					'__APPEMAIL__'=>$email,
 					'__APPPASSWORD__'=>$password,
 					'__APPPASSWORD0__'=>$password0,
@@ -603,7 +686,7 @@ if (empty($object->nbofusers)) {
 					'__APPPASSWORDSHA256SALTED__'=>$passwordsha256salted,*/
 					'__APPUNIQUEKEY__'=>$generateduniquekey,
 					'__APPDOMAIN__'=>$sldAndSubdomain.'.'.$domainname,
-					'__SELLYOURSAAS_LOGIN_FOR_SUPPORT__'=>$conf->global->SELLYOURSAAS_LOGIN_FOR_SUPPORT
+					'__SELLYOURSAAS_LOGIN_FOR_SUPPORT__'=>getDolGlobalString('SELLYOURSAAS_LOGIN_FOR_SUPPORT')
 				);
 
 				$newqty = 0;
@@ -755,11 +838,11 @@ print '</tr>';
 
 // Upgrade.unlock file
 print '<tr>';
-print '<td>'.$langs->trans("UnlockfileInstalled").'</td><td>'.($object->array_options['options_fileunlock'] ? $langs->trans("Yes").' - <span class="opacitymedium">'.dol_print_date($object->array_options['options_fileunlock'], '%Y-%m-%d %H:%M:%S', 'tzuserrel') : $langs->trans("No")).'</span>';
+print '<td>'.$langs->trans("UnlockfileInstalled").'</td><td>'.($object->array_options['options_fileupgradeunlock'] ? $langs->trans("Yes").' - <span class="opacitymedium">'.dol_print_date($object->array_options['options_fileupgradeunlock'], '%Y-%m-%d %H:%M:%S', 'tzuserrel') : $langs->trans("No")).'</span>';
 if ($object->array_options['options_deployment_status'] !== 'undeployed') {
 	print ' &nbsp; (<a href="'.$_SERVER["PHP_SELF"].'?id='.$object->id.'&action=addupgradeunlock&token='.newToken().'">'.$langs->trans("Create").'</a>)';
 }
-print($object->array_options['options_fileunlock'] ? ' &nbsp; (<a href="'.$_SERVER["PHP_SELF"].'?id='.$object->id.'&action=delupgradeunlock&token='.newToken().'">'.$langs->trans("Delete").'</a>)' : '');
+print($object->array_options['options_fileupgradeunlock'] ? ' &nbsp; (<a href="'.$_SERVER["PHP_SELF"].'?id='.$object->id.'&action=delupgradeunlock&token='.newToken().'">'.$langs->trans("Delete").'</a>)' : '');
 print '</td>';
 print '<td></td><td></td>';
 print '</tr>';
@@ -793,6 +876,46 @@ print "</div>";	//  End fiche=center
 
 print '<br>';
 
+if (! $user->socid) {
+	$listmodules = dol_dir_list(DOL_DOCUMENT_ROOT."/core/modules/", "files");
+	foreach ($listmodules as $key => $module) {
+		preg_match('/mod([[:upper:]].*)\.class\.php/', $module["name"], $namemodule);
+		if (!empty($namemodule)) {
+			$arraycoremodules[] = strtoupper($namemodule[1]);
+		}
+	}
+
+	// List of module that should not block installation
+	$arrayofexternalmodulesallowed = array('MEMCACHED', 'BILLEDONORDERS');
+	$arraymoduleok = array_merge($arraycoremodules, $arrayofexternalmodulesallowed);
+
+	$listmoduletotest = explode(', ', $object->modulesenabled);
+
+	$disablebuttonupgrade = 0;
+	foreach ($listmoduletotest as $key => $value) {
+		if (!in_array($value, $arraymoduleok)) {
+			$disablebuttonupgrade ++;
+		}
+	}
+
+	if (getDolGlobalString("SELLYOURSAAS_FORCE_UPGRADE_BUTTON")) {
+		$disablebuttonupgrade = 0;
+	}
+
+	print '<div class="tabsAction">';
+
+	if ($user->hasRight('sellyoursaas', 'write') && $object->array_options['options_deployment_status'] !== 'undeployed') {
+		if ($disablebuttonupgrade != 0) {
+			print '<div title="'.$langs->trans("ExternalModulesNeedDisabledInstanceLink").'">';
+		}
+		print '<a class="butAction '.($disablebuttonupgrade != 0 ? 'buttonRefused' : '' ).'" href="'.$_SERVER["PHP_SELF"].'?id='.$object->id.'&action=upgradeinstance&token='.newToken().'">'.$langs->trans('UpgradeNow').'</a>';
+		if ($disablebuttonupgrade != 0) {
+			print '</div>';
+		}
+	}
+
+	print "</div>";
+}
 
 print getListOfLinks($object, $lastloginadmin, $lastpassadmin);
 
@@ -827,7 +950,7 @@ foreach ($arraylistofinstances as $instance) {
 	// Nb of users
 	print '<tr>';
 	print '<td class="nowraponall">'.$instance->getNomUrl(1).'</td>';
-	print '<td>'.$instance->getFormatedCustomerRef($instance->ref_customer).'</td>';
+	print '<td class="tdoverflowmax150">'.$instance->getFormatedCustomerRef($instance->ref_customer).'</td>';
 	print '<td>'.$instance->array_options['options_cookieregister_counter'].'</td>';
 	print '<td>'.dol_print_ip($instance->array_options['options_deployment_ip'], 0).'</td>';
 	print '<td>'.$instance->array_options['options_deployment_vpn_proba'].'</td>';
@@ -836,7 +959,7 @@ foreach ($arraylistofinstances as $instance) {
 	print '<td align="right">';
 	if ($user->hasRight('sellyoursaas', 'write')) {
 		print ' <a class="reposition" href="'.$_SERVER["PHP_SELF"].'?id='.$object->id.'&action=markasspamandclose&token='.newToken().'&idtoclose='.$instance->id.'">'.img_picto('', 'fa-book-dead', 'class="pictofixedwidth"').'<span class="hideonsmartphone">'.$langs->trans("MarkAsSpamAndClose").'</span></a>';
-		if (!empty($conf->global->SELLYOURSAAS_ADD_SPAMER_JS_SCANNER)) {
+		if (getDolGlobalString('SELLYOURSAAS_ADD_SPAMER_JS_SCANNER')) {
 			print ' &nbsp; ';
 			print ' <a class="reposition" href="'.$_SERVER["PHP_SELF"].'?id='.$object->id.'&action=addspamtracker&token='.newToken().'&idtotrack='.$instance->id.'">'.$langs->trans("AddAntiSpamTracker").'</a>';
 			print ' &nbsp; ';

@@ -101,7 +101,7 @@ $langsen = new Translate('', $conf);
 $langsen->setDefaultLang($mysoc->default_lang);
 $langsen->loadLangs(array("main", "errors"));
 
-$user->fetch($conf->global->SELLYOURSAAS_ANONYMOUSUSER);
+$user->fetch(getDolGlobalString('SELLYOURSAAS_ANONYMOUSUSER'));
 
 
 /*
@@ -127,7 +127,7 @@ if (! empty($oldinstance) && ! preg_match('/\.on\.dolicloud\.com$/', $oldinstanc
 }
 // Forge complete name of instance
 if (! empty($newinstance) && ! preg_match('/\./', $newinstance) && ! preg_match('/\.home\.lan$/', $newinstance)) {
-	if (empty(getDolGlobalString('SELLYOURSAAS_OBJECT_DEPLOYMENT_SERVER_MIGRATION'))) {
+	if (!getDolGlobalString('SELLYOURSAAS_OBJECT_DEPLOYMENT_SERVER_MIGRATION')) {
 		$tmparray = explode(',', getDolGlobalString('SELLYOURSAAS_SUB_DOMAIN_NAMES'));
 	} else {
 		dol_include_once('sellyoursaas/class/deploymentserver.class.php');
@@ -307,7 +307,7 @@ if ($result <= 0 || $newobject->statut == 0) {
 
 	$db->begin();	// Start transaction
 
-	$tmpthirdparty->oldcopy = dol_clone($tmpthirdparty);
+	$tmpthirdparty->oldcopy = dol_clone($tmpthirdparty, 2);
 
 	$password_encoding = 'password_hash';
 	$password_crypted = dol_hash($password);
@@ -366,9 +366,9 @@ if ($result <= 0 || $newobject->statut == 0) {
 		$langs = $savlangs;
 	}
 
-	if (! empty($conf->global->SELLYOURSAAS_DEFAULT_CUSTOMER_CATEG)) {
+	if (getDolGlobalString('SELLYOURSAAS_DEFAULT_CUSTOMER_CATEG')) {
 		print "Set category of customer " . getDolGlobalString('SELLYOURSAAS_DEFAULT_CUSTOMER_CATEG')."\n";
-		$result = $tmpthirdparty->setCategories(array($conf->global->SELLYOURSAAS_DEFAULT_CUSTOMER_CATEG => $conf->global->SELLYOURSAAS_DEFAULT_CUSTOMER_CATEG), 'customer');
+		$result = $tmpthirdparty->setCategories(array($conf->global->SELLYOURSAAS_DEFAULT_CUSTOMER_CATEG => getDolGlobalString('SELLYOURSAAS_DEFAULT_CUSTOMER_CATEG')), 'customer');
 		if ($result < 0) {
 			$db->rollback();
 			//setEventMessages($tmpthirdparty->error, $tmpthirdparty->errors, 'errors');
@@ -759,7 +759,7 @@ if ($result <= 0 || $newobject->statut == 0) {
 				$discount = $lines[$i]->remise_percent;
 
 				// Extrafields
-				if (empty($conf->global->MAIN_EXTRAFIELDS_DISABLED) && method_exists($lines[$i], 'fetch_optionals')) {
+				if (!getDolGlobalString('MAIN_EXTRAFIELDS_DISABLED') && method_exists($lines[$i], 'fetch_optionals')) {
 					$lines[$i]->fetch_optionals($lines[$i]->rowid);
 					$array_options = $lines[$i]->array_options;
 				}
@@ -1004,15 +1004,15 @@ print "\n";
 
 
 
-print "--- Set permissions with chown -R ".$newlogin.".".$newlogin." " . getDolGlobalString('DOLICLOUD_INSTANCES_PATH').'/'.$newlogin.'/'.$newdirdb."\n";
+print "--- Set permissions with chown -R ".$newlogin.":".$newlogin." " . getDolGlobalString('DOLICLOUD_INSTANCES_PATH').'/'.$newlogin.'/'.$newdirdb."\n";
 $output=array();
 $return_varchmod=0;
 if ($mode == 'confirm') {
-	if (empty($conf->global->DOLICLOUD_INSTANCES_PATH) || empty($newlogin) || empty($newdirdb)) {
+	if (!getDolGlobalString('DOLICLOUD_INSTANCES_PATH') || empty($newlogin) || empty($newdirdb)) {
 		print 'Bad value for data. We stop to avoid drama';
 		exit(-7);
 	}
-	exec("chown -R ".$newlogin.".".$newlogin." " . getDolGlobalString('DOLICLOUD_INSTANCES_PATH').'/'.$newlogin.'/'.$newdirdb, $output, $return_varchmod);
+	exec("chown -R ".$newlogin.":".$newlogin." " . getDolGlobalString('DOLICLOUD_INSTANCES_PATH').'/'.$newlogin.'/'.$newdirdb, $output, $return_varchmod);
 }
 
 // Output result

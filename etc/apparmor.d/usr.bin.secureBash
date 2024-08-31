@@ -83,6 +83,7 @@
   /etc/mysql/mariadb.conf.d/50-mysql-clients.cnf r,
   /etc/mysql/mariadb.conf.d/50-mysqld_safe.cnf r,
   /etc/mysql/mariadb.conf.d/50-server.cnf r,
+  /etc/mysql/mariadb.conf.d/60-galera.cnf r,
   /etc/mysql/my.cnf r,
   /etc/pam.d/* r,
   /etc/papersize r,
@@ -115,6 +116,7 @@
   /tmp/spam/ rw,
   /tmp/spam/** rw,
   /usr/bin/awk rix,
+  /usr/bin/bash mrix,		# required on 22.04 for cron doing exec
   /usr/bin/basename rix,
   /usr/bin/clamdscan rix,
   /usr/bin/clear rix,
@@ -134,6 +136,7 @@
   /usr/bin/head rix,
   /usr/bin/id rix,
   /usr/bin/locale-check rix,
+  /usr/bin/mariadb-dump rix,
   /usr/bin/mawk rix,
   /usr/bin/mysql rix,
   /usr/bin/mysqldump rix,
@@ -145,6 +148,7 @@
   /usr/bin/python2.7 rix,
   /usr/bin/rsync rix,
   /usr/bin/scp rix,
+  /usr/bin/secureBash mrix,
   /usr/bin/tail rix,
   /usr/bin/unzip rix,
   /usr/bin/vim.basic rix,
@@ -205,7 +209,7 @@
   owner @{HOME}/** rwl,
   owner /home/*/home/*/** rix,
   owner /mnt/diskhome/home/** rixwlk,
-  @{HOME}/dbn*/*_error.log r,			# does not work because HOME is a /home/jail/home and sftp need /mnt/diskhome/home
+  @{HOME}/dbn*/*_error.log r,			# does not work because HOME is a /home/jail/home and sftp need /mnt/diskhome/home, so entry /mnt/diskhome/home is also added
   /mnt/diskhome/home/osu*/dbn*/*_error.log r,
   /home/admin/wwwroot/dolibarr_sellyoursaas/scripts/phpsendmail.php rix,
   /home/admin/wwwroot/dolibarr_sellyoursaas/scripts/phpsendmailprepend.php rix,
@@ -218,29 +222,32 @@
   profile sub_crontab {
 		# Warning: this comments are interpreted
 		#include <abstractions/base>
+		#include <abstractions/consoles>
 		#include <abstractions/nameservice> 
+		
 		/usr/bin/crontab rix,
 		/etc/crontab r,
 		/var/spool/cron/crontabs/** r,
 		
 		allow owner /etc/passwd r,
+		
   }
 
   profile sub_profile_sftp_server {
 		# Warning: this comments are interpreted
 		#include <abstractions/base>
-		/etc/ssl/openssl.cnf r,
 		/etc/nsswitch.conf r,
+		/etc/ssl/openssl.cnf r,
+		/mnt/diskhome/home/osu*/dbn*/*_error.log r,
+		/usr/lib/openssh/sftp-server mr,
+		@{HOME}/dbn*/*_error.log r,		# does not work because HOME is a /home/jail/home and sftp need /mnt/diskhome/home, so entry /mnt/diskhome/home is also added
 		
 		#allow owner /etc/passwd r,
 		allow /etc/passwd r,
 		
-		owner @{HOME}/ rwl,
-		owner @{HOME}/** rwl,
 		owner /home/*/home/*/** rixwlk,
 		owner /mnt/diskhome/home/** rixwlk,
-		@{HOME}/dbn*/*_error.log r,		# does not work because HOME is a /home/jail/home and sftp need /mnt/diskhome/home
-		/mnt/diskhome/home/osu*/dbn*/*_error.log r,
-		/usr/lib/openssh/sftp-server mr,
+		owner @{HOME}/ rwl,
+		owner @{HOME}/** rwl,
   }  
 }

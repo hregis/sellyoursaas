@@ -261,24 +261,37 @@ if (empty($reshook)) {
 
 			// Set language to use for notes on the user we will create.
 			$newlangs = new Translate('', $conf);
-			$newlangs->setDefaultLang('en_US');		// TODO Best is to used the language of customer.
+			$object->fetch_thirdparty();
+			$newlangs->setDefaultLang($object->thirdparty->default_lang);
 			$newlangs->load("sellyoursaas@sellyoursaas");
 
 			$private_note = $newlangs->trans("NoteForSupportUser");
-			$emailsupport = $conf->global->SELLYOURSAAS_MAIN_EMAIL;
+			$emailsupport = getDolGlobalString('SELLYOURSAAS_MAIN_EMAIL');
 			$signature = '--<br>Support team';
 
 			if ($fordolibarr) {
-				$sql = "INSERT INTO ".$prefix_db."user(login, lastname, admin, pass, pass_crypted, entity, datec, email, signature, api_key)";
+				$sql = "INSERT INTO ".$prefix_db."user(login, lastname, admin, pass, pass_crypted, entity, datec, email, signature, api_key, note_private)";
 				$sql .= " VALUES('".$newdb->escape($loginforsupport)."', '".$newdb->escape($loginforsupport)."', 1,";
 				$sql .= " null,";
 				$sql .= " '".$newdb->escape($password_crypted_for_remote)."', ";
 				$sql .= " 0, '".$newdb->idate(dol_now())."', '".$newdb->escape($emailsupport)."', '".$newdb->escape($signature)."', ";
-				$sql .= " '".$newdb->escape(dolEncrypt($password, '', '', 'dolibarr'))."')";
+				$sql .= " '".$newdb->escape(dolEncrypt($password, '', '', 'dolibarr'))."', '".$newdb->escape($private_note)."')";
 				$resql=$newdb->query($sql);
 				if (! $resql) {
 					if ($newdb->lasterrno() != 'DB_ERROR_RECORD_ALREADY_EXISTS') {
-						dol_print_error($newdb);
+						// On old dolibarr version, note_private did not exist
+						$sql = "INSERT INTO ".$prefix_db."user(login, lastname, admin, pass, pass_crypted, entity, datec, email, signature, api_key)";
+						$sql .= " VALUES('".$newdb->escape($loginforsupport)."', '".$newdb->escape($loginforsupport)."', 1,";
+						$sql .= " null,";
+						$sql .= " '".$newdb->escape($password_crypted_for_remote)."', ";
+						$sql .= " 0, '".$newdb->idate(dol_now())."', '".$newdb->escape($emailsupport)."', '".$newdb->escape($signature)."', ";
+						$sql .= " '".$newdb->escape(dolEncrypt($password, '', '', 'dolibarr'))."')";
+						$resql=$newdb->query($sql);
+						if (! $resql) {
+							if ($newdb->lasterrno() != 'DB_ERROR_RECORD_ALREADY_EXISTS') {
+								dol_print_error($newdb);
+							}
+						}
 					} else {
 						setEventMessages("ErrorRecordAlreadyExists", null, 'errors');
 					}
@@ -624,7 +637,7 @@ if ($id > 0 && $action != 'edit' && $action != 'create') {
 	$morehtmlref.=$form->editfieldval("RefSupplier", 'ref_supplier', $object->ref_supplier, $object, 0, 'string'.(isset($conf->global->THIRDPARTY_REF_INPUT_SIZE) ? ':' . getDolGlobalString('THIRDPARTY_REF_INPUT_SIZE') : ''), '', null, null, '', 1, 'getFormatedSupplierRef');
 	// Thirdparty
 	$morehtmlref .= '<br>'.$object->thirdparty->getNomUrl(1, 'customer');
-	if (empty($conf->global->MAIN_DISABLE_OTHER_LINK) && $object->thirdparty->id > 0) {
+	if (!getDolGlobalString('MAIN_DISABLE_OTHER_LINK') && $object->thirdparty->id > 0) {
 		$morehtmlref .= ' (<a href="'.DOL_URL_ROOT.'/contrat/list.php?socid='.$object->thirdparty->id.'&search_societe='.urlencode($object->thirdparty->name).'">'.$langs->trans("OtherContracts").'</a>)';
 	}
 	// Project
@@ -800,7 +813,8 @@ function print_user_table($newdb, $object)
 	$prefix_db   = (empty($object->array_options['options_prefix_db']) ? 'llx_' : $object->array_options['options_prefix_db']);
 
 	$varpage = empty($contextpage) ? $_SERVER["PHP_SELF"] : $contextpage;
-	$selectedfields = ($mode != 'kanban' ? $form->multiSelectArrayWithCheckbox('selectedfields', $arrayfields, $varpage, getDolGlobalString('MAIN_CHECKBOX_LEFT_COLUMN')) : ''); // This also change content of $arrayfields
+	$htmlofselectarray = $form->multiSelectArrayWithCheckbox('selectedfields', $arrayfields, $varpage, getDolGlobalString('MAIN_CHECKBOX_LEFT_COLUMN'));  // This also change content of $arrayfields with user setup
+	$selectedfields = ($mode != 'kanban' ? $htmlofselectarray : '');
 	$selectedfields .= (count($arrayofmassactions) ? $form->showCheckAddButtons('checkforselect', 1) : '');
 
 	print '<div class="div-table-responsive">'; // You can use div-table-responsive-no-min if you dont need reserved height for your table

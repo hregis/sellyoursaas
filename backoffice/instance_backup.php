@@ -116,17 +116,19 @@ if ($ispaid) {
 
 		$restorestringpretoshow .= "sudo mv " . getDolGlobalString('SELLYOURSAAS_PAID_ARCHIVES_PATH').'/'.$object->array_options['options_username_os'].'/' . getDolGlobalString('DOLICLOUD_INSTANCES_PATH').'/'.$object->array_options['options_username_os'].'/'.$object->array_options['options_database_db'].' ' . getDolGlobalString('SELLYOURSAAS_PAID_ARCHIVES_PATH').'/'.$object->array_options['options_username_os'].'/'.$object->array_options['options_database_db']."\n";
 		$restorestringpretoshow .= "\n";
-		$restorestringpretoshow .= "sudo chown -R admin.root " . getDolGlobalString('SELLYOURSAAS_PAID_ARCHIVES_PATH').'/'.$object->array_options['options_username_os']."\n";
+		$restorestringpretoshow .= "sudo chown -R admin:root " . getDolGlobalString('SELLYOURSAAS_PAID_ARCHIVES_PATH').'/'.$object->array_options['options_username_os']."\n";
 		$restorestringpretoshow .= "sudo chmod -R a+rx " . getDolGlobalString('SELLYOURSAAS_PAID_ARCHIVES_PATH').'/'.$object->array_options['options_username_os']."\n";
 		$restorestringpretoshow .= "su - admin\n";
 
 		$restorestringfrombackupshort = getDolGlobalString('DOLICLOUD_SCRIPTS_PATH') . '/restore_instance.php ' . getDolGlobalString('DOLICLOUD_BACKUP_PATH').'/'.$object->array_options['options_username_os'].'/'.$object->array_options['options_database_db'].' autoscan';
-		$restorestringfrombackup = getDolGlobalString('DOLICLOUD_SCRIPTS_PATH') . '/restore_instance.php ' . getDolGlobalString('DOLICLOUD_BACKUP_PATH').'/'.$object->array_options['options_username_os'].'/'.$object->array_options['options_database_db'].' autoscan '.$object->ref_customer;
+		$restorestringfrombackup = getDolGlobalString('DOLICLOUD_SCRIPTS_PATH') . '/restore_instance.php ' . getDolGlobalString('DOLICLOUD_BACKUP_PATH').'/'.$object->array_options['options_username_os'].'/'.$object->array_options['options_database_db'].' autoscan '.$object->ref_customer.' (test|confirm)';
 
 		$restorestringfromarchiveshort = getDolGlobalString('DOLICLOUD_SCRIPTS_PATH') . '/restore_instance.php ' . getDolGlobalString('SELLYOURSAAS_PAID_ARCHIVES_PATH').'/'.$object->array_options['options_username_os'].'/'.$object->array_options['options_database_db'].' autoscan';
-		$restorestringfromarchive = getDolGlobalString('DOLICLOUD_SCRIPTS_PATH') . '/restore_instance.php ' . getDolGlobalString('SELLYOURSAAS_PAID_ARCHIVES_PATH').'/'.$object->array_options['options_username_os'].'/'.$object->array_options['options_database_db'].' autoscan '.$object->ref_customer;
+		$restorestringfromarchive = getDolGlobalString('DOLICLOUD_SCRIPTS_PATH') . '/restore_instance.php ' . getDolGlobalString('SELLYOURSAAS_PAID_ARCHIVES_PATH').'/'.$object->array_options['options_username_os'].'/'.$object->array_options['options_database_db'].' autoscan '.$object->ref_customer.' (test|confirm)';
 
-		$restorestringfromremotebackup = getDolGlobalString('DOLICLOUD_SCRIPTS_PATH') . '/restore_instance.php remoteserver:/mnt/diskbackup/.snapshots/diskbackup-xxx/'. getDolGlobalString('SELLYOURSAAS_PAID_ARCHIVES_PATH').'/'.$object->array_options['options_username_os'].' autoscan';
+		$restorestringfromremotebackup = getDolGlobalString('DOLICLOUD_SCRIPTS_PATH') . '/restore_instance.php remotebackup:/mnt/diskbackup/.snapshots/diskbackup-xxx/backup_yyy/'.$object->array_options['options_username_os'].' autoscan '.$object->ref_customer.' (test|confirm)';
+		$restorestringfromremotebackup .= "\n".$langs->trans("or")."\n";
+		$restorestringfromremotebackup .= getDolGlobalString('DOLICLOUD_SCRIPTS_PATH') . '/restore_instance.php remotebackup:/mnt/diskbackup/backup_yyy/'.$object->array_options['options_username_os'].' autoscan '.$object->ref_customer.' (test|confirm)';
 	} else {
 		//$restorestringpretoshow = 'sudo chown -R admin '.$conf->global->SELLYOURSAAS_PAID_ARCHIVES_PATH.'/'.$object->array_options['options_username_os']."\n";
 		$restorestringpretoshow .= "cd " . getDolGlobalString('SELLYOURSAAS_PAID_ARCHIVES_PATH').'/'.$object->array_options['options_username_os']."\n";
@@ -139,7 +141,7 @@ if ($ispaid) {
 		$restorestringpretoshow .= "sudo mv " . getDolGlobalString('SELLYOURSAAS_PAID_ARCHIVES_PATH').'/'.$object->array_options['options_username_os'].'/' . getDolGlobalString('DOLICLOUD_INSTANCES_PATH').'/'.$object->array_options['options_username_os'].'/'.$object->array_options['options_database_db'].' ' . getDolGlobalString('SELLYOURSAAS_PAID_ARCHIVES_PATH').'/'.$object->array_options['options_username_os'].'/'.$object->array_options['options_database_db']."\n";
 		$restorestringpretoshow .= 'sudo mkdir ' . getDolGlobalString('DOLICLOUD_INSTANCES_PATH').'/'.$object->array_options['options_username_os'].'/'.$object->array_options['options_database_db'].'; sudo chown '.$object->array_options['options_username_os'].':'.$object->array_options['options_username_os'].' ' . getDolGlobalString('DOLICLOUD_INSTANCES_PATH').'/'.$object->array_options['options_username_os']."\n";
 		$restorestringpretoshow .= "\n";
-		$restorestringpretoshow .= "sudo chown -R admin.root " . getDolGlobalString('SELLYOURSAAS_PAID_ARCHIVES_PATH').'/'.$object->array_options['options_username_os']."\n";
+		$restorestringpretoshow .= "sudo chown -R admin:root " . getDolGlobalString('SELLYOURSAAS_PAID_ARCHIVES_PATH').'/'.$object->array_options['options_username_os']."\n";
 		$restorestringpretoshow .= "sudo chmod -R a+rx " . getDolGlobalString('SELLYOURSAAS_PAID_ARCHIVES_PATH').'/'.$object->array_options['options_username_os']."\n";
 		$restorestringpretoshow .= "su - admin\n";
 
@@ -167,17 +169,19 @@ if ($ispaid) {
 		$restorestringpretoshow .= "sudo mv " . getDolGlobalString('SELLYOURSAAS_TEST_ARCHIVES_PATH').'/'.$object->array_options['options_username_os'].'/' . getDolGlobalString('DOLICLOUD_INSTANCES_PATH').'/'.$object->array_options['options_username_os'].'/'.$object->array_options['options_database_db'].' ' . getDolGlobalString('SELLYOURSAAS_TEST_ARCHIVES_PATH').'/'.$object->array_options['options_username_os'].'/'.$object->array_options['options_database_db']."\n";
 
 		$restorestringpretoshow .= "\n";
-		$restorestringpretoshow .= "sudo chown -R admin.root " . getDolGlobalString('SELLYOURSAAS_TEST_ARCHIVES_PATH').'/'.$object->array_options['options_username_os']."\n";
+		$restorestringpretoshow .= "sudo chown -R admin:root " . getDolGlobalString('SELLYOURSAAS_TEST_ARCHIVES_PATH').'/'.$object->array_options['options_username_os']."\n";
 		$restorestringpretoshow .= "sudo chmod -R a+rx " . getDolGlobalString('SELLYOURSAAS_TEST_ARCHIVES_PATH').'/'.$object->array_options['options_username_os']."\n";
 		$restorestringpretoshow .= "su - admin\n";
 
 		$restorestringfrombackupshort = getDolGlobalString('DOLICLOUD_SCRIPTS_PATH') . '/restore_instance.php ' . getDolGlobalString('DOLICLOUD_BACKUP_PATH').'/'.$object->array_options['options_username_os'].'/'.$object->array_options['options_database_db'].' autoscan';
-		$restorestringfrombackup = getDolGlobalString('DOLICLOUD_SCRIPTS_PATH') . '/restore_instance.php ' . getDolGlobalString('DOLICLOUD_BACKUP_PATH').'/'.$object->array_options['options_username_os'].'/'.$object->array_options['options_database_db'].' autoscan '.$object->ref_customer;
+		$restorestringfrombackup = getDolGlobalString('DOLICLOUD_SCRIPTS_PATH') . '/restore_instance.php ' . getDolGlobalString('DOLICLOUD_BACKUP_PATH').'/'.$object->array_options['options_username_os'].'/'.$object->array_options['options_database_db'].' autoscan '.$object->ref_customer.' (test|confirm)';
 
 		$restorestringfromarchiveshort = getDolGlobalString('DOLICLOUD_SCRIPTS_PATH') . '/restore_instance.php ' . getDolGlobalString('SELLYOURSAAS_TEST_ARCHIVES_PATH').'/'.$object->array_options['options_username_os'].'/'.$object->array_options['options_database_db'].' autoscan ';
-		$restorestringfromarchive = getDolGlobalString('DOLICLOUD_SCRIPTS_PATH') . '/restore_instance.php ' . getDolGlobalString('SELLYOURSAAS_TEST_ARCHIVES_PATH').'/'.$object->array_options['options_username_os'].'/'.$object->array_options['options_database_db'].' autoscan '.$object->ref_customer;
+		$restorestringfromarchive = getDolGlobalString('DOLICLOUD_SCRIPTS_PATH') . '/restore_instance.php ' . getDolGlobalString('SELLYOURSAAS_TEST_ARCHIVES_PATH').'/'.$object->array_options['options_username_os'].'/'.$object->array_options['options_database_db'].' autoscan '.$object->ref_customer.' (test|confirm)';
 
-		$restorestringfromremotebackup = getDolGlobalString('DOLICLOUD_SCRIPTS_PATH') . '/restore_instance.php remoteserver:/mnt/diskbackup/.snapshots/diskbackup-xxx/'. getDolGlobalString('SELLYOURSAAS_PAID_ARCHIVES_PATH').'/'.$object->array_options['options_username_os'].' autoscan';
+		$restorestringfromremotebackup = getDolGlobalString('DOLICLOUD_SCRIPTS_PATH') . '/restore_instance.php remotebackup:/mnt/diskbackup/.snapshots/diskbackup-xxx/backup_yyy/'.$object->array_options['options_username_os'].' autoscan '.$object->ref_customer.' (test|confirm)';
+		$restorestringfromremotebackup .= "\n".$langs->trans("or")."\n";
+		$restorestringfromremotebackup .= getDolGlobalString('DOLICLOUD_SCRIPTS_PATH') . '/restore_instance.php remotebackup:/mnt/diskbackup/backup_yyy/'.$object->array_options['options_username_os'].' autoscan '.$object->ref_customer.' (test|confirm)';
 	} else {
 		$restorestringpretoshow .= "cd " . getDolGlobalString('SELLYOURSAAS_TEST_ARCHIVES_PATH').'/'.$object->array_options['options_username_os']."\n";
 		// If there is an old dir used by a previous extract, we remove it
@@ -191,7 +195,7 @@ if ($ispaid) {
 		$restorestringpretoshow .= 'sudo mkdir ' . getDolGlobalString('DOLICLOUD_INSTANCES_PATH').'/'.$object->array_options['options_username_os'].'/'.$object->array_options['options_database_db']."; sudo chown ".$object->array_options['options_username_os'].".".$object->array_options['options_username_os'].' ' . getDolGlobalString('DOLICLOUD_INSTANCES_PATH').'/'.$object->array_options['options_username_os']."\n";
 
 		$restorestringpretoshow .= "\n";
-		$restorestringpretoshow .= "sudo chown -R admin.root " . getDolGlobalString('SELLYOURSAAS_TEST_ARCHIVES_PATH').'/'.$object->array_options['options_username_os']."\n";
+		$restorestringpretoshow .= "sudo chown -R admin:root " . getDolGlobalString('SELLYOURSAAS_TEST_ARCHIVES_PATH').'/'.$object->array_options['options_username_os']."\n";
 		$restorestringpretoshow .= "sudo chmod -R a+rx " . getDolGlobalString('SELLYOURSAAS_TEST_ARCHIVES_PATH').'/'.$object->array_options['options_username_os']."\n";
 		$restorestringpretoshow .= "su - admin\n";
 
@@ -212,7 +216,7 @@ $tmparray = explode('.', $object->ref_customer);
 $moveinstancestringtoshow .= "# First, check that the master server can connect with ssh and user admin on the source instance server with:\n";
 $moveinstancestringtoshow .= "# ssh admin@".getDomainFromURL($object->ref_customer, 2)." wc /etc/apache2/with.sellyoursaas.com*.*\n";
 $moveinstancestringtoshow .= "# If ssh connect fails, do this on ".getDomainFromURL($object->ref_customer, 2).":\n";
-$moveinstancestringtoshow .= "# cp /etc/skel/.ssh/authorized_keys_support /home/admin/.ssh/authorized_keys_support; chown admin.admin /home/admin/.ssh/authorized_keys_support\n";
+$moveinstancestringtoshow .= "# cp /etc/skel/.ssh/authorized_keys_support /home/admin/.ssh/authorized_keys_support; chown admin:admin /home/admin/.ssh/authorized_keys_support\n";
 //$moveinstancestringtoshow .= "# - If some cert files read is denied, do this on ".getDomainFromURL($object->ref_customer, 2).":\n";
 //$moveinstancestringtoshow .= "#   gpasswd -a admin www-data\n";
 $moveinstancestringtoshow .= "su - admin\n";
@@ -357,7 +361,7 @@ if (($id > 0 || $instanceoldid > 0) && $action != 'edit' && $action != 'create')
 	$morehtmlref.=$form->editfieldval("RefSupplier", 'ref_supplier', $object->ref_supplier, $object, 0, 'string'.(isset($conf->global->THIRDPARTY_REF_INPUT_SIZE) ? ':' . getDolGlobalString('THIRDPARTY_REF_INPUT_SIZE') : ''), '', null, null, '', 1, 'getFormatedSupplierRef');
 	// Thirdparty
 	$morehtmlref .= '<br>'.$object->thirdparty->getNomUrl(1, 'customer');
-	if (empty($conf->global->MAIN_DISABLE_OTHER_LINK) && $object->thirdparty->id > 0) {
+	if (!getDolGlobalString('MAIN_DISABLE_OTHER_LINK') && $object->thirdparty->id > 0) {
 		$morehtmlref .= ' (<a href="'.DOL_URL_ROOT.'/contrat/list.php?socid='.$object->thirdparty->id.'&search_societe='.urlencode($object->thirdparty->name).'">'.$langs->trans("OtherContracts").'</a>)';
 	}
 	// Project
@@ -402,7 +406,9 @@ if ($id > 0 && $action != 'edit' && $action != 'create') {
 
 	print '<div class="fichecenter">';
 
-	$backupdir = $conf->global->DOLICLOUD_BACKUP_PATH;
+	$backupdir = getDolGlobalString('DOLICLOUD_BACKUP_PATH');
+	$backupdirremote = '/mnt/diskbackup/backup_yyy';
+	$backupdirremote2 = '/mnt/diskbackup/.snapshots/diskbackup-xxx/backup_yyy';
 
 	$login = $username_os;
 	$password = $password_os;
@@ -420,6 +426,14 @@ if ($id > 0 && $action != 'edit' && $action != 'create') {
 	print '<tr class="oddeven">';
 	print '<td class="titlefieldmiddle">'.$langs->trans("DeploymentHost").'</td>';
 	print '<td>'.$object->array_options['options_deployment_host'].'</td>';
+	print '</tr>';
+
+	// ----- Backup result
+
+	print '<tr class="liste_titre">';
+	print '<td>'.$langs->trans("LocalBackup").'</td>';
+	print '<td>';
+	print '</td>';
 	print '</tr>';
 
 	// Backup dir
@@ -448,7 +462,7 @@ if ($id > 0 && $action != 'edit' && $action != 'create') {
 	print '</td>';
 	print '</tr>';
 
-	// Current backup status
+	// Latest backup status
 	print '<tr class="oddeven">';
 	print '<td>'.$langs->trans("CurrentBackupStatus").'</td>';
 	print '<td>';
@@ -458,13 +472,58 @@ if ($id > 0 && $action != 'edit' && $action != 'create') {
 	print '</td>';
 	print '</tr>';
 
-	// Current backup status
+	// Latest backup message
 	print '<tr class="oddeven">';
 	print '<td>'.$langs->trans("LatestBackupMessage").'</td>';
 	print '<td class="classfortooltip" title="'.dolPrintHTMLForAttribute($object->array_options['options_latestbackup_message']).'">';
 	print dolGetFirstLineOfText(dolPrintHTML($object->array_options['options_latestbackup_message']), 5);
 	print '</td>';
 	print '</tr>';
+
+	// ----- Remote backup
+
+	print '<tr class="liste_titre">';
+	print '<td>'.$langs->trans("RemoteBackup").'</td>';
+	print '<td></td>';
+	print '</td>';
+	print '</tr>';
+
+	// Backup dir
+	print '<tr class="oddeven">';
+	print '<td>'.$langs->trans("BackupDir").'</td>';
+	print '<td>'.$backupdirremote.'/'.$login.' or '.$backupdirremote2.'/'.$login.'</td>';
+	print '</tr>';
+
+	// Last remote backup date try
+	print '<tr class="oddeven">';
+	print '<td>'.$langs->trans("LatestBackupRemoteDate").'</td>';
+	print '<td>';
+	if ($object->array_options['options_latestbackupremote_date']) {
+		print dol_print_date($object->array_options['options_latestbackupremote_date'], 'dayhour', 'tzuser');
+	}
+	print '</td>';
+	print '</tr>';
+
+	// Last remote backup date success
+	print '<tr class="oddeven">';
+	print '<td>'.$langs->trans("LatestBackupRemoteDateOK").'</td>';
+	print '<td>';
+	if ($object->array_options['options_latestbackupremote_date_ok']) {
+		print dol_print_date($object->array_options['options_latestbackupremote_date_ok'], 'dayhour', 'tzuser');
+	}
+	print '</td>';
+	print '</tr>';
+
+	// Latest remote backup status
+	print '<tr class="oddeven">';
+	print '<td>'.$langs->trans("LatestBackupRemoteStatus").'</td>';
+	print '<td>';
+	print($object->array_options['options_latestbackupremote_status'] == 'KO' ? '<span class="error">' : '');
+	print $object->array_options['options_latestbackupremote_status'];
+	print($object->array_options['options_latestbackupremote_status'] == 'KO' ? '</span>' : '');
+	print '</td>';
+	print '</tr>';
+
 
 	print "</table>";
 	print '</div>';
@@ -489,16 +548,16 @@ if ($id > 0 && $action != 'edit' && $action != 'create') {
 $backupstringtoshow=$backupstring.' confirm --nostats --forcersync --forcedump';
 $backupstringtoshow2=$backupstring.' confirm';
 print '<span class="fa fa-database secondary"></span> -> <span class="fa fa-file paddingright"></span> Backup command line string <span class="opacitymedium">(to run by admin from the deployment server where to store the backup, or from root from the master server)</span><br>';
-print '<input type="text" name="backupstring" id="backupstring" value="'.$backupstringtoshow.'" class="quatrevingtpercent"><br>';
+print '<input type="text" name="backupstring" id="backupstring" value="'.$backupstringtoshow.'" class="quatrevingtpercent" spellcheck="false"><br>';
 print ajax_autoselect('backupstring');
 
 print '<br>';
 
 // Restore command line from backup
 if ($restorestringfrombackup) {
-	$restorestringtoshow=$restorestringfrombackup.' (test|confirm)';
+	$restorestringtoshow=$restorestringfrombackup;
 	print '<span class="fa fa-file paddingright"></span> -> <span class="fa fa-database secondary paddingright"></span> Restore command line string from local Backup <span class="opacitymedium">(to run by admin from the server hosting the backup)</span><br>';
-	print '<input type="text" name="restorestring" id="restorestring" value="'.$restorestringtoshow.'" class="quatrevingtpercent"><br>';
+	print '<input type="text" name="restorestring" id="restorestring" value="'.$restorestringtoshow.'" class="quatrevingtpercent" spellcheck="false"><br>';
 	print ajax_autoselect('restorestring');
 
 	print '<br>';
@@ -506,9 +565,12 @@ if ($restorestringfrombackup) {
 
 // Restore commands from remote backup
 if ($restorestringfromremotebackup) {
-	$restorestringtoshow=$restorestringfromremotebackup.' (test|confirm)';
+	$restorestringtoshow=$restorestringfromremotebackup;
 	print '<span class="fa fa-file paddingright"></span> -> <span class="fa fa-database secondary paddingright"></span> Restore command line string from remote Backup <span class="opacitymedium">(to run by root from the deployment server)</span><br>';
-	print '<input type="text" name="restorestringfromremotebackup" id="restorestringfromremotebackup" value="'.$restorestringtoshow.'" class="quatrevingtpercent"><br>';
+	print '<textarea name="restorestringfromremotebackup" id="restorestringfromremotebackup" class="centpercent" spellcheck="false" rows="'.ROWS_3.'">';
+	print $restorestringtoshow;
+	print '</textarea>';
+	print '<br>';
 	print ajax_autoselect('restorestringfromremotebackup');
 
 	print '<br>';
@@ -516,9 +578,9 @@ if ($restorestringfromremotebackup) {
 
 // Restore commands from archive
 if ($restorestringfromarchive) {
-	$restorestringtoshow=$restorestringfromarchive.' (test|confirm)';
+	$restorestringtoshow=$restorestringfromarchive;
 	print '<span class="fa fa-file-archive paddingright"></span> -> <span class="fa fa-database secondary paddingright"></span> Restore command line string from local Archive <span class="opacitymedium">(to run by admin from the server hosting the archives)</span><br>';
-	print '<textarea name="restorestringfromarchive" id="restorestringfromarchive" class="centpercent" rows="'.ROWS_9.'">';
+	print '<textarea name="restorestringfromarchive" id="restorestringfromarchive" class="centpercent" spellcheck="false" rows="'.ROWS_9.'">';
 	print $restorestringpretoshow."\n";
 	print $restorestringtoshow."\n";
 	print $restorestringposttoshow;
@@ -533,8 +595,8 @@ if ($restorestringfromarchive) {
 // Duplicate an instance into another instance (already existing instance)
 if ($restorestringfrombackupshort) {
 	$restorestringtoshow=$restorestringfrombackupshort.' nameoftargetinstance (test|confirm)';
-	print '<span class="fa fa-database secondary"></span><span class="fa fa-database"></span> -> <span class="fa fa-database secondary"></span><span class="fa fa-database secondary paddingright"></span> Duplicate an instance into another instance (already existing instance) <span class="opacitymedium">(can be run by admin on master, source OR target server. recommended: source server)</span><br>';
-	print '<textarea name="restorestringfromarchive" id="restorestringfromarchive" class="centpercent" rows="'.ROWS_2.'">';
+	print '<span class="fa fa-database secondary"></span><span class="fa fa-database"></span> -> <span class="fa fa-database secondary"></span><span class="fa fa-database secondary paddingright"></span> Duplicate an instance into another instance (already existing instance) <span class="opacitymedium">(to run by admin on master server)</span><br>';
+	print '<textarea name="restorestringfromarchive" id="restorestringfromarchive" class="centpercent" spellcheck="false" rows="'.ROWS_2.'">';
 	print $backupstringtoshow."\n";
 	print $restorestringtoshow;
 	print '</textarea>';
@@ -547,7 +609,7 @@ if ($restorestringfrombackupshort) {
 if ($moveinstancestringtoshow) {
 	//$restorestringtoshow=$restorestringfrombackupshort.' nameoftargetinstance (test|confirm)';
 	print '<span class="fa fa-database secondary"></span> -> <span class="fa fa-database opacitymedium"></span><span class="fa fa-database secondary paddingright"></span> Move an instance into another server (non existing target instance) <span class="opacitymedium">(to run by admin on master server)</span><br>';
-	print '<textarea name="moveinstancestring" id="moveinstancestring" class="centpercent" rows="'.ROWS_8.'">';
+	print '<textarea name="moveinstancestring" id="moveinstancestring" class="centpercent" spellcheck="false" rows="'.ROWS_8.'">';
 	print $moveinstancestringtoshow;
 	print '</textarea>';
 

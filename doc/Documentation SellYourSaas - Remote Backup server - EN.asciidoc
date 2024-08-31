@@ -1,25 +1,14 @@
 = Sell-Your-Saas installation and operation document
 This document describes the technical and functional implementation of Sell-Your-Saas - automated deployment and sales system in SaaS of a WAMP application (like Dolibarr ERP CRM, GLPI, ...) - Laurent Destailleur - www.sellyoursaas.org
-:source-highlighter: rouge
-:companyname: Teclib
-:corpname: Teclib
-:orgname: Teclib
-:creator: Laurent Destailleur
+:source-highlighter: red
 :title: Document installation and operation of SellYourSaas
 :subject: This document describes the technical and functional implementation of SellYourSaas (automated deployment and sale system in SaaS of a WAMP application (like Dolibarr ERP CRM, GLPI, ...).
 :keywords: sellyoursaas, saas, dolibarr, wamp, glpi
 :imagesdir: ./img
-:city: Bordeaux
 :toc: manual
 :toclevels: 3
 :toc-title: Table of contents
 :toc-placement: preamble
-:revnumber: v1.0
-:revdate: 2019-01-30
-:revremark: First version
-:revnumber: v1.1
-:revdate: 2020-02-12
-:revremark: Many improvements
 
 <<<<
 
@@ -83,7 +72,7 @@ UUID=94817f83-a2ad-46c4-81e0-06e6dd0e95f1 /mnt/diskX btrfs noatime,nofail 0 0 (d
 
 [source, bash]
 ---------------
-mkdir /mnt/diskbackup; chown admin.admin /mnt/diskbackup
+mkdir /mnt/diskbackup; chown admin:admin /mnt/diskbackup
 mount /dev/vdxZ /mnt/diskbackup
 
 blkid
@@ -144,8 +133,8 @@ Create the user account *admin*. It will be used to install and administer the s
 [source, bash]
 ---------------
 groupadd admin; useradd -m -g admin admin; usermod -a -G adm admin;
-mkdir /home/admin/logs; chown root.adm /home/admin/logs; chmod 770 /home/admin/logs;
-chown admin.admin /mnt/diskbackup
+mkdir /home/admin/logs; chown root:adm /home/admin/logs; chmod 770 /home/admin/logs;
+chown admin:admin /mnt/diskbackup
 ---------------
 
 Check that the id of this user *admin* is greater than or equal to 1000.
@@ -939,7 +928,7 @@ To create a subvolume for a server
 [source,bash]
 ---------------
 btrfs subvolume create /mnt/diskbackup/xxx   # with xxx = home_serverX or backup_serverX
-chown admin.admin /mnt/diskbackup/xxx
+chown admin:admin /mnt/diskbackup/xxx
 chmod -R o-rw /mnt/diskbackup/xxx
 cp -ax --reflink=always src/. dest
 ---------------

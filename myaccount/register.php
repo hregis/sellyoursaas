@@ -128,7 +128,7 @@ if (empty($productid) && empty($productref)) {
 	if (empty($productref)) {
 		$suffix = '_'.strtoupper(str_replace('.', '_', $domainname));
 		$constname = "SELLYOURSAAS_DEFAULT_PRODUCT".$suffix;
-		$defaultproduct = (empty($conf->global->$constname) ? $conf->global->SELLYOURSAAS_DEFAULT_PRODUCT : $conf->global->$constname);
+		$defaultproduct = getDolGlobalInt($constname, getDolGlobalInt('SELLYOURSAAS_DEFAULT_PRODUCT'));
 
 		// Take first plan found
 		$sqlproducts = 'SELECT p.rowid, p.ref, p.label, p.price, p.price_ttc, p.duration, pa.restrict_domains';
@@ -214,7 +214,7 @@ if ($partner) {
 if ($reusecontractid) {
 	$contract = new Contrat($db);
 	$contract->fetch($reusecontractid);
-	$socid = $contract->fk_soc;
+	$socid = ($contract->socid > 0 ? $contract->socid : $contract->fk_soc);
 	$tmparray=explode('.', $contract->ref_customer, 2);
 	$sldAndSubdomain=strtolower($tmparray[0]);
 	$tldid='.'.$tmparray[1];
@@ -263,8 +263,8 @@ $favicon=getDomainFromURL($_SERVER['SERVER_NAME'], 0);
 if (! preg_match('/\.(png|jpg)$/', $favicon)) {
 	$favicon.='.png';
 }
-if (! empty($conf->global->MAIN_FAVICON_URL)) {
-	$favicon=$conf->global->MAIN_FAVICON_URL;
+if (getDolGlobalString('MAIN_FAVICON_URL')) {
+	$favicon=getDolGlobalString('MAIN_FAVICON_URL');
 }
 
 $head = '';
@@ -301,22 +301,49 @@ llxHeader($head, $title, '', '', 0, 0, $arrayofjs, array(), '', 'register', '', 
 	<img id="waitMaskImg" width="100px" src="<?php echo 'ajax-loader.gif'; ?>" alt="Loading" />
 </div>
 
+<?php
 
-<div class="large">
+$parameters = array(
+	'partner' => $partner,
+	'partnerkey' => $partnerkey,
+	'plan' => $plan,
+	'sldAndSubdom' => $sldAndSubdomain,
+	'tldid' => $tldid,
+	'origin' => $origin,
+	'reusecontractid' => $reusecontractid,
+	'reusesocid' => $reusesocid,
+	'fromsocid' => $fromsocid,
+	'disablecusto' => $disablecustomeremail,
+	'extcss' => $extcss,
+	'domainname' => $domainname,
+	'productid' => $productid,
+	'productref' => $productref,
+	'tmppackage' => $tmppackage,
+	'mythirdparty' => $mythirdparty,
+	'tmpproduct' => $tmpproduct
+);
+// return values of this hook:
+// 0 = resPrint appended to the content of the page
+// 1 = page contents replaced with resPrint
+$reshook = $hookmanager->executeHooks('sellyoursaasGetRegisterPageForm', $parameters, $object, $action); // Note that $action and $object may have been modified by hook
+$hookGetRegisterPageFormResPrint = $hookmanager->resPrint;
+if ($reshook == 0) {
+	?>
+	<div class="large">
 		<?php
-		$sellyoursaasdomain = $conf->global->SELLYOURSAAS_MAIN_DOMAIN_NAME;
-		$sellyoursaasname = $conf->global->SELLYOURSAAS_NAME;
+		$sellyoursaasdomain = getDolGlobalString('SELLYOURSAAS_MAIN_DOMAIN_NAME');
+		$sellyoursaasname = getDolGlobalString('SELLYOURSAAS_NAME');
 
 		$domainname=getDomainFromURL($_SERVER['SERVER_NAME'], 1);
 		$constforaltname = 'SELLYOURSAAS_NAME_FORDOMAIN-'.$domainname;
-		if (! empty($conf->global->$constforaltname)) {
+		if (getDolGlobalString($constforaltname)) {
 			$sellyoursaasdomain = $domainname;
-			$sellyoursaasname = $conf->global->$constforaltname;
+			$sellyoursaasname = getDolGlobalString($constforaltname);
 			//var_dump($constforaltname.' '.$sellyoursaasdomain.' '.$sellyoursaasname);   // Example: 'SELLYOURSAAS_NAME_FORDOMAIN-glpi-network.cloud glpi-network.cloud GLPI-Network'
 		}
 
 		$linklogo = '';
-		$homepage = 'https://'.(empty($conf->global->SELLYOURSAAS_FORCE_MAIN_DOMAIN_NAME) ? $sellyoursaasdomain : $conf->global->SELLYOURSAAS_MAIN_DOMAIN_NAME);
+		$homepage = 'https://'.(!getDolGlobalString('SELLYOURSAAS_FORCE_MAIN_DOMAIN_NAME') ? $sellyoursaasdomain : $conf->global->SELLYOURSAAS_MAIN_DOMAIN_NAME);
 		if (isset($partnerthirdparty) && $partnerthirdparty->id > 0) {     // Show logo of partner
 			require_once DOL_DOCUMENT_ROOT.'/ecm/class/ecmfiles.class.php';
 			$ecmfile=new EcmFiles($db);
@@ -345,18 +372,18 @@ llxHeader($head, $title, '', '', 0, 0, $arrayofjs, array(), '', 'register', '', 
 			$constlogosmallalt = 'SELLYOURSAAS_LOGO_SMALL_'.str_replace('.', '_', strtoupper($sellyoursaasdomain));
 
 			//var_dump($sellyoursaasdomain.' '.$constlogoalt.' '.$conf->global->$constlogoalt);exit;
-			if (! empty($conf->global->$constlogoalt)) {
+			if (getDolGlobalString($constlogoalt)) {
 				$constlogo=$constlogoalt;
 				$constlogosmall=$constlogosmallalt;
 			}
 
-			if (empty($linklogo) && ! empty($conf->global->$constlogosmall)) {
-				if (is_readable($conf->mycompany->dir_output.'/logos/thumbs/'.$conf->global->$constlogosmall)) {
-					$linklogo=DOL_URL_ROOT.'/viewimage.php?cache=1&modulepart=mycompany&file='.urlencode('logos/thumbs/'.$conf->global->$constlogosmall);
+			if (empty($linklogo) && getDolGlobalString($constlogosmall)) {
+				if (is_readable($conf->mycompany->dir_output.'/logos/thumbs/' . getDolGlobalString($constlogosmall))) {
+					$linklogo=DOL_URL_ROOT.'/viewimage.php?cache=1&modulepart=mycompany&file='.urlencode('logos/thumbs/' . getDolGlobalString($constlogosmall));
 				}
-			} elseif (empty($urllogo) && ! empty($conf->global->$constlogo)) {
-				if (is_readable($conf->mycompany->dir_output.'/logos/'.$conf->global->$constlogo)) {
-					$linklogo=DOL_URL_ROOT.'/viewimage.php?cache=1&modulepart=mycompany&file='.urlencode('logos/'.$conf->global->$constlogo);
+			} elseif (empty($urllogo) && getDolGlobalString($constlogo)) {
+				if (is_readable($conf->mycompany->dir_output.'/logos/' . getDolGlobalString($constlogo))) {
+					$linklogo=DOL_URL_ROOT.'/viewimage.php?cache=1&modulepart=mycompany&file='.urlencode('logos/' . getDolGlobalString($constlogo));
 				}
 			} elseif (empty($urllogo) && is_readable(DOL_DOCUMENT_ROOT.'/theme/'.$conf->theme.'/img/dolibarr_logo.png')) {
 				$linklogo=DOL_URL_ROOT.'/theme/'.$conf->theme.'/img/dolibarr_logo.png';
@@ -551,7 +578,19 @@ llxHeader($head, $title, '', '', 0, 0, $arrayofjs, array(), '', 'register', '', 
 				<?php
 			}
 			if (empty($reusecontractid)) {
-				$langs->load("sellyoursaas@sellyoursaas"); ?>
+				$langs->load("sellyoursaas@sellyoursaas");
+
+				$tmppassinform = '';
+				$tmppassinform2 = '';
+				if (!empty($_SESSION['tmppassinform'])) {
+					$tmppassinform = dolDecrypt($_SESSION['tmppassinform']);
+					unset($_SESSION['tmppassinform']);
+				}
+				if (!empty($_SESSION['tmppassinform2'])) {
+					$tmppassinform2 = dolDecrypt($_SESSION['tmppassinform2']);
+					unset($_SESSION['tmppassinform2']);
+				}
+				?>
 			<div class="group">
 				<div class="horizontal-fld">
 
@@ -559,7 +598,7 @@ llxHeader($head, $title, '', '', 0, 0, $arrayofjs, array(), '', 'register', '', 
 					<label class="control-label" for="password" trans="1"><span class="fa fa-lock opacityhigh"></span> <?php echo $langs->trans("Password") ?></label>
 					<div class="controls">
 
-						<input<?php echo $disabled; ?> title="<?php echo dol_escape_htmltag($langs->trans("RuleForPassword", 8)) ?>" pattern="(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{8,}" name="password" type="password" minlength="8" maxlength="128" required autocomplete="new-password" spellcheck="false" autocapitalize="off" />
+						<input<?php echo $disabled; ?> title="<?php echo dol_escape_htmltag($langs->trans("RuleForPassword", 8)) ?>" pattern="(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{8,}" name="password" type="password" minlength="8" maxlength="128" required autocomplete="new-password" spellcheck="false" autocapitalize="off" value="<?php echo $tmppassinform; ?>" />
 
 					</div>
 				</div>
@@ -569,7 +608,7 @@ llxHeader($head, $title, '', '', 0, 0, $arrayofjs, array(), '', 'register', '', 
 				  <div class="control-group required">
 					<label class="control-label" for="password2" trans="1"><span class="fa fa-lock opacityhigh"></span> <?php echo $langs->trans("PasswordRetype") ?></label>
 					<div class="controls">
-					  <input<?php echo $disabled; ?> title="<?php echo dol_escape_htmltag($langs->trans("RuleForPassword", 8)) ?>" pattern="(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{8,}" name="password2" type="password" minlength="8" maxlength="128" required autocomplete="new-password" spellcheck="false" autocapitalize="off" />
+					  <input<?php echo $disabled; ?> title="<?php echo dol_escape_htmltag($langs->trans("RuleForPassword", 8)) ?>" pattern="(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{8,}" name="password2" type="password" minlength="8" maxlength="128" required autocomplete="new-password" spellcheck="false" autocapitalize="off" value="<?php echo $tmppassinform2; ?>" />
 					</div>
 				  </div>
 				</div>
@@ -628,7 +667,7 @@ llxHeader($head, $title, '', '', 0, 0, $arrayofjs, array(), '', 'register', '', 
 						$domainstosuggest = array();
 						$domainstosuggestcountryfilter = array();
 						if (!getDolGlobalString('SELLYOURSAAS_OBJECT_DEPLOYMENT_SERVER_MIGRATION')) {
-							$listofdomain = explode(',', $conf->global->SELLYOURSAAS_SUB_DOMAIN_NAMES);   // This is list of all sub domains to show into combo list
+							$listofdomain = explode(',', getDolGlobalString('SELLYOURSAAS_SUB_DOMAIN_NAMES'));   // This is list of all sub domains to show into combo list
 						} else {
 							$staticdeploymentserver = new Deploymentserver($db);
 							$listofdomain = $staticdeploymentserver->fetchAllDomains();
@@ -724,7 +763,7 @@ llxHeader($head, $title, '', '', 0, 0, $arrayofjs, array(), '', 'register', '', 
 							$randomselect = $domainstosuggest[$randomindex];
 						}
 						// Force selection with no way to change value if SELLYOURSAAS_FORCE_RANDOM_SELECTION is set
-						if (!empty($conf->global->SELLYOURSAAS_FORCE_RANDOM_SELECTION) && !empty($randomselect)) {
+						if (getDolGlobalString('SELLYOURSAAS_FORCE_RANDOM_SELECTION') && !empty($randomselect)) {
 							$domainstosuggest = array();
 							$domainstosuggest[] = $randomselect;
 						}
@@ -810,13 +849,13 @@ llxHeader($head, $title, '', '', 0, 0, $arrayofjs, array(), '', 'register', '', 
 			<?php
 			// TODO Remove this, we should be able to use SELLYOURSAAS_TERMSANDCONDITIONS instead
 			$urlfortermofuse = '';
-			if ($conf->global->SELLYOURSAAS_MAIN_DOMAIN_NAME == 'dolicloud.com') {
-				$urlfortermofuse = 'https://www.'.$conf->global->SELLYOURSAAS_MAIN_DOMAIN_NAME.'/en-terms-and-conditions.php';
+			if (getDolGlobalString('SELLYOURSAAS_MAIN_DOMAIN_NAME') == 'dolicloud.com') {
+				$urlfortermofuse = 'https://www.' . getDolGlobalString('SELLYOURSAAS_MAIN_DOMAIN_NAME').'/en-terms-and-conditions.php';
 				if (preg_match('/^fr/i', $langs->defaultlang)) {
-					$urlfortermofuse = 'https://www.'.$conf->global->SELLYOURSAAS_MAIN_DOMAIN_NAME.'/fr-conditions-utilisations.php';
+					$urlfortermofuse = 'https://www.' . getDolGlobalString('SELLYOURSAAS_MAIN_DOMAIN_NAME').'/fr-conditions-utilisations.php';
 				}
 				if (preg_match('/^es/i', $langs->defaultlang)) {
-					$urlfortermofuse = 'https://www.'.$conf->global->SELLYOURSAAS_MAIN_DOMAIN_NAME.'/es-terminos-y-condiciones.php';
+					$urlfortermofuse = 'https://www.' . getDolGlobalString('SELLYOURSAAS_MAIN_DOMAIN_NAME').'/es-terminos-y-condiciones.php';
 				}
 			}
 			if ($urlfortermofuse) {
@@ -867,6 +906,12 @@ llxHeader($head, $title, '', '', 0, 0, $arrayofjs, array(), '', 'register', '', 
 </div>
 
 
+	<?php
+}
+if ($reshook >= 0) {
+	print $hookGetRegisterPageFormResPrint;
+}
+?>
 
 
 <script type="text/javascript" language="javascript">

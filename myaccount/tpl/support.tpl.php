@@ -79,20 +79,31 @@ print '
 
 	$sellyoursaassupporturl = getDolGlobalString('SELLYOURSAAS_SUPPORT_URL');
 if (! empty($mythirdpartyaccount->array_options['options_domain_registration_page'])
-		&& $mythirdpartyaccount->array_options['options_domain_registration_page'] != $conf->global->SELLYOURSAAS_MAIN_DOMAIN_NAME) {
+	&& $mythirdpartyaccount->array_options['options_domain_registration_page'] != getDolGlobalString('SELLYOURSAAS_MAIN_DOMAIN_NAME')) {
 	$newnamekey = 'SELLYOURSAAS_SUPPORT_URL_'.strtoupper(str_replace('.', '_', $mythirdpartyaccount->array_options['options_domain_registration_page']));
-	if (! empty($conf->global->$newnamekey)) {
-		$sellyoursaassupporturl = $conf->global->$newnamekey;
+	if (getDolGlobalString($newnamekey)) {
+		$sellyoursaassupporturl = getDolGlobalString($newnamekey);
 	}
 }
 
 if ($sellyoursaassupporturl) {
-	$sellyoursaassupporturl = str_replace('__EMAIL__', $mythirdpartyaccount->email, $sellyoursaassupporturl);
-	$sellyoursaassupporturl = str_replace('__FIRSTNAME__', $mythirdpartyaccount->array_options['options_firstname'], $sellyoursaassupporturl);
-	$sellyoursaassupporturl = str_replace('__LASTNAME__', $mythirdpartyaccount->array_options['options_lastname'], $sellyoursaassupporturl);
+	$supportkey = strtoupper(dol_trunc(dol_hash($mythirdpartyaccount->email, 'md5'), 5, 'right', 'UTF-8', 1));
+	$sellyoursaassupporturlorigin = $sellyoursaassupporturl;
+
+	$sellyoursaassupporturl = str_replace('__EMAIL__', urlencode($mythirdpartyaccount->email), $sellyoursaassupporturl);
+	$sellyoursaassupporturl = str_replace('__FIRSTNAME__', urlencode($mythirdpartyaccount->array_options['options_firstname']), $sellyoursaassupporturl);
+	$sellyoursaassupporturl = str_replace('__LASTNAME__', urlencode($mythirdpartyaccount->array_options['options_lastname']), $sellyoursaassupporturl);
+	$sellyoursaassupporturl = str_replace('__FULLNAME__', urlencode(dolGetFirstLastname($mythirdpartyaccount->array_options['options_firstname'], $mythirdpartyaccount->array_options['options_lastname'])), $sellyoursaassupporturl);
+	$sellyoursaassupporturl = str_replace('__PHONE__', urlencode($mythirdpartyaccount->phone), $sellyoursaassupporturl);
+	$sellyoursaassupporturl = str_replace('__SUPPORTKEY__', urlencode($supportkey), $sellyoursaassupporturl);
 
 	print '<div class="row" id="supporturl"><div class="col-md-12"><div class="portlet light">';
-	print $langs->trans("SupportURLExternal", $sellyoursaassupporturl).'<br />'."\n";
+	print $langs->trans("SupportURLExternal", $sellyoursaassupporturl).'<br>'."\n";
+
+	if (preg_match('/__SUPPORTKEY__/', $sellyoursaassupporturlorigin)) {	// A __SUPPORTKEY__ is defined so we show it
+		print '<br>'.$langs->trans("SupportKey").': <b>'.showValueWithClipboardCPButton($supportkey, 0).'</b><br>';
+	}
+
 	print '</div></div></div>';
 } else {
 	print '
@@ -103,7 +114,7 @@ if ($sellyoursaassupporturl) {
 
 				      <div class="portlet-title">
 				        <div class="caption">';
-	if (!empty(getDolGlobalString('SELLYOURSAAS_SUPPORT_SHOW_MESSAGE'))) {
+	if (getDolGlobalString('SELLYOURSAAS_SUPPORT_SHOW_MESSAGE')) {
 		print '<span>'.$langs->trans(getDolGlobalString('SELLYOURSAAS_SUPPORT_SHOW_MESSAGE')).'</span><br><br>';
 	} else {
 		print '<span class="opacitymedium"><br>'.$langs->trans("AskForSupport").'...</span><br><br>';
@@ -241,7 +252,7 @@ if ($sellyoursaassupporturl) {
 	print '</form>';
 
 
-	if (($action == 'presend' && GETPOST('supportchannel', 'alpha')) || getDolGlobalInt('SELLYOURSAAS_ONLY_NON_PROFIT_ORGA')) {
+	if ($action == 'presend' && GETPOST('supportchannel', 'alpha')) {
 		$trackid = '';
 		dol_init_file_process($upload_dir, $trackid);
 
@@ -292,18 +303,18 @@ if ($sellyoursaassupporturl) {
 		print '<input type="hidden" name="contractid" value="'.$tmpcontractid.'">';
 		print '<input type="hidden" name="supportchannel" value="'.GETPOST('supportchannel', 'alpha').'">';
 
-		$sellyoursaasemail = $conf->global->SELLYOURSAAS_MAIN_EMAIL;
+		$sellyoursaasemail = getDolGlobalString('SELLYOURSAAS_MAIN_EMAIL');
 		if (! empty($mythirdpartyaccount->array_options['options_domain_registration_page'])
 		&& $mythirdpartyaccount->array_options['options_domain_registration_page'] != $conf->global->SELLYOURSAAS_MAIN_DOMAIN_NAME) {
 			$newnamekey = 'SELLYOURSAAS_MAIN_EMAIL_FORDOMAIN-'.$mythirdpartyaccount->array_options['options_domain_registration_page'];
-			if (! empty($conf->global->$newnamekey)) {
-				$sellyoursaasemail = $conf->global->$newnamekey;
+			if (getDolGlobalString($newnamekey)) {
+				$sellyoursaasemail = getDolGlobalString($newnamekey);
 			}
 		}
 
-		if (! empty($conf->global->SELLYOURSAAS_MAIN_EMAIL_PREMIUM) && preg_match('/high/', GETPOST('supportchannel', 'alpha'))) {
+		if (getDolGlobalString('SELLYOURSAAS_MAIN_EMAIL_PREMIUM') && preg_match('/high/', GETPOST('supportchannel', 'alpha'))) {
 			// We must use the prioritary email
-			$sellyoursaasemail = $conf->global->SELLYOURSAAS_MAIN_EMAIL_PREMIUM;
+			$sellyoursaasemail = getDolGlobalString('SELLYOURSAAS_MAIN_EMAIL_PREMIUM');
 			if (! empty($mythirdpartyaccount->array_options['options_domain_registration_page'])
 			&& $mythirdpartyaccount->array_options['options_domain_registration_page'] != $conf->global->SELLYOURSAAS_MAIN_DOMAIN_NAME) {
 				$newnamekey = 'SELLYOURSAAS_MAIN_EMAIL_PREMIUM_FORDOMAIN-'.$mythirdpartyaccount->array_options['options_domain_registration_page'];
@@ -428,7 +439,7 @@ if ($sellyoursaassupporturl) {
 		$stringtoprint .= '
 			});';
 
-		if (!empty($conf->global->SELLYOURSAAS_AUTOMIGRATION_CODE)) {
+		if (getDolGlobalString('SELLYOURSAAS_AUTOMIGRATION_CODE')) {
 			if (GETPOST('backfromautomigration', 'alpha')) {
 				$stringtoprint .= '
 				console.log("We show for automigration");
@@ -456,7 +467,7 @@ if ($sellyoursaassupporturl) {
 				$("#subject_back").val($(this).val());
 			})';
 		}
-		if (!empty($conf->global->SELLYOURSAAS_AUTOUPGRADE_CODE)) {
+		if (getDolGlobalString('SELLYOURSAAS_AUTOUPGRADE_CODE')) {
 			$stringtoprint .= '
 			$("#hideautoupgradediv").on("click",function(){
 				console.log("We cancel the autoupgrade");
@@ -481,7 +492,7 @@ if ($sellyoursaassupporturl) {
 
 		print $stringtoprint;
 
-		if (!empty($conf->global->SELLYOURSAAS_AUTOMIGRATION_CODE)) {
+		if (getDolGlobalString('SELLYOURSAAS_AUTOMIGRATION_CODE')) {
 			print '<div id="showforautomigration" class="showforautomigration" style="display:none;">';
 			print '<br><br>';
 			print '<div style="display:flex;justify-content: space-evenly;">';
@@ -492,7 +503,7 @@ if ($sellyoursaassupporturl) {
 			print '</div>';
 		}
 
-		if (!empty($conf->global->SELLYOURSAAS_AUTOUPGRADE_CODE)) {
+		if (getDolGlobalString('SELLYOURSAAS_AUTOUPGRADE_CODE')) {
 			print '<div id="showforautoupgrade" class="showforautoupgrade" style="display:none;">';
 			print '<br>';
 			print '<div style="display:flex;justify-content: space-evenly;">';
@@ -503,7 +514,7 @@ if ($sellyoursaassupporturl) {
 			print '</div>';
 		}
 
-		if (!empty($conf->global->SELLYOURSAAS_AUTOMIGRATION_CODE) || !empty($conf->global->SELLYOURSAAS_AUTOUPGRADE_CODE)) {
+		if (getDolGlobalString('SELLYOURSAAS_AUTOMIGRATION_CODE') || getDolGlobalString('SELLYOURSAAS_AUTOUPGRADE_CODE')) {
 			print '<div id="hideforautomigration" class="hideforautomigration"><div>';
 		}
 
@@ -539,7 +550,7 @@ if ($sellyoursaassupporturl) {
 
 		print '</form>';
 
-		if (!empty($conf->global->SELLYOURSAAS_AUTOMIGRATION_CODE) || !empty($conf->global->SELLYOURSAAS_AUTOUPGRADE_CODE)) {
+		if (getDolGlobalString('SELLYOURSAAS_AUTOMIGRATION_CODE') || getDolGlobalString('SELLYOURSAAS_AUTOUPGRADE_CODE')) {
 			print '<form action="'.$_SERVER["PHP_SELF"].'#Step1" method="get" id="changemodeForm">';
 			print '<input type="hidden" id="modeforchangemmode" name="mode" value="automigration">';
 			print '<input type="hidden" name="token" value="'.newToken().'">';

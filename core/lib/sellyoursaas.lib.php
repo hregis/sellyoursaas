@@ -243,14 +243,14 @@ function getListOfLinks($object, $lastloginadmin, $lastpassadmin)
 	// Application instance url
 	if (empty($lastpassadmin)) {
 		if (! empty($object->array_options['options_deployment_init_adminpass'])) {
-			$url='https://'.$object->ref_customer.'?username='.$lastloginadmin.'&amp;password='.$object->array_options['options_deployment_init_adminpass'];
+			$url='https://'.$object->ref_customer.'?username='.urlencode($lastloginadmin).'&amp;password='.urlencode($object->array_options['options_deployment_init_adminpass']);
 			$links .= img_picto('', 'globe', 'class="pictofixedwidth"').'Link to application (initial install pass)<br><div class="urllink">';
 		} else {
-			$url='https://'.$object->ref_customer.'?username='.$lastloginadmin;
+			$url='https://'.$object->ref_customer.'?username='.urlencode($lastloginadmin);
 			$links .= img_picto('', 'globe', 'class="pictofixedwidth"').'Link to application<br><div class="urllink">';
 		}
 	} else {
-		$url='https://'.$object->ref_customer.'?username='.$lastloginadmin.'&amp;password='.$lastpassadmin;
+		$url='https://'.$object->ref_customer.'?username='.urlencode($lastloginadmin).'&amp;password='.urlencode($lastpassadmin);
 		$links .= img_picto('', 'globe', 'class="pictofixedwidth"').'Link to application (last logged admin)<br><div class="urllink">';
 	}
 	$link = '<input type="text" class="quatrevingtpercentminusx" value="'.$url.'"> <a class="wordwrap" href="'.$url.'" target="_blank" id="dashboardlink">'.img_picto('', 'globe').'</a>';
@@ -267,19 +267,19 @@ function getListOfLinks($object, $lastloginadmin, $lastpassadmin)
 		$thirdparty = $object->thirdparty;
 	}
 	if ($user->admin && is_object($thirdparty) && (! empty($thirdparty->array_options['options_dolicloud']))) {
-		$urlmyaccount = $conf->global->SELLYOURSAAS_ACCOUNT_URL;
+		$urlmyaccount = getDolGlobalString('SELLYOURSAAS_ACCOUNT_URL');
 		if (! empty($thirdparty->array_options['options_domain_registration_page'])
 			&& $thirdparty->array_options['options_domain_registration_page'] != $conf->global->SELLYOURSAAS_MAIN_DOMAIN_NAME) {
 			$constforaltname = $thirdparty->array_options['options_domain_registration_page'];
 			$newurlkey = 'SELLYOURSAAS_ACCOUNT_URL-'.$constforaltname;
-			if (! empty($conf->global->$newurlkey)) {
-				$urlmyaccount = $conf->global->$newurlkey;
+			if (getDolGlobalString($newurlkey)) {
+				$urlmyaccount = getDolGlobalString($newurlkey);
 			} else {
 				$urlmyaccount = preg_replace('/' . getDolGlobalString('SELLYOURSAAS_MAIN_DOMAIN_NAME').'/', $thirdparty->array_options['options_domain_registration_page'], $urlmyaccount);
 			}
 		}
 		$dol_login_hash=dol_hash(getDolGlobalString('SELLYOURSAAS_KEYFORHASH') . $thirdparty->email.dol_print_date(dol_now(), 'dayrfc'), 5);	// hash is valid one hour
-		$url=$urlmyaccount.'?mode=logout_dashboard&password=&username='.$thirdparty->email.'&login_hash='.$dol_login_hash;	// Note that password may have change and not being the one of dolibarr admin user
+		$url=$urlmyaccount.'?mode=logout_dashboard&password=&username='.urlencode($thirdparty->email).'&login_hash='.urlencode($dol_login_hash);	// Note that password may have change and not being the one of dolibarr admin user
 	}
 
 	$link = '<input type="text" class="quatrevingtpercentminusx" value="'.$url.'"> <a class="wordwrap" href="'.$url.'" target="_blank" id="dashboardlink">'.img_picto('', 'globe').'</a>';

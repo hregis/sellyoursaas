@@ -1,6 +1,6 @@
 #!/bin/bash
 #----------------------------------------------------------------
-# This script allows to update or fix the SellYourSaas config files
+# This script allows to update or fix the SellYourSaas config files saved as:
 # /etc/sellyoursaas.conf OR the /etc/sellyoursaas-public.conf
 #----------------------------------------------------------------
 
@@ -8,6 +8,12 @@
 #set -e
 
 source /etc/lsb-release
+
+export RED='\033[0;31m'
+export GREEN='\033[0;32m'
+export BLUE='\033[0;34m'
+export YELLOW='\033[0;33m'
+
 
 if [ "x$3" == "x" -o "x$4" == "x" ]; then
 	echo "***** desktop_config_sellyoursaas.sh *****"	

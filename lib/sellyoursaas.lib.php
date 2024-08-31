@@ -32,7 +32,7 @@ if (!function_exists('getDolGlobalString')) {
 	{
 		global $conf;
 		// return $conf->global->$key ?? $default;
-		return (string) (empty($conf->global->$key) ? $default : $conf->global->$key);
+		return (string) (isset($conf->global->$key) ? $conf->global->$key : $default);
 	}
 }
 
@@ -47,7 +47,7 @@ if (!function_exists('getDolGlobalInt')) {
 	{
 		global $conf;
 		// return $conf->global->$key ?? $default;
-		return (int) (empty($conf->global->$key) ? $default : $conf->global->$key);
+		return (int) (isset($conf->global->$key) ? $conf->global->$key : $default);
 	}
 }
 
@@ -98,7 +98,7 @@ function sellyoursaasThirdpartyHasPaymentMode($thirdpartyidtotest)
 	if (! empty($conf->stripe->enabled)) {
 		$service = 'StripeTest';
 		$servicestatusstripe = 0;
-		if (! empty($conf->global->STRIPE_LIVE) && ! GETPOST('forcesandbox', 'alpha') && empty($conf->global->SELLYOURSAAS_FORCE_STRIPE_TEST)) {
+		if (getDolGlobalString('STRIPE_LIVE') && ! GETPOST('forcesandbox', 'alpha') && !getDolGlobalString('SELLYOURSAAS_FORCE_STRIPE_TEST')) {
 			$service = 'StripeLive';
 			$servicestatusstripe = 1;
 		}
@@ -106,7 +106,7 @@ function sellyoursaasThirdpartyHasPaymentMode($thirdpartyidtotest)
 	$servicestatuspaypal = 0;
 	if (! empty($conf->paypal->enabled)) {
 		$servicestatuspaypal = 0;
-		if (! empty($conf->global->PAYPAL_LIVE) && ! GETPOST('forcesandbox', 'alpha') && empty($conf->global->SELLYOURSAAS_FORCE_PAYPAL_TEST)) {
+		if (getDolGlobalString('PAYPAL_LIVE') && ! GETPOST('forcesandbox', 'alpha') && !getDolGlobalString('SELLYOURSAAS_FORCE_PAYPAL_TEST')) {
 			$servicestatuspaypal = 1;
 		}
 	}
@@ -375,7 +375,7 @@ function getRootUrlForAccount($object)
 {
 	global $db, $conf;
 
-	$tmpret = explode(',', $conf->global->SELLYOURSAAS_ACCOUNT_URL);     // By default
+	$tmpret = explode(',', getDolGlobalString('SELLYOURSAAS_ACCOUNT_URL'));     // By default
 	$ret = $tmpret[0];
 
 	$newobject = $object;
@@ -501,10 +501,10 @@ function getRemoteCheck($remoteip, $whitelisted, $email)
 
 
 	// Evaluate VPN probability with Getintel
-	if (!empty($conf->global->SELLYOURSAAS_GETIPINTEL_ON)) {
+	if (getDolGlobalString('SELLYOURSAAS_GETIPINTEL_ON')) {
 		$emailforvpncheck='contact+checkcustomer@mysaasdomainname.com';
-		if (!empty($conf->global->SELLYOURSAAS_GETIPINTEL_EMAIL)) {
-			$emailforvpncheck = $conf->global->SELLYOURSAAS_GETIPINTEL_EMAIL;
+		if (getDolGlobalString('SELLYOURSAAS_GETIPINTEL_EMAIL')) {
+			$emailforvpncheck = getDolGlobalString('SELLYOURSAAS_GETIPINTEL_EMAIL');
 		}
 		$url = 'http://check.getipintel.net/check.php?ip='.urlencode($remoteip).'&contact='.urlencode($emailforvpncheck).'&flag=f';
 		$result = getURLContent($url, 'GET', '', 1, array(), array('http', 'https'), 0);
@@ -527,10 +527,10 @@ function getRemoteCheck($remoteip, $whitelisted, $email)
 		}
 
 		// Refused if VPN probability from GetIP is too high
-		if (!$whitelisted && empty($abusetest) && !empty($conf->global->SELLYOURSAAS_VPN_PROBA_REFUSED)) {
+		if (!$whitelisted && empty($abusetest) && getDolGlobalString('SELLYOURSAAS_VPN_PROBA_REFUSED')) {
 			$conf->global->SELLYOURSAAS_VPN_FRAUDSCORE_REFUSED = 85;
 
-			if (empty($conf->global->SELLYOURSAAS_IPQUALITY_ON)) {
+			if (!getDolGlobalString('SELLYOURSAAS_IPQUALITY_ON')) {
 				// If not other check, we get default $fraudscoreip = 99
 				$fraudscoreip = 99;		// getintel is very important because we did not do other tests with IPQuality
 			} else {
@@ -546,7 +546,7 @@ function getRemoteCheck($remoteip, $whitelisted, $email)
 	}
 
 	// Evaluate VPN probability with IPQualityScore but also TOR or bad networks and email
-	if (!empty($conf->global->SELLYOURSAAS_IPQUALITY_ON) && empty($abusetest) && !empty($conf->global->SELLYOURSAAS_IPQUALITY_KEY)) {
+	if (getDolGlobalString('SELLYOURSAAS_IPQUALITY_ON') && empty($abusetest) && getDolGlobalString('SELLYOURSAAS_IPQUALITY_KEY')) {
 		// Retrieve additional (optional) data points which help us enhance fraud scores.
 		$user_agent = (empty($_SERVER["HTTP_USER_AGENT"]) ? '' : $_SERVER["HTTP_USER_AGENT"]);
 		$user_language = (empty($_SERVER["HTTP_ACCEPT_LANGUAGE"]) ? '' : $_SERVER["HTTP_ACCEPT_LANGUAGE"]);
@@ -599,7 +599,7 @@ function getRemoteCheck($remoteip, $whitelisted, $email)
 				$jsonreponse = json_decode($result['content'], true);
 				dol_syslog("For ip ".$remoteip.": fraud_score=".$jsonreponse['fraud_score']." - is_crawler=".$jsonreponse['is_crawler']." - vpn=".$jsonreponse['vpn']." - recent_abuse=".$jsonreponse['recent_abuse']." - tor=".($jsonreponse['tor'] || $jsonreponse['active_tor']));
 				if ($jsonreponse['success']) {
-					if ($jsonreponse['recent_abuse'] && !empty($conf->global->SELLYOURSAAS_IPQUALITY_BLOCK_ABUSING_IP)) {	// Not recommanded if users are using shared IP
+					if ($jsonreponse['recent_abuse'] && getDolGlobalString('SELLYOURSAAS_IPQUALITY_BLOCK_ABUSING_IP')) {	// Not recommanded if users are using shared IP
 						dol_syslog("Instance creation blocked for ".$remoteip." - This is an IP with recent abuse reported");
 						$abusetest = 2;
 					}
@@ -631,7 +631,7 @@ function getRemoteCheck($remoteip, $whitelisted, $email)
 		}
 
 		// Refused if VPN probability from IPQuality is too high
-		if (!$whitelisted && empty($abusetest) && !empty($conf->global->SELLYOURSAAS_VPN_PROBA_REFUSED)) {
+		if (!$whitelisted && empty($abusetest) && getDolGlobalString('SELLYOURSAAS_VPN_PROBA_REFUSED')) {
 			$conf->global->SELLYOURSAAS_VPN_FRAUDSCORE_REFUSED = 85;
 
 			if (is_numeric($vpnproba) && $vpnproba >= (float) $conf->global->SELLYOURSAAS_VPN_PROBA_REFUSED && ($fraudscoreip >= $conf->global->SELLYOURSAAS_VPN_FRAUDSCORE_REFUSED)) {
@@ -688,8 +688,8 @@ function getRemoteCheck($remoteip, $whitelisted, $email)
 	// Deprecated. Use instead the List of blacklist ips into menu. This is done a begin of page
 
 	// Block for some IPs
-	if (!$whitelisted && empty($abusetest) && !empty($conf->global->SELLYOURSAAS_BLACKLIST_IP_MASKS)) {
-		$arrayofblacklistips = explode(',', $conf->global->SELLYOURSAAS_BLACKLIST_IP_MASKS);
+	if (!$whitelisted && empty($abusetest) && getDolGlobalString('SELLYOURSAAS_BLACKLIST_IP_MASKS')) {
+		$arrayofblacklistips = explode(',', getDolGlobalString('SELLYOURSAAS_BLACKLIST_IP_MASKS'));
 		foreach ($arrayofblacklistips as $blacklistip) {
 			if ($remoteip == $blacklistip) {
 				dol_syslog("Instance creation blocked for ".$remoteip." - This IP is in blacklist SELLYOURSAAS_BLACKLIST_IP_MASKS");
@@ -717,28 +717,31 @@ function getRemoteCheck($remoteip, $whitelisted, $email)
 /**
  * Function to get nb of users for a certain contract
  *
- * @param	string		$contractref			Ref of contract for user count
- * @param	string		$codeextrafieldqtymin	Code of extrafield to find minimum qty of users
- * @param	string		$sqltoexecute			SQL to execute to get nb of users in customer instance
- * @param	int			$userproductid			Id of product for user count
- * @return 	int									<0 if error or Number of users for contract
+ * @param	string|Contrat		$contractref			Ref of contract for user count or contract
+ * @param	ContratLigne		$contractline			Contract line
+ * @param	string				$codeextrafieldqtymin	Code of extrafield to find minimum qty of users
+ * @param	string				$sqltoexecute			SQL to execute to get nb of users in customer instance
+ * @return 	int											<0 if error or Number of users for contract
  */
-function sellyoursaasGetNbUsersContract($contractref, $codeextrafieldqtymin, $sqltoexecute, $userproductid = 0)
+function sellyoursaasGetNbUsersContract($contractref, $contractline, $codeextrafieldqtymin, $sqltoexecute)
 {
 	global $db;
 
-	// @TODO LMR Get the object contract as parameter
-	require_once DOL_DOCUMENT_ROOT."/contrat/class/contrat.class.php";
-	$contract = new Contrat($db);
-	$result = $contract->fetch(0, $contractref);
-	if ($result <= 0) {
-		setEventMessages($contract->error, $contract->errors, 'errors');
-		return -1;
+	if (is_object($contractref)) {
+		$contract = $contractref;
+	} else {
+		require_once DOL_DOCUMENT_ROOT."/contrat/class/contrat.class.php";
+		$contract = new Contrat($db);
+		$result = $contract->fetch(0, $contractref);
+		if ($result <= 0) {
+			setEventMessages($contract->error, $contract->errors, 'errors');
+			return -1;
+		}
 	}
 
 	$server = $contract->ref_customer;
-	if (empty($hostname_db)) {
-		$hostname_db = $contract->array_options['options_hostname_db'];
+	if (empty($server)) {
+		$server = $contract->array_options['options_hostname_db'];
 	}
 	$port_db = $contract->port_db;
 	if (empty($port_db)) {
@@ -767,15 +770,64 @@ function sellyoursaasGetNbUsersContract($contractref, $codeextrafieldqtymin, $sq
 	$nbuserextrafield = 0;
 	$qtyuserline = 0;
 
-	// TODO @LMR Replace the table prefix with $contract->array_options['options_prefix_db'];
+	// Note: this sql request should contains the correct SQL with the correct prefix on table
 	$sqltoexecute = trim($sqltoexecute);
+
+	// Set vars so we can use same code than into sellyoursaasutils.class.php
+	$sqlformula = $sqltoexecute;
+	$dbinstance = $newdb;
+	$newqty = null;	// If $newqty remains null, we won't change/record value.
+	$newcommentonqty = '';
+	$error = 0;
 
 	dol_syslog("Execute sql=".$sqltoexecute);
 
 	$resql=$newdb->query($sqltoexecute);
 	if ($resql) {
-		$obj = $newdb->fetch_object($resql);
-		$nbusersql = $obj->nb;
+		if (preg_match('/^select count/i', $sqlformula)) {
+			// If request is a simple SELECT COUNT
+			$objsql = $dbinstance->fetch_object($resql);
+			if ($objsql) {
+				$newqty = $objsql->nb;
+				$newcommentonqty .= '';
+			} else {
+				$error++;
+				dol_syslog('sellyoursaasGetNbUsersContract: SQL to get resources returns error for '.$object->ref.' - '.$producttmp->ref.' - '.$sqlformula);
+				//$this->error = 'sellyoursaasRemoteAction: SQL to get resources returns error for '.$object->ref.' - '.$producttmp->ref.' - '.$sqlformula;
+				//$this->errors[] = $this->error;
+			}
+		} else {
+			// If request is a SELECT nb, fieldlogin as comment
+			$num = $dbinstance->num_rows($resql);
+			if ($num > 0) {
+				$itmp = 0;
+				$arrayofcomment = array();
+				while ($itmp < $num) {
+					// If request is a list to count
+					$objsql = $dbinstance->fetch_object($resql);
+					if ($objsql) {
+						if (empty($newqty)) {
+							$newqty = 0;	// To have $newqty not null and allow addition just after
+						}
+						$newqty += (isset($objsql->nb) ? $objsql->nb : 1);
+						if (isset($objsql->comment)) {
+							$arrayofcomment[] = $objsql->comment;
+						}
+					}
+					$itmp++;
+				}
+				//$newcommentonqty .= 'Qty '.$producttmp->ref.' = '.$newqty."\n";
+				$newcommentonqty .= 'User Accounts ('.$newqty.') : '.join(', ', $arrayofcomment)."\n";
+			} else {
+				$error++;
+				dol_syslog('sellyoursaasGetNbUsersContract: SQL to get resource list returns empty list for '.$object->ref.' - '.$producttmp->ref.' - '.$sqlformula);
+				//$this->error = 'sellyoursaasRemoteAction: SQL to get resource list returns empty list for '.$object->ref.' - '.$producttmp->ref.' - '.$sqlformula;
+				//$this->errors[] = $this->error;
+			}
+			if ($newqty) {
+				$nbusersql = $newqty;
+			}
+		}
 	} else {
 		$nbusersql = -1;	// Error
 	}
@@ -784,17 +836,17 @@ function sellyoursaasGetNbUsersContract($contractref, $codeextrafieldqtymin, $sq
 		$newdb->close();
 	}
 
-	$contractlines = $contract->lines;
-
-	foreach ($contractlines as $contractline) {
-		if (empty($userproductid) || $contractline->fk_product == $userproductid) {
-			$contractline->fetch_optionals();	// @TODO LMR Not alreayd done ?
-			if (!empty($contractline->array_options["options_".$codeextrafieldqtymin])) {
-				$nbuserextrafield = $contractline->array_options["options_".$codeextrafieldqtymin]; // Get qty min of user contract line
-			}
-		}
+	if (!empty($contractline->array_options["options_".$codeextrafieldqtymin])) {
+		$nbuserextrafield = $contractline->array_options["options_".$codeextrafieldqtymin]; // Get qty min of user contract line
 	}
 
-	// Return the max qty off all the qty get
-	return max($nbusersql, $nbuserextrafield);
+	if ($error) {
+		return -1;
+	}
+
+	// Return the max qty of all the qty get
+	$ret = max($nbusersql, $nbuserextrafield);
+	dol_syslog("sellyoursaasGetNbUsersContract ret=".$ret);
+
+	return $ret;
 }

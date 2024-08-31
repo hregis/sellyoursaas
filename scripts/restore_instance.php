@@ -116,6 +116,7 @@ if (! $res) {
 	exit(-1);
 }
 include_once DOL_DOCUMENT_ROOT.'/core/lib/files.lib.php';
+include_once DOL_DOCUMENT_ROOT.'/core/lib/functions.lib.php';
 dol_include_once("/sellyoursaas/core/lib/sellyoursaas.lib.php");
 dol_include_once("/sellyoursaas/lib/sellyoursaas.lib.php");
 
@@ -214,27 +215,27 @@ if (empty($backupdumpdayfrequency)) {
  *	Main
  */
 
-print "***** ".$script_file." (".$version.") - mode = ".$mode." - ".dol_print_date(dol_now('gmt'), "%Y%m%d-%H%M%S", 'gmt')." *****\n";
+$return_var=0;
 
-if (preg_match('/:/', $dirroot)) {
+print "***** ".$script_file." (".$version.") - mode=".$mode." - ".dol_print_date(dol_now('gmt'), "%Y%m%d-%H%M%S", 'gmt')." *****\n";
+
+if (empty($dirroot) || empty($instance) || empty($mode)) {
+	print "This script must be ran as 'admin' for a local restoration, as 'root' for a restoration from a remotebackup.\n";
+	print "Usage:   $script_file [remotebackup:]backup_dir  autoscan|mysqldump_dbn...sql.zst|dayofmonth instance [test|testrsync|testdatabase|confirm|confirmrsync|confirmdatabase]\n";
+	print "Example: $script_file ".getDolGlobalString('DOLICLOUD_BACKUP_PATH')."/osu123456/dbn789012  autoscan  myinstance  test\n";
+	print "Example: $script_file remotebackup:/mnt/diskbackup/backup_servername/osu123456/dbn789012  autoscan  myinstance  test\n";
+	print "Example: $script_file remotebackup:/mnt/diskbackup/.snapshots/diskbackup-xxx/backup_servername/osu123456/dbn789012  autoscan  myinstance  test\n";
+	print "Note:    the ssh public key of user admin must be authorized in the .ssh/authorized_keys_support of the targeted osu user to have rsync working.\n";
+	print "Return code: 0 if success, <>0 if error\n";
+	exit(-1);
+}
+
+if (preg_match('/:/', $dirroot)) {	// $dirroot = 'remoteserer:/mnt/diskbackup/backup_servername/osu...'
 	// Restore from a remote server
 	if (0 != posix_getuid()) {
 		echo "Script must be ran with root.\n";
 		exit(-1);
 	}
-
-	// TODO Rsync to get backup into /tmp
-	dol_delete_dir_recursive('/tmp/restore_instance');
-	dol_mkdir('/tmp/restore_instance');
-
-
-
-	print 'TODO...';
-
-	// Now show message to say we must run the restore script with 'admin'
-	print "You must now run the script with 'admin': ".$script_file/" /tmp/restore_instance autoscan ".$instance." ".$mode."\n";
-
-	exit(0);
 } else {
 	// Restore from a local backup or local archive
 	if (0 == posix_getuid()) {
@@ -255,20 +256,9 @@ if (empty($db)) {
 	$db=$dbmaster;
 }
 
-if (empty($dirroot) || empty($instance) || empty($mode)) {
-	print "This script must be ran as 'admin' for a local restoration, as 'root' for a restoration from a remotebackup.\n";
-	print "Usage:   $script_file [remotebackup:]backup_dir  autoscan|mysqldump_dbn...sql.zst|dayofmonth instance [testrsync|testdatabase|test|confirmrsync|confirmdatabase|confirm]\n";
-	print "Example: $script_file " . getDolGlobalString('DOLICLOUD_BACKUP_PATH')."/osu123456/dbn789012  autoscan  myinstance  testrsync\n";
-	print "Example: $script_file remotebackup:/mnt/diskbackup/.snapshots/diskbackup-xxx/backup_servername/osu123456/dbn789012  autoscan  myinstance  testrsync\n";
-	print "Note:    the ssh public key of admin must be authorized in the .ssh/authorized_keys_support of targeted osu user to have testrsync and confirmrsync working.\n";
-	print "Return code: 0 if success, <>0 if error\n";
-	exit(-1);
-}
-
-
 // Forge complete name of instance
 if (! empty($instance) && ! preg_match('/\./', $instance) && ! preg_match('/\.home\.lan$/', $instance)) {
-	if (empty(getDolGlobalString('SELLYOURSAAS_OBJECT_DEPLOYMENT_SERVER_MIGRATION'))) {
+	if (!getDolGlobalString('SELLYOURSAAS_OBJECT_DEPLOYMENT_SERVER_MIGRATION')) {
 		$tmparray = explode(',', getDolGlobalString('SELLYOURSAAS_SUB_DOMAIN_NAMES'));
 	} else {
 		dol_include_once('sellyoursaas/class/deploymentserver.class.php');
@@ -341,7 +331,7 @@ if (empty($object->instance) && empty($object->username_os) && empty($object->pa
 	print "Error: properties for instance ".$instance." was not registered into database.\n";
 	exit(-3);
 }
-if (! is_dir($dirroot)) {
+if (!preg_match('/:/', $dirroot) && ! is_dir($dirroot)) {
 	print "Error: Source directory ".$dirroot." where backup is stored does not exist.\n";
 	exit(-4);
 }
@@ -355,6 +345,85 @@ $server=($object->deployment_host ? $object->deployment_host : $object->array_op
 if (empty($login) || empty($dirdb)) {
 	print "Error: properties for instance ".$instance." are not registered completely (missing at least login or database name).\n";
 	exit(-5);
+}
+
+
+if (preg_match('/:/', $dirroot)) {	// $dirroot = 'remoteserer:/mnt/diskbackup/backup_servername/osu...'
+	// Rsync to get backup into /tmp/restore_instance
+	print "Recreate /tmp/restore_instance directory\n";
+	dol_delete_dir_recursive('/tmp/restore_instance');
+	dol_mkdir('/tmp/restore_instance');
+
+
+	print 'rsync -r admin@'.$dirroot.' /tmp/restore_instance'."\n";
+	$command="rsync";
+	$param=array();
+	if ($mode != 'confirm' && $mode != 'confirmrsync') {
+		$param[]="-n";
+	}
+	//$param[]="-a";
+	$param[]="-rltz";
+	//$param[]="-vv";
+	$param[]="-v";
+	$param[]="-e 'ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o PasswordAuthentication=no'";
+
+	//var_dump($param);
+	//print "- Backup documents dir ".$dirroot."/".$instance."\n";
+	$param[]='admin@'.$dirroot;
+	$param[]=' /tmp/restore_instance';
+	$fullcommand=$command." ".join(" ", $param);
+	$output=array();
+	print dol_print_date(dol_now('gmt'), "%Y%m%d-%H%M%S", 'gmt').' '.$fullcommand."\n";
+	exec($fullcommand, $output, $return_var);
+
+	if ($return_var > 0) {
+		print dol_print_date(dol_now('gmt'), "%Y%m%d-%H%M%S", 'gmt').' rsync failed'."\n";
+	} else {
+		print dol_print_date(dol_now('gmt'), "%Y%m%d-%H%M%S", 'gmt').' rsync done'."\n";
+	}
+
+	// Output result
+	foreach ($output as $outputline) {
+		print $outputline."\n";
+	}
+
+	// Change user and permission
+	$command = 'chown admin /tmp/restore_instance/';
+	$fullcommand=$command." ".join(" ", $param);
+	$output=array();
+	print dol_print_date(dol_now('gmt'), "%Y%m%d-%H%M%S", 'gmt').' '.$fullcommand."\n";
+	exec($fullcommand, $output, $return_var);
+
+	$command = 'chown -R admin /tmp/restore_instance/'.$object->username_os;
+	$fullcommand=$command." ".join(" ", $param);
+	$output=array();
+	print dol_print_date(dol_now('gmt'), "%Y%m%d-%H%M%S", 'gmt').' '.$fullcommand."\n";
+	exec($fullcommand, $output, $return_var);
+
+	/*
+	 $command = 'chmod -R g+rx /tmp/restore_instance';
+	 $fullcommand=$command." ".join(" ", $param);
+
+	 $output=array();
+	 exec($fullcommand, $output, $return_var);
+	 print dol_print_date(dol_now('gmt'), "%Y%m%d-%H%M%S", 'gmt').' mysql load done (return='.$return_var.')'."\n";
+	*/
+
+	// Now show message to say we must run the restore script with 'admin'
+	if ($mode == 'test') {
+		print "\n";
+		print "Simulation has finished to copy files from the backup server in local /tmp/restore_instance.\n";
+		print "You must now re-run this same script in 'confirm' mode...\n";
+	} else {
+		print "\n";
+		print "Data have been copied from the backup server in local /tmp/restore_instance.\n";
+		print "You must now run the script from user 'admin' with this parameters:\n";
+
+		print __FILE__." /tmp/restore_instance/".$object->username_os."/".$object->database_db." autoscan ".$instance." ".$mode."\n";
+	}
+	print "\n";
+
+	exit(0);
 }
 
 print 'Restore from '.$dirroot." to ".$targetdir.' into instance '.$instance."\n";
@@ -387,7 +456,6 @@ if ($dayofmysqldump == 'autoscan') {
 }
 
 // Restore rsynced files
-$return_var=0;
 if ($mode == 'testrsync' || $mode == 'test' || $mode == 'confirmrsync' || $mode == 'confirm') {
 	if (! is_dir($dirroot)) {
 		print "ERROR failed to find source dir ".$dirroot."\n";
@@ -586,6 +654,7 @@ if (empty($return_var) && empty($return_varmysql)) {
 
 		$msg = 'Restore done without errors by '.$script_file." ".(empty($argv[1]) ? '' : $argv[1])." ".(empty($argv[2]) ? '' : $argv[2])." ".(empty($argv[3]) ? '' : $argv[3])." (finished at ".dol_print_date(dol_now('gmt'), "%Y%m%d-%H%M%S", 'gmt').")\n\n";
 
+		/* No need to send a system email after a succeed restore.
 		include_once DOL_DOCUMENT_ROOT.'/core/class/CMailFile.class.php';
 		print 'Send email MAIN_MAIL_SENDMODE=' . getDolGlobalString('MAIN_MAIL_SENDMODE').' MAIN_MAIL_SMTP_SERVER=' . getDolGlobalString('MAIN_MAIL_SMTP_SERVER').' from='.$from.' to='.$to.' title=[Restore instance - '.gethostname().'] Restore of user instance succeed.'."\n";
 		$cmail = new CMailFile('[Restore instance - '.gethostname().'] Restore of user instance succeed - '.dol_print_date(dol_now(), 'dayrfc'), $to, $from, $msg, array(), array(), array(), '', '', 0, 0, '', '', '', '', $sendcontext);
@@ -593,15 +662,16 @@ if (empty($return_var) && empty($return_varmysql)) {
 		if (!$result) {
 			print 'Failed to send email. See dolibarr.log file'."\n";
 		}
+		*/
 
 		// Send to DataDog (metric + event)
-		if (! empty($conf->global->SELLYOURSAAS_DATADOG_ENABLED)) {
+		if (getDolGlobalString('SELLYOURSAAS_DATADOG_ENABLED')) {
 			try {
 				dol_include_once('/sellyoursaas/core/includes/php-datadogstatsd/src/DogStatsd.php');
 
 				$arrayconfig=array();
-				if (! empty($conf->global->SELLYOURSAAS_DATADOG_APIKEY)) {
-					$arrayconfig=array('apiKey'=>$conf->global->SELLYOURSAAS_DATADOG_APIKEY, 'app_key' => $conf->global->SELLYOURSAAS_DATADOG_APPKEY);
+				if (getDolGlobalString('SELLYOURSAAS_DATADOG_APIKEY')) {
+					$arrayconfig=array('apiKey'=>getDolGlobalString('SELLYOURSAAS_DATADOG_APIKEY'), 'app_key' => getDolGlobalString('SELLYOURSAAS_DATADOG_APPKEY'));
 				}
 
 				$statsd = new DataDog\DogStatsd($arrayconfig);
@@ -642,13 +712,13 @@ if (empty($return_var) && empty($return_varmysql)) {
 		}
 
 		// Send to DataDog (metric + event)
-		if (! empty($conf->global->SELLYOURSAAS_DATADOG_ENABLED)) {
+		if (getDolGlobalString('SELLYOURSAAS_DATADOG_ENABLED')) {
 			try {
 				dol_include_once('/sellyoursaas/core/includes/php-datadogstatsd/src/DogStatsd.php');
 
 				$arrayconfig=array();
-				if (! empty($conf->global->SELLYOURSAAS_DATADOG_APIKEY)) {
-					$arrayconfig=array('apiKey'=>$conf->global->SELLYOURSAAS_DATADOG_APIKEY, 'app_key' => $conf->global->SELLYOURSAAS_DATADOG_APPKEY);
+				if (getDolGlobalString('SELLYOURSAAS_DATADOG_APIKEY')) {
+					$arrayconfig=array('apiKey' => getDolGlobalString('SELLYOURSAAS_DATADOG_APIKEY'), 'app_key' => getDolGlobalString('SELLYOURSAAS_DATADOG_APPKEY'));
 				}
 
 				$statsd = new DataDog\DogStatsd($arrayconfig);

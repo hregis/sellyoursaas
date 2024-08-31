@@ -68,8 +68,8 @@ $favicon=getDomainFromURL($_SERVER['SERVER_NAME'], 0);
 if (! preg_match('/\.(png|jpg)$/', $favicon)) {
 	$favicon.='.png';
 }
-if (! empty($conf->global->MAIN_FAVICON_URL)) {
-	$favicon=$conf->global->MAIN_FAVICON_URL;
+if (getDolGlobalString('MAIN_FAVICON_URL')) {
+	$favicon=getDolGlobalString('MAIN_FAVICON_URL');
 }
 if (empty($head)) {
 	$head = '';
@@ -126,7 +126,7 @@ $(document).ready(function () {
 		<header class="inverse">
 		  <h1><?php echo dol_escape_htmltag($title); ?></h1>
 
-<div class="center login_main_home divpasswordmessagedesc paddingtopbottom<?php echo empty($conf->global->MAIN_LOGIN_BACKGROUND) ? '' : ' backgroundsemitransparent'; ?>">
+<div class="center login_main_home divpasswordmessagedesc paddingtopbottom<?php echo getDolGlobalString('MAIN_LOGIN_BACKGROUND') ? ' backgroundsemitransparent' : ''; ?>">
 <?php if ($mode == 'dolibarr' || ! $disabled) { ?>
 	<span class="passwordmessagedesc opacitymedium">
 	<?php
@@ -158,7 +158,7 @@ if (! preg_match('/class="(ok|warning)"/', $message)) {
 <!-- Login -->
 <tr>
 <td class="nowrap valignmiddle" style="text-align: center;">
-	<?php if (! empty($conf->global->MAIN_OPTIMIZEFORTEXTBROWSER)) { ?><label for="username" class="hidden"><?php echo $langs->trans("Login"); ?></label><?php } ?>
+	<?php if (getDolGlobalString('MAIN_OPTIMIZEFORTEXTBROWSER')) { ?><label for="username" class="hidden"><?php echo $langs->trans("Login"); ?></label><?php } ?>
 <span class="span-icon-user fa fa-user"></span>
 	<?php
 	if (empty($asknewpass)) {
@@ -321,7 +321,7 @@ if (empty($asknewpass) && ! preg_match('/class="(ok|warning)"/', $message)) {
 <?php
 
 
-if (! empty($conf->global->MAIN_HTML_FOOTER)) {
+if (getDolGlobalString('MAIN_HTML_FOOTER')) {
 	print $conf->global->MAIN_HTML_FOOTER;
 }
 
@@ -338,7 +338,7 @@ if (! empty($morelogincontent) && is_array($morelogincontent)) {
 }
 
 // Google Analytics (need Google module)
-if (! empty($conf->google->enabled) && ! empty($conf->global->MAIN_GOOGLE_AN_ID)) {
+if (! empty($conf->google->enabled) && getDolGlobalString('MAIN_GOOGLE_AN_ID')) {
 	if (empty($conf->dol_use_jmobile)) {
 		print "\n";
 		print '<script type="text/javascript">'."\n";
@@ -360,7 +360,7 @@ if (! empty($conf->google->enabled) && ! empty($conf->global->MAIN_GOOGLE_AN_ID)
 </div>	<!-- end of center -->
 
 <?php
-if (! empty($conf->global->SELLYOURSAAS_MYACCOUNT_FOOTER)) {
+if (getDolGlobalString('SELLYOURSAAS_MYACCOUNT_FOOTER')) {
 	print $conf->global->SELLYOURSAAS_MYACCOUNT_FOOTER;
 }
 ?>

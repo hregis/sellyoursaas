@@ -84,7 +84,7 @@ $hookmanager->initHooks(array('sellyoursaas-setup'));
 
 $tmpservices=array();
 $staticdeploymentserver = new Deploymentserver($db);
-if (empty(getDolGlobalString('SELLYOURSAAS_OBJECT_DEPLOYMENT_SERVER_MIGRATION'))) {
+if (!getDolGlobalString('SELLYOURSAAS_OBJECT_DEPLOYMENT_SERVER_MIGRATION')) {
 	$tmpservicessub = explode(',', getDolGlobalString('SELLYOURSAAS_SUB_DOMAIN_NAMES'));
 } else {
 	$tmpservicessub = $staticdeploymentserver->fetchAllDomains();
@@ -168,21 +168,21 @@ if ($action == 'removelogo') {
 
 	$constname='SELLYOURSAAS_LOGO'.GETPOST('suffix', 'aZ09');
 	$logofile=$conf->mycompany->dir_output.'/logos/'.getDolGlobalString($constname);
-	if ($conf->global->$constname != '') {
+	if (getDolGlobalString($constname) != '') {
 		dol_delete_file($logofile);
 	}
 	dolibarr_del_const($db, $constname, $conf->entity);
 
 	$constname='SELLYOURSAAS_LOGO_SMALL'.GETPOST('suffix', 'aZ09');
 	$logosmallfile=$conf->mycompany->dir_output.'/logos/thumbs/'.getDolGlobalString($constname);
-	if ($conf->global->$constname != '') {
+	if (getDolGlobalString($constname) != '') {
 		dol_delete_file($logosmallfile);
 	}
 	dolibarr_del_const($db, $constname, $conf->entity);
 
 	$constname='SELLYOURSAAS_LOGO_MINI'.GETPOST('suffix', 'aZ09');
 	$logominifile=$conf->mycompany->dir_output.'/logos/thumbs/'.getDolGlobalString($constname);
-	if ($conf->global->$constname != '') {
+	if (getDolGlobalString($constname) != '') {
 		dol_delete_file($logominifile);
 	}
 	dolibarr_del_const($db, $constname, $conf->entity);
@@ -192,21 +192,21 @@ if ($action == 'removelogoblack') {
 
 	$constname='SELLYOURSAAS_LOGO_BLACK'.GETPOST('suffix', 'aZ09');
 	$logofile=$conf->mycompany->dir_output.'/logos/'.getDolGlobalString($constname);
-	if ($conf->global->$constname != '') {
+	if (getDolGlobalString($constname) != '') {
 		dol_delete_file($logofile);
 	}
 	dolibarr_del_const($db, "$constname", $conf->entity);
 
 	$constname='SELLYOURSAAS_LOGO_SMALL_BLACK'.GETPOST('suffix', 'aZ09');
 	$logosmallfile=$conf->mycompany->dir_output.'/logos/thumbs/'.getDolGlobalString($constname);
-	if ($conf->global->$constname != '') {
+	if (getDolGlobalString($constname) != '') {
 		dol_delete_file($logosmallfile);
 	}
 	dolibarr_del_const($db, $constname, $conf->entity);
 
 	$constname='SELLYOURSAAS_LOGO_MINI_BLACK'.GETPOST('suffix', 'aZ09');
 	$logominifile=$conf->mycompany->dir_output.'/logos/thumbs/'.getDolGlobalString($constname);
-	if ($conf->global->$constname != '') {
+	if (getDolGlobalString($constname) != '') {
 		dol_delete_file($logominifile);
 	}
 	dolibarr_del_const($db, $constname, $conf->entity);
@@ -242,6 +242,11 @@ if (in_array('exec', $arrayoffunctionsdisabled)) {
 } else {
 	print 'Parameter <b>disable_functions</b>: '.img_picto('', 'tick', 'class="paddingrightonly"').' does not contains: exec<br>';
 }
+if (in_array('popen', $arrayoffunctionsdisabled)) {
+	print "Parameter <b>disable_functions</b>: Bad. Must not contain 'popen'<br>";
+} else {
+	print 'Parameter <b>disable_functions</b>: '.img_picto('', 'tick', 'class="paddingrightonly"').' does not contains: popen (used by smtp_watchdog_daemon1.php)<br>';
+}
 print "<br>\n";
 
 print '<form enctype="multipart/form-data" method="POST" action="'.$_SERVER["PHP_SELF"].'" name="form_index">';
@@ -276,7 +281,7 @@ print '</td>';
 print '<td><span class="opacitymedium small">mysaasdomainname.com</span></td>';
 print '</tr>';
 
-if (empty(getDolGlobalString('SELLYOURSAAS_OBJECT_DEPLOYMENT_SERVER_MIGRATION'))) {
+if (!getDolGlobalString('SELLYOURSAAS_OBJECT_DEPLOYMENT_SERVER_MIGRATION')) {
 	print '<tr class="oddeven"><td class="fieldrequired">'.$form->textwithpicto($langs->trans("SellYourSaasSubDomains"), $langs->trans("SellYourSaasSubDomainsHelp")).'</td>';
 	print '<td>';
 	print '<input type="text" name="SELLYOURSAAS_SUB_DOMAIN_NAMES" value="'.getDolGlobalString('SELLYOURSAAS_SUB_DOMAIN_NAMES').'" class="minwidth300">';

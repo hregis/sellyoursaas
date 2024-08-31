@@ -126,10 +126,17 @@ if ($action == "instanceverification") {
 						$arraycoremodules[] = strtoupper($namemodule[1]);
 					}
 				}
+
+				// List of module that should not block installation
+				$arrayofexternalmodulesallowed = array('MEMCACHED', 'BILLEDONORDERS');
+
 				foreach ($confinstance->global as $key => $val) {
-					if (preg_match('/^MAIN_MODULE_[^_]+$/', $key) && !empty($val)) {
+					if (preg_match('/^MAIN_MODULE_[^_]+$/', $key) && !empty($val)) {	// This is a constant of a module
 						$moduletotest=preg_replace('/MAIN_MODULE_/', "", $key);
 						if (!in_array($moduletotest, $arraycoremodules)) {
+							if (in_array($moduletotest, $arrayofexternalmodulesallowed)) {
+								continue;
+							}
 							if ($nbexternalmodules != 0) {
 								$modulestodesactivate .= ",";
 							}
@@ -256,14 +263,32 @@ if ($action == "autoupgrade") {
 
 	if (!$errors) {
 		// This also add an action in agenda "Remote action upgrade..." success or error
-		$comment = 'Call of sellyoursaasRemoteAction(upgrade) on contract ref='.$object->ref;
 		$notused = '';
-		$timeoutupgrade = 240;
+		$timeoutupgrade = 300;
+		$comment = 'Call of sellyoursaasRemoteAction(upgrade) on contract ref='.$object->ref.' with a timeout of '.$timeoutupgrade;
 		$exitcode = $sellyoursaasutils->sellyoursaasRemoteAction("upgrade", $object, 'admin', $notused, $notused, 1, $comment, $timeoutupgrade);
 		if ($exitcode < 0) {
 			$errors++;
 			$errortab[] = $langs->trans("ErrorOnUpgradeScript").' - exit code = '.$exitcode;
 			setEventMessages($langs->trans("ErrorOnUpgradeScript"), null, "errors");
+		} else {
+			if (getDolGlobalString("SELLYOURSAAS_DATADOG_ENABLED")) {
+				try {
+					dol_include_once('/sellyoursaas/core/includes/php-datadogstatsd/src/DogStatsd.php');
+
+					$arrayconfig=array();
+					if (getDolGlobalString("SELLYOURSAAS_DATADOG_APIKEY")) {
+						$arrayconfig=array('apiKey' => getDolGlobalString("SELLYOURSAAS_DATADOG_APIKEY"), 'app_key' => getDolGlobalString("SELLYOURSAAS_DATADOG_APPKEY"));
+					}
+
+					$statsd = new DataDog\DogStatsd($arrayconfig);
+
+					$arraytags=null;
+					$statsd->increment('sellyoursaas.upgradeinstance', 1, $arraytags);
+				} catch (Exception $e) {
+					// Nothing done
+				}
+			}
 		}
 	}
 }
@@ -277,7 +302,7 @@ print '
         <div class="page-head">
         <!-- BEGIN PAGE TITLE -->
             <div class="page-title">
-            <h1>'.$langs->trans("Autoupgrade").' <small>'.$langs->trans("AutoupgradeDesc", (!empty(getDolGlobalString("SELLYOURSAAS_LAST_STABLE_VERSION_DOLIBARR")) ? "(v".getDolGlobalString("SELLYOURSAAS_LAST_STABLE_VERSION_DOLIBARR").")" : "")).'</small></h1>
+            <h1>'.$langs->trans("Autoupgrade").' <small>'.$langs->trans("AutoupgradeDesc", getDolGlobalString("SELLYOURSAAS_LAST_STABLE_VERSION_DOLIBARR") ? "(v".getDolGlobalString("SELLYOURSAAS_LAST_STABLE_VERSION_DOLIBARR").")" : "").'</small></h1>
             </div>
         <!-- END PAGE TITLE -->
         </div>
@@ -394,9 +419,11 @@ if ($action == "instanceverification") {
 		$idcontract = empty($instanceselect[1]) ? 0 : $instanceselect[1];
 	}
 
+	// Set newversion from the setup
 	$newversion = (getDolGlobalString("SELLYOURSAAS_LAST_STABLE_VERSION_DOLIBARR") ? "(v".getDolGlobalString("SELLYOURSAAS_LAST_STABLE_VERSION_DOLIBARR").")" : "");
 
-	if ($idcontract > 0) {
+	// If not set, we try to guess the $newversion from the name of the directory of the package
+	if ($idcontract > 0 && empty($newversion)) {
 		$object = new SellYourSaasContract($db);
 
 		$result=$object->fetch($idcontract);
@@ -409,6 +436,7 @@ if ($action == "instanceverification") {
 			$tmpproduct->fetch($dataofcontract['appproductid']);
 			$tmppackage->fetch($tmpproduct->array_options['options_package']);
 
+			// Set $newversion. Note this is not the exact version, just major version found into path name.
 			//$tmppackage->srcfile1 = 'ddd_16.0';
 			//var_dump($tmppackage->srcfile1);
 			$newversion = preg_replace('/[^0-9\.]/', '', $tmppackage->srcfile1);
@@ -528,15 +556,11 @@ if ($action == "instanceverification") {
 	}
 	print'</select><br><br>';
 	print'</div>
-			<div class="center divstep1upgrade"'.(!GETPOST('instanceselect', 'alpha') ? ' style="display:none;"' : '').'>
-			<h4><div class="note note-warning">
-			'.$langs->trans("AutoupgradeStep1Warning").'
-			</div></h4>
-			<div class="bold">
-			'.$langs->trans("AutoupgradeStep1Note").'
-			</div>
+			<div class="center divstep1upgrade"'.(!GETPOST('instanceselect', 'alpha') ? ' style="display:none;"' : '').'><br>
+			'.$langs->trans("AutoupgradeInfo").'
 			</div><br>
-			<div id="buttonstep1upgrade" class="containerflexautomigration"'.(!GETPOST('instanceselect', 'alpha') ? ' style="display:none;"' : '').'>
+
+			<div id="buttonstep1upgrade" class="containerflexautomigration margintop paddingtop"'.(!GETPOST('instanceselect', 'alpha') ? ' style="display:none;"' : '').'>
 					<div class="right containerflexautomigrationitem paddingright paddingleft">
 						<button id="buttonstep_2" type="submit" class="btn green-haze btn-circle btnstep">'.$langs->trans("NextStep").'</button>
 					</div>
@@ -552,10 +576,15 @@ if ($action == "instanceverification") {
 			<div '.($stepautoupgrade <= 1 ? 'style="display:none;"' : '').'class="portlet light divstep" id="step2">
 					<h2>'.$langs->trans("Step", 2).' - '.$langs->trans("VersionConfirmation").'</small></h1><br>
 					<div>';
-
 	print $langs->trans("AutoupgradeStep2Text", $newversion).'
 					</div>
 					<br>
+	<h4><div class="note note-warning">
+	'.$langs->trans("AutoupgradeStep1Warning").' '.$langs->trans("AutoupgradeStep1Note").'
+				</div></h4>';
+
+	print '<br>
+
 					<div class="center">
 					<div class="containerflexautomigration">
 						<div class="right containerflexautomigrationitem paddingright paddingleft">

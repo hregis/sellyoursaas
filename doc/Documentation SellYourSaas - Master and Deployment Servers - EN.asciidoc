@@ -1,25 +1,14 @@
 = Sell-Your-Saas installation and operation document - Master and deployment servers
 This document describes the technical and functional implementation of Sell-Your-Saas - automated deployment and sales system in SaaS of a WAMP application (like Dolibarr ERP CRM, WordPress, GLPI, MediaWiki, PrestaShop, ...) - Laurent Destailleur - www.sellyoursaas.org
-:source-highlighter: rouge
-:companyname: Teclib
-:corpname: Teclib
-:orgname: Teclib
-:creator: Laurent Destailleur
+:source-highlighter: red
 :title: Document installation and operation of SellYourSaas
 :subject: This document describes the technical and functional implementation of SellYourSaas (automated deployment and sale system in SaaS of a WAMP application (like Dolibarr ERP CRM, WordPress, GLPI, MediaWiki, PrestaShop, ...).
 :keywords: sellyoursaas, saas, dolibarr, wamp, glpi
 :imagesdir: ./img_
-:city: Bordeaux
 :toc: manual
 :toclevels: 3
 :toc-title: Table of contents
 :toc-placement: preamble
-:revnumber: v1.0
-:revdate: 2019-01-30
-:revremark: First version
-:revnumber: v1.1
-:revdate: 2020-02-12
-:revremark: Many improvements
 
 <<<<
 
@@ -279,7 +268,7 @@ rsync --info=progress2 -au sourceServer:/mnt/sourceDisk /mnt/targetDisk
 Example:
 cd /mnt/diskSource
 rsync --info=progress2 --exclude 'dbn*' -au -e 'ssh' . loginuser@myserverdest.mydomain.com:/var/lib/mysql
-chown -R mysql.mysql /var/lib/mysql
+chown -R mysql:mysql /var/lib/mysql
 After launching mysql, you can test all databases with
 mysqlcheck --all-databases
 ---------------
@@ -295,12 +284,12 @@ Create the user account *admin*. It will be used to install and administer the s
 [source, bash]
 ---------------
 groupadd admin; useradd -m -s bash -g admin admin;
-mkdir /home/admin/logs; chown root.admin /home/admin/logs; chmod 770 /home/admin/logs;
-mkdir /mnt/diskbackup; chown admin.admin /mnt/diskbackup
-mkdir /home/admin/backup; chown admin.admin /home/admin/backup;
-mkdir /home/admin/backup/conf; chown admin.admin /home/admin/backup/conf;
-mkdir /home/admin/backup/mysql; chown admin.admin /home/admin/backup/mysql;
-mkdir /home/admin/wwwroot; chown admin.admin /home/admin/wwwroot
+mkdir /home/admin/logs; chown root:admin /home/admin/logs; chmod 770 /home/admin/logs;
+mkdir /mnt/diskbackup; chown admin:admin /mnt/diskbackup
+mkdir /home/admin/backup; chown admin:admin /home/admin/backup;
+mkdir /home/admin/backup/conf; chown admin:admin /home/admin/backup/conf;
+mkdir /home/admin/backup/mysql; chown admin:admin /home/admin/backup/mysql;
+mkdir /home/admin/wwwroot; chown admin:admin /home/admin/wwwroot
 ---------------
 
 Check in /etc/passwd that the id of this user *admin* is greater than or equal to 1000.
@@ -473,7 +462,7 @@ In order not to give information to users doing SSH, on the deployment servers:
 
 [source, bash]
 ---------------
-rm /etc/update-motd.d/10-help-text /etc/update-motd.d/20-runabove 
+rm /etc/update-motd.d/00-header /etc/update-motd.d/20-runabove 
 rm /etc/update-motd.d/50-landscape-sysinfo /etc/update-motd.d/9*-update*-available /etc/update-motd.d/92-unattended-upgrades
 ---------------
 
@@ -710,7 +699,7 @@ mkdir /home/jail; mkdir /mnt/diskhome/home;
 
 mkdir /mnt/diskbackup/archives-test; mkdir /mnt/diskbackup/archives-paid
 mkdir -p /home/admin/wwwroot/dolibarr_documents/sellyoursaas/spam;
-chown admin.root /mnt/diskbackup/backup /mnt/diskbackup/archives-test /mnt/diskbackup/archives-paid
+chown admin:root /mnt/diskbackup/backup /mnt/diskbackup/archives-test /mnt/diskbackup/archives-paid
 ln -fs /mnt/diskhome/home /home/jail/home
 ln -fs /mnt/diskbackup/backup /home/jail/backup 
 ln -fs /mnt/diskbackup/archives-test /home/jail/archives-test 
@@ -735,7 +724,7 @@ apt install git
 ---------------
 cd /home/admin/wwwroot
 git clone https://github.com/Dolibarr/dolibarr dolibarr --branch x.y
-chown -R admin.admin /home/admin/wwwroot/dolibarr
+chown -R admin:admin /home/admin/wwwroot/dolibarr
 ---------------
 
 * Under login *admin*, install the sources of *SellYourSaas* : Get the sources of the project to place them into */home/admin/wwwroot/dolibarr_sellyoursaas*
@@ -754,7 +743,7 @@ git clone https://github.com/dolicloud/sellyoursaas dolibarr_sellyoursaas
 [source,bash]
 ---------------
 vi /etc/sellyoursaas.conf
-chown root.admin /etc/sellyoursaas.conf
+chown root:admin /etc/sellyoursaas.conf
 chmod g-wx /etc/sellyoursaas.conf
 chmod o-rwx /etc/sellyoursaas.conf
 ---------------
@@ -872,7 +861,7 @@ Do not forget to set a value for *databasepass*. We will reuse this value later.
 [source,bash]
 ---------------
 vi /etc/sellyoursaas-public.conf
-chown root.admin /etc/sellyoursaas-public.conf
+chown root:admin /etc/sellyoursaas-public.conf
 chmod a+r /etc/sellyoursaas-public.conf
 chmod a-wx /etc/sellyoursaas-public.conf
 ---------------
@@ -1057,7 +1046,7 @@ sudo apt update
 sudo apt install -y systemd-timesyncd git gzip zip zstd memcached ncdu duc iotop acl ufw sudo
 sudo apt install -y mariadb-server mariadb-client
 sudo apt install -y apache2 apache2-bin lynx
-sudo apt install -y php php-cli libapache2-mod-php php-fpm php-gd php-imap php-json php-ldap php-mysqlnd php-curl php-memcached php-imagick php-geoip php-mcrypt php-intl php-xml php-zip php-bz2 php-ssh2 php-mbstring php-soap
+sudo apt install -y php php-cli libapache2-mod-php php-fpm php-gd php-imap php-json php-ldap php-mysqlnd php-curl php-memcached php-imagick php-geoip php-mcrypt php-intl php-xml php-zip php-bz2 php-ssh2 php-mbstring php-soap php-tidy
 sudo apt install -y php-readline php-xmlrpc
 sudo apt install -y php-pear
 sudo apt install -y watchdog cpulimit libapache2-mpm-itk libapache2-mod-apparmor apparmor apparmor-profiles apparmor-utils rkhunter chkrootkit
@@ -1076,7 +1065,7 @@ sudo apt update
 sudo apt install -y systemd-timesyncd git gzip zip zstd memcached ncdu duc iotop acl ufw sudo
 sudo apt install -y mariadb-server mariadb-client
 sudo apt install -y apache2 apache2-bin lynx
-sudo apt install -y php php-cli libapache2-mod-php php-fpm php-gd php-imap php-json php-ldap php-mysql php-curl php-memcached php-imagick php-geoip php-intl php-xml php-zip php-bz2 php-ssh2 php-mbstring php-dev php-soap libmcrypt-dev
+sudo apt install -y php php-cli libapache2-mod-php php-fpm php-gd php-imap php-json php-ldap php-mysql php-curl php-memcached php-imagick php-geoip php-intl php-xml php-zip php-bz2 php-ssh2 php-mbstring php-dev php-soap php-tidy libmcrypt-dev
 sudo apt install -y php-readline php-xmlrpc
 sudo apt install -y php-pear ghostscript
 sudo apt install -y watchdog cpulimit libapache2-mpm-itk libapache2-mod-apparmor apparmor apparmor-profiles apparmor-utils rkhunter chkrootkit
@@ -1095,7 +1084,7 @@ sudo apt update
 sudo apt install -y systemd-timesyncd git gzip zip zstd memcached ncdu duc iotop acl ufw sudo
 sudo apt install -y mariadb-server mariadb-client
 sudo apt install -y apache2 apache2-bin lynx
-sudo apt install -y php php-cli libapache2-mod-php php-fpm php-gd php-imap php-json php-ldap php-mysql php-curl php-memcached php-imagick php-intl php-xml php-zip php-bz2 php-ssh2 php-mbstring php-dev libmcrypt-dev
+sudo apt install -y php php-cli libapache2-mod-php php-fpm php-gd php-imap php-json php-ldap php-mysql php-curl php-memcached php-imagick php-intl php-xml php-zip php-bz2 php-ssh2 php-mbstring php-dev php-soap php-tidy libmcrypt-dev
 sudo apt install -y php-readline php-xmlrpc
 sudo apt install -y php-pear ghostscript
 sudo apt install -y watchdog cpulimit libapache2-mpm-itk libapache2-mod-apparmor apparmor apparmor-profiles apparmor-utils rkhunter chkrootkit
@@ -1149,8 +1138,15 @@ a2enmod actions alias asis auth_basic auth_digest authn_anon authn_dbd authn_dbm
 a2enmod cache cgid cgi charset_lite dav_fs dav dav_lock dbd deflate dir dump_io env expires ext_filter file_cache filter headers http2 ident include info ldap
 a2enmod mem_cache mime mime_magic negotiation reqtimeout rewrite setenvif speling ssl status substitute suexec unique_id userdir usertrack vhost_alias
 a2enmod mpm_itk mpm_prefork
-a2enmod php7.0|php7.2|php7.4|php8.1
+a2enmod php7.0|php7.2|php7.4|php8.1|php8.3
 ---------------
+
+TODO Do not include/remove  
+a2dismod auth_digest authn_anon asis suexec userdir usertrack authn_dbd dbd ident mime_magic speling
+
+On php8.1
+a2dismod mcrypt
+
 
 Enable apache *configurations* to work with MPM_PREFORK and MPM_ITK:
 
@@ -1238,7 +1234,7 @@ Choose a password. You will need to give this couple login/password to anyone wh
 
         KeepAlive On
         KeepAliveTimeout 5
-        MaxKeepAliveRequests 20
+        MaxKeepAliveRequests 100
 
         <Directory /home/admin/wwwroot/dolibarr/htdocs/>
         AuthType Basic
@@ -1387,7 +1383,7 @@ apparmor_hat = sellyoursaas
 
 === Timeout of server launches
 
-On Ubuntu 18.04+ when MariaDb has been migrated from a MySql:
+On Ubuntu 18.04+ and when MariaDb has been migrated from a MySql:
 
 Increase the timeout for launching processes because sometimes mysql / mariadb can take a long time to restart after a crash. 
 To do this, modify the file */etc/systemd/system/mariadb.service.d/migrated-from-my.cnf-settings.conf* and put
@@ -1557,7 +1553,7 @@ We will enable some generic fail2ban rules:
 As well as the specific rules for sellyoursaas:
   
   *email-dol-blacklist*, *email-dol-perday*, *email-dol-perhour*, *email-dol-perhouradmin*
-  *web-accesslog-limit401*, *web-accesslog-limit403*,
+  *web-accesslog-limit401*, *web-accesslog-limit403*, *web-accesslog-limitapi*, *web-accesslog-limitapipermin*,
   *web-dol-passforgotten*, *web-dol-bruteforce*, *web-dol-limitpublic*, *web-dol-registerinstance*
 
 NOTE: The rules available may vary depending on the version of the OS installed.
@@ -1748,6 +1744,8 @@ ln -fs /home/admin/wwwroot/dolibarr_sellyoursaas/etc/fail2ban/filter.d/email-dol
 ln -fs /home/admin/wwwroot/dolibarr_sellyoursaas/etc/fail2ban/filter.d/email-dolibarr-rulesadmin.conf
 ln -fs /home/admin/wwwroot/dolibarr_sellyoursaas/etc/fail2ban/filter.d/web-accesslog-limit401.conf
 ln -fs /home/admin/wwwroot/dolibarr_sellyoursaas/etc/fail2ban/filter.d/web-accesslog-limit403.conf
+ln -fs /home/admin/wwwroot/dolibarr_sellyoursaas/etc/fail2ban/filter.d/web-accesslog-limitapi.conf
+ln -fs /home/admin/wwwroot/dolibarr_sellyoursaas/etc/fail2ban/filter.d/web-accesslog-limitapipermin.conf
 ln -fs /home/admin/wwwroot/dolibarr_sellyoursaas/etc/fail2ban/filter.d/web-dolibarr-rulespassforgotten.conf
 ln -fs /home/admin/wwwroot/dolibarr_sellyoursaas/etc/fail2ban/filter.d/web-dolibarr-rulesbruteforce.conf
 ln -fs /home/admin/wwwroot/dolibarr_sellyoursaas/etc/fail2ban/filter.d/web-dolibarr-ruleslimitpublic.conf
@@ -1768,6 +1766,8 @@ ln -fs /home/admin/wwwroot/dolibarr_sellyoursaas/etc/fail2ban/jail.d/email-dolib
 ln -fs /home/admin/wwwroot/dolibarr_sellyoursaas/etc/fail2ban/jail.d/email-dolibarr-rulesadmin.conf
 ln -fs /home/admin/wwwroot/dolibarr_sellyoursaas/etc/fail2ban/jail.d/web-accesslog-limit401.conf
 ln -fs /home/admin/wwwroot/dolibarr_sellyoursaas/etc/fail2ban/jail.d/web-accesslog-limit403.conf
+ln -fs /home/admin/wwwroot/dolibarr_sellyoursaas/etc/fail2ban/jail.d/web-accesslog-limitapi.conf
+ln -fs /home/admin/wwwroot/dolibarr_sellyoursaas/etc/fail2ban/jail.d/web-accesslog-limitapipermin.conf
 ---------------
 
 *Add also this for Master servers only:*
@@ -1811,11 +1811,18 @@ echo "2021-06-12 01:05:51 123.123.123.123 sellyoursaas rules ok ( <10 : 1 0 0 - 
 Note: To test a rule file on an existing log file:
 fail2ban-regex /var/log/phpsendmail.log /etc/fail2ban/filter.d/email-dolibarr-rulesall.conf
 
-Note: To ban an IP
+Note: To ban an IP, run this on the server:
 fail2ban-client set nameofjail banip IP.to.unban
 
-Note: To unban an IP
+Note: To unban an IP, run this on the server:
 fail2ban-client unban IP.to.unban
+
+or use the script:
+
+[source,bash]
+---------------
+desktop_bannedip.sh
+---------------
 
 === Test spamassassin ===
 
@@ -1908,17 +1915,15 @@ Note: It seems we must also restart apache to have this effective inside apache.
 
 [source,bash]
 ---------------
-wget -O afick.deb https://sourceforge.net/projects/afick/files/afick/3.7.0/afick_3.7.0-1ubuntu_all.deb/download
-dpkg -i afick.deb
 
-ou pour Ubuntu 18.04
+pour Ubuntu 18.04
 
 wget -O afick.deb https://sourceforge.net/projects/afick/files/afick/3.7.0/afick_3.7.0-1ubuntu_all.deb/download
 dpkg -i afick.deb
 
 ou pour Ubuntu 22.04
 
-wget -O afick.tgz https://sourceforge.net/projects/afick/files/afick/3.7.0/afick_3.7.0.tgz/download
+wget -O afick.tgz https://sourceforge.net/projects/afick/files/afick/3.7.0/afick-3.7.0.tgz/download
 tar -xvf afick-3.7.0.tgz; 
 cd afick-3.7.0; perl Makefile.pl; make install; ln -fs /opt/afick/etc/afick.conf /etc/afick.conf; ln -fs /opt/afick/bin/afick.pl /usr/bin/afick.pl;
 mv /etc/cron.daily/afick_cron.dpkg-new /etc/cron.daily/afick_cron
@@ -1967,13 +1972,8 @@ exclude_suffix := tmp old bak
 
 [source,bash]
 ---------------
-############################################
-# to allow easier upgrade, my advice is too separate
-# the default configuration file (above) from your
-# local configuration (below).
-# default configuration will be upgraded
-# local configuration will be kept
-########## put your local config below ####################
+/snap/bin all
+
 ! /var/log/mysql
 ! /var/log/letsencrypt
 ! /var/log/datadog
@@ -1997,7 +1997,6 @@ exclude_suffix := tmp old bak
 
 /home MyRule
 /home/admin/logs Logs
-/var/log/datadog Logs2
 !/home/admin/backup
 !/home/jail/home
 !/home/admin/wwwroot/dolibarr_documents
@@ -2582,7 +2581,9 @@ FLUSH PRIVILEGES;
 ---------------
 
 --TODO Reduce permissions of this database user sellyoursaas
+
 This is used by:
+
 * the root batch *clean.sh* to SELECT contracts and to list dbn databases with SHOW DATABASES.
 * the root batch *batch_detect_evil_instances.php* to SELECT contracts
 * the admin batch *batch_customers.php* to SELECT const, element_element, product, packages, CREATE actioncomm 
@@ -2748,11 +2749,11 @@ cp /usr/bin/dash /usr/bin/secureBash
 ---------------
 
 
-Create an apparmor file */etc/apparmor.d/bin.secureBash* (or */etc/apparmor.d/usr.bin.secureBash* with Ubuntu 20.04) with this content:
+Create an apparmor file */etc/apparmor.d/bin.secureBash* (or */etc/apparmor.d/usr.bin.secureBash* with Ubuntu 20.04+) with this content:
 
 [source,bash]
 ---------------
-include::repository_root/etc/apparmor.d/bin.secureBash[]
+include::repository_root/etc/apparmor.d/usr.bin.secureBash[]
 ---------------
 
 
@@ -2764,7 +2765,7 @@ include::repository_root/etc/apparmor.d/local/usr.sbin.apache2-deployment[]
 ---------------
 
 
-Create an apparmor file */etc/apparmor.d/php-fpm7.4* with this content:
+Note for future: if we use php-fpm instead of mod_itk, create an apparmor file */etc/apparmor.d/php-fpm7.4* with this content:
 
 [source,bash]
 ---------------
@@ -2784,7 +2785,7 @@ aa-status
 /etc/init.d/apparmor status
 ---------------
 
-To disable a profile:
+Note: To disable a profile:
 
 [source,bash]
 ---------------
@@ -3169,28 +3170,13 @@ chmod +t /dev/shm /var/lib/php/sessions
 
 ==== Define size of upload and session options
 
-Modify the file *`+/etc/php/*.*/*/php.ini+`* (the one for *apache*, the one for *cli* and for the *fpm*) to allow upload of bigger files:
+Create a file */etc/php/sellyoursaas.ini* and enable it by adding the symlinks into *`/etc/php/*.*/*/php.ini+`* (the one for *apache*, the one for *cli* and for the *fpm*) to allow upload of bigger files:
 
 [source,bash]
 ---------------
-upload_max_filesize = 20M
-
-post_max_size = 25M
-max_input_vars = 4000
-
-memory_limit = 256M
-
-session.gc_maxlifetime = 3600
-
-session.use_strict_mode = 1 
-session.use_only_cookies = 1
-session.cookie_httponly = 1
-session.cookie_samesite = Lax
-
-opcache.memory_consumption = 1024
-opcache.max_accelerated_files = 100000
-opcache.file_update_protection = 2
+include::repository_root/etc/php/sellyoursaas.ini[]
 ---------------
+
 
 ==== Disable some functions (optionnal)
 
@@ -3198,7 +3184,7 @@ Complete also the parameter *disable_functions* for the *apache* and *fpm* file 
 
 [source,bash]
 ---------------
-passthru,shell_exec,system,proc_open,popen,dl,apache_note,apache_setenv,show_source,virtual
+pcntl_alarm,pcntl_fork,pcntl_waitpid,pcntl_wait,pcntl_wifexited,pcntl_wifstopped,pcntl_wifsignaled,pcntl_wifcontinued,pcntl_wexitstatus,pcntl_wtermsig,pcntl_wstopsig,pcntl_signal,pcntl_signal_get_handler,pcntl_signal_dispatch,pcntl_get_last_error,pcntl_strerror,pcntl_sigprocmask,pcntl_sigwaitinfo,pcntl_sigtimedwait,pcntl_exec,pcntl_getpriority,pcntl_setpriority,pcntl_async_signals,pcntl_unshare,passthru,shell_exec,system,proc_open,popen,dl,apache_note,apache_setenv,show_source,virtual
 ---------------
 
 Warning: Do not add "exec".
@@ -3234,7 +3220,7 @@ ln -fs /home/admin/wwwroot/dolibarr/htdocs/custom/sellyoursaas/scripts/phpsendma
 
 For *PHP versions greater than or equal to 8.1*:
 
-Create a hard link to the 2 tools used for preprocessing PHP (be sure <<Installation of Dolibarr framework>> part is already done, else it will result in an error)
+Create a *hard* link to the 2 tools used for preprocessing PHP (be sure <<Installation of Dolibarr framework>> part is already done, else it will result in an error)
 
 [source,bash]
 ---------------
@@ -3242,22 +3228,21 @@ ln /home/admin/wwwroot/dolibarr/htdocs/custom/sellyoursaas/scripts/phpsendmailpr
 ln /home/admin/wwwroot/dolibarr/htdocs/custom/sellyoursaas/scripts/phpsendmail.php /usr/local/bin/
 ---------------
 
-Modify the file *php.ini* (the one for *apache* and the one for *cli*) with:
+Create a file */etc/php/sellyoursaas.ini* with this content:
 
 [source,bash]
 ---------------
-; Automatically add files before PHP document.
-; http://php.net/auto-prepend-file
-auto_prepend_file = /usr/local/bin/phpsendmailprepend.php
-
-; For Unix only.  You may supply arguments as well (default: "sendmail -t -i").
-; http://php.net/sendmail-path
-sendmail_path = /usr/local/bin/phpsendmail.php
-
-; The path to a log file that will log all mail() calls. Log entries include
-; the full path of the script, line number, To address and headers.
-mail.log = /var/log/phpmail.log
+include::repository_root/etc/php/sellyoursaas.ini[]
 ---------------
+
+Then enable it by adding the symlinks into *`/etc/php/*.*/*/php.ini+`* (the one for *apache*, the one for *cli* and for the *fpm*) to allow upload of bigger files:
+
+[source,bash]
+---------------
+cd /etc/php/8.1/cli/conf.d/; ln -fs /etc/php/sellyoursaas.ini; cd /etc/php/8.1/apache2/conf.d/; ln -fs /etc/php/sellyoursaas.ini;
+#cd /etc/php/8.1/fpm/conf.d/; ln -fs /etc/php/sellyoursaas.ini;
+---------------
+
 
 Create the files *phpmail.log* and *phpsendmail.log*:
 
@@ -3265,7 +3250,7 @@ Create the files *phpmail.log* and *phpsendmail.log*:
 ---------------
 echo >> /var/log/phpmail.log
 echo >> /var/log/phpsendmail.log
-chown syslog.adm /var/log/phpmail.log /var/log/phpsendmail.log
+chown syslog:adm /var/log/phpmail.log /var/log/phpsendmail.log
 chmod a+rw /var/log/phpmail.log /var/log/phpsendmail.log
 ---------------
 
@@ -3274,7 +3259,7 @@ Create a directory for blacklist files used by *phpsendmail.php*
 [source,bash]
 ---------------
 mkdir -p /home/admin/wwwroot/dolibarr_documents/sellyoursaas_local/spam;
-chown admin.www-data /home/admin/wwwroot/dolibarr_documents/sellyoursaas_local;
+chown admin:www-data /home/admin/wwwroot/dolibarr_documents/sellyoursaas_local;
 chmod a+rwx /home/admin/wwwroot/dolibarr_documents/sellyoursaas_local;
 ---------------
 
@@ -3295,6 +3280,7 @@ cp -p /home/admin/wwwroot/dolibarr_documents/sellyoursaas_local/spam/blacklistip
 cp -p /home/admin/wwwroot/dolibarr_documents/sellyoursaas_local/spam/blacklistfrom /tmp/spam/;
 cp -p /home/admin/wwwroot/dolibarr_documents/sellyoursaas_local/spam/blacklistcontent /tmp/spam/;
 chmod a+rwx /tmp/spam; chmod a+rw /tmp/spam/*
+chown admin:www-data /tmp/spam/*
 ---------------
 
 
@@ -3416,7 +3402,7 @@ journalctl --vacuum-size=1G
 journalctl --vacuum-time=1d
 ---------------
 
-To read journal:
+To get information about journal files:
 
 [source,bash]
 ---------------
@@ -3667,6 +3653,8 @@ touch /etc/apache2/sites-available/000-default-ssl.conf
 				    Deny from env=bad_bots
 				    Allow from all
 				    Require local
+				    # To allow and amdin desktop to see status, you can uncomment this with the correct IP
+				    #Require ip 1.2.3.4
 				</Location>
 				
         </VirtualHost>
@@ -3711,10 +3699,9 @@ You must have inside the cron of user *root*
 ---------------
 # m h  dom mon dow   command
 # cron master and deployment root
-#47 2 * * * /root/certbot-auto renew --no-self-upgrade > /var/log/letsencrypt/certbot-auto_renew.log 2>&1
 10 0 * * * /home/admin/wwwroot/dolibarr/htdocs/custom/sellyoursaas/scripts/backup_mysql_system.sh confirm >/home/admin/logs/backup_mysql_system.log 2>&1
-40 4 * * * /home/admin/wwwroot/dolibarr/htdocs/custom/sellyoursaas/scripts/backup_backups.sh confirm none --delete >/home/admin/logs/backup_backups.log 2>&1
-00 4 * * * /home/admin/wwwroot/dolibarr/htdocs/custom/sellyoursaas/scripts/perms.ksh >/home/admin/logs/perms.log
+40 4 * * * /home/admin/wwwroot/dolibarr/htdocs/custom/sellyoursaas/scripts/backup_backups.php confirm none --delete >/home/admin/logs/backup_backups.log 2>&1
+00 4 * * * /home/admin/wwwroot/dolibarr/htdocs/custom/sellyoursaas/scripts/perms.sh >/home/admin/logs/perms.log
 #40 4 4 * * /home/admin/wwwroot/dolibarr/htdocs/custom/sellyoursaas/scripts/clean.sh confirm
 ---------------
 
@@ -3726,9 +3713,11 @@ You must have inside the cron of user *admin*:
 # m h  dom mon dow   command
 # cron master admin
 */10 * * * * /home/admin/wwwroot/dolibarr/scripts/cron/cron_run_jobs.php <securitykeydefinedinscheduledjobsetup> anonymousbatch >> /home/admin/wwwroot/dolibarr_documents/cron_run_jobs.php.log 2>&1
-5 5 * * 0 /home/admin/wwwroot/dolibarr/htdocs/custom/sellyoursaas/scripts/batch_customers.php updatestatsonly >> /home/admin/logs/batch_customers-updatedatabase.log 2>&1
+5 5 * * * /home/admin/wwwroot/dolibarr/htdocs/custom/sellyoursaas/scripts/batch_customers.php updatestatsonly >> /home/admin/logs/batch_customers-updatedatabase.log 2>&1
 7 7 * * * /home/admin/wwwroot/dolibarr/htdocs/custom/sellyoursaas/scripts/git_update_sources.sh /home/admin/wwwroot/dolibarr_documents/sellyoursaas/git >> /home/admin/logs/git_update_sources.log 2>&1
+# cron master and deployment admin
 #7 7 * * * /home/admin/wwwroot/dolibarr/htdocs/custom/sellyoursaas/scripts/git_update_sellyoursaas.sh /home/admin/wwwroot >> /home/admin/logs/git_update_sellyoursaas.log 2>&1
+5 0 * * * /home/admin/wwwroot/dolibarr/htdocs/custom/sellyoursaas/scripts/batch_customers.php backupdelete >> /home/admin/logs/batch_customers-backup.log 2>&1
 ---------------
 
 
@@ -3743,10 +3732,9 @@ You must have inside the cron of user *root*
 ---------------
 # m h  dom mon dow   command
 # cron master and deployment root
-#47 2 * * * /root/certbot-auto renew --no-self-upgrade > /var/log/letsencrypt/certbot-auto_renew.log 2>&1
 10 0 * * * /home/admin/wwwroot/dolibarr/htdocs/custom/sellyoursaas/scripts/backup_mysql_system.sh confirm >/home/admin/logs/backup_mysql_system.log 2>&1
-00 4 * * * /home/admin/wwwroot/dolibarr/htdocs/custom/sellyoursaas/scripts/perms.ksh >/home/admin/logs/perms.log
-40 15 * * * /home/admin/wwwroot/dolibarr/htdocs/custom/sellyoursaas/scripts/backup_backups.sh confirm none --delete >/home/admin/logs/backup_backups.log 2>&1
+00 4 * * * /home/admin/wwwroot/dolibarr/htdocs/custom/sellyoursaas/scripts/perms.sh >/home/admin/logs/perms.log
+40 15 * * * /home/admin/wwwroot/dolibarr/htdocs/custom/sellyoursaas/scripts/backup_backups.php confirm none --delete >/home/admin/logs/backup_backups.log 2>&1
 00 9 * * * /home/admin/wwwroot/dolibarr/htdocs/custom/sellyoursaas/scripts/batch_detect_evil_instances.php test 86400 > /home/admin/logs/batch_detect_evil_instances.log 2>&1
 #40 4 4 * * /home/admin/wwwroot/dolibarr/htdocs/custom/sellyoursaas/scripts/clean.sh confirm
 ---------------
@@ -3758,12 +3746,12 @@ You must have inside the cron of user *admin*:
 # m h  dom mon dow   command
 # cron master and deployment root
 #7 7 * * * /home/admin/wwwroot/dolibarr/htdocs/custom/sellyoursaas/scripts/git_update_sellyoursaas.sh /home/admin/wwwroot >> /home/admin/logs/git_update_sellyoursaas.log 2>&1
-20 0 * * * /home/admin/wwwroot/dolibarr/htdocs/custom/sellyoursaas/scripts/batch_customers.php backup >> /home/admin/logs/batch_customers-backup.log 2>&1
+20 0 * * * /home/admin/wwwroot/dolibarr/htdocs/custom/sellyoursaas/scripts/batch_customers.php backupdelete >> /home/admin/logs/batch_customers-backup.log 2>&1
 ---------------
 
 ==== Check that launching of cron is ok
 
-Reprendre du fichier */etc/crontab*, les commandes pour tester le lancement de crontab journalière, hebdo et mensuelles et tester en lançant en manuel. Par exemple par:
+Take from */etc/crontab* the commands for testing daily, weekly and monthly crontab launches and test by launching manually. For example, with:
 
 [source,bash]
 ---------------
@@ -4246,7 +4234,7 @@ See <<installing_cron_tasks>>. This will write backup files into */mnt/diskbacku
 
 - An external backup must be done to another server by a cron task of *root* :
 
-*/home/admin/wwwroot/dolibarr/htdocs/custom/sellyoursaas/scripts/backup_backups.sh confirm none --delete >/home/admin/logs/backup_backups.log 2>&1*
+*/home/admin/wwwroot/dolibarr/htdocs/custom/sellyoursaas/scripts/backup_backups.php confirm none --delete >/home/admin/logs/backup_backups.log 2>&1*
 
 See <<installing_cron_tasks>>. This will copy local files from */mnt/diskbackup/backup* to */mnt/diskbackup/backup_sourceServer* (to another server in another datacenter). 
 
@@ -4280,7 +4268,7 @@ The option "*confirmredirect*" will move the instance and the old one will be fl
 so the old URL will still works (temporarily until the old instance is closed)
 
 
-=== Update images of application to deploy
+=== Update the image of the application to deploy
 
 - A cron script on the *Master* does the git pull to update the images of the packages to deploy.
 */home/admin/wwwroot/dolibarr/htdocs/custom/sellyoursaas/scripts/git_update_sources.sh /home/admin/wwwroot/dolibarr_documents/sellyoursaas/git*
@@ -4294,9 +4282,9 @@ so the old URL will still works (temporarily until the old instance is closed)
 
 === Increase/extend size of disk
 
-* Take a snapshot of the disk to resize for backup. Create a new disk from this snapshot and attach it to another server (see chapter <<adding_a_disk>>) to ensure it is readable and you have backup files handy.
+This is to increase the size of an additionnal disk of data (not the system disk).
 
-If this is not a file system:
+* Take a snapshot or backup of the disk to resize (in case of trouble). Then check the backup is ok by creating a new disk from this snapshot and attach it to another server (see chapter <<adding_a_disk>>).
 
 * Unmount the filesystem:
 
@@ -4320,10 +4308,10 @@ lsof | grep "/mnt/disk"
 ---------------
 fdisk -l
 parted /dev/vdX    (X=a, b, etc!!! WITHOUT the digit, we want the full disk)
-print all free
+print free
 resizepart 
 Y		  (the num of the part)
-999GB    (Don't input the default value but the max value of disk size found on line "Disk...:" that was shown by "print all free")
+999GB    (Don't input the default value but the max value of disk size found on line "Disk /dev/...: XXX" that was shown by "print all free")
 q
 ---------------
 
@@ -4355,29 +4343,35 @@ Choose name of server, for example:  withX.mysaasdomainname.com
 
 Choose the snapshot or image to use and copy the content of file */scripts/post_inst_script.sh* into area *post-installation script*.
 
-Once the server is created, double check it does have an associated IP visible in OVH dashboard. If not go to the horizon console on the server, detach the network interfaces, then add a new network interface. Leave the field "Fixed IP" empty so it is set by OVH. Reboot the server.
+Once the server is created, double check it does have an associated IP visible in OVH dashboard.
+If not go to the horizon console on the server, detach the network interfaces, then add a new network interface. Leave the field "Fixed IP" empty so it is set by OVH. Reboot the server.
 
-If you can't connect to server, it is possible that you have to configure */etc/network/interfaces* to get your IPv4 via DHCP. To do so :
-Connect to the console of server from OVH dashboard. Execute *ip link show* to get the MAC address. Check the file */etc/netplan/50-cloud-init.yaml* to get the right MAC address.
-Correct and reboot if needed. 
+Note: If you can't ping the server using IPv4, take a look at the Troubleshooting bad IP v4 mounting after cloning a server.
+Note: If you can't ping the server using IPv6, take a look at the Troubleshooting bad IP v6 mounting after cloning a server.
+Note: If you can ping but you can't connect to SSH, may be problem is the one described on the trouble shooting "sshd: no hostkeys available -- exiting"
 
-Then correct IPv6 setup into file */etc/netplan/50-cloud-init.yaml*.
+After a clone, the IPv6 setup on OVH or virtual IPv4 addresses remains with same value than on old instance, so you can disable the IPv6 to avoid network errors or see Trouble shooting for a more complete solution.
 
 [source,bash]
 ---------------
-netplan try
-netplan apply
+ip -6 addr flush eth0
+ip addr del <IP_ADDRESS> dev eth0
 ---------------
 
 *With ScaleWay*:
 
 Create an image from the server.
 
-Create a server from the image. If after creating the server, you can't connect to SSH, may be problem is the one described on the trouble shooting "sshd: no hostkeys available -- exiting"
+Create a server from the image. 
 
-Detach IP on the 2 servers. Then attach IP of the production serveur to the new one. 
+Note: If you can't ping the server using IPv4, take a look at the Troubleshooting bad IP v4 mounting after cloning a server.
+Note: If you can't ping the server using IPv6, take a look at the Troubleshooting bad IP v6 mounting after cloning a server.
+Note: If you can ping but you can't connect to SSH, may be problem is the one described on the trouble shooting "sshd: no hostkeys available -- exiting"
 
-Go on the new server using the new IP to set the hostname with same value than old name:
+If you want to restore the IP of old serveur:
+Detach IPs on the 2 servers. Then attach the IP of the old production server to the new one. 
+Always check after that that files into /etc/network/intefaces* or */etc/netplan/???.yaml* match the correct IP when IP is not get using dhcp and mac address (See notes into previous chapter for OVH)
+Go on the new server using the new IP to set the hostname with the same value than old name:
 
 [source,bash]
 ---------------
@@ -4389,7 +4383,7 @@ vi /etc/hosts
 Restart the server.
 
 
-==== Disable cron
+==== Disable cron to avoid duplicated tasks
 
 - Once the server is ready: connect to it to deactivate the crons tasks (coming from the cloned server). You can do this by disabling the cron process itself with :
 
@@ -4609,7 +4603,7 @@ mysql -uroot < /tmp/dbntodelete.sql
 [source,bash]
 ---------------
 mkdir /mnt/diskbackup/backup /mnt/diskbackup/archives-test /mnt/diskbackup/archives-paid;
-chown admin.root /mnt/diskbackup/backup /mnt/diskbackup/archives-test /mnt/diskbackup/archives-paid;
+chown admin:root /mnt/diskbackup/backup /mnt/diskbackup/archives-test /mnt/diskbackup/archives-paid;
 ---------------
 
 - Acquire or generate the SSL certificates of the new subdomain *withX.mydomain.com*, upload them to the server and create the symbolic links. (see <<ssl_certificate_creation>>).
@@ -4628,12 +4622,11 @@ In addition, if other applications were active on the cloned server:
 
 === Upgrade OS
 
-Upgrading the OS is a risky operation. It is better to move instance from one server to a new
-one with a new OS.
+Upgrading the OS is a risky operation. It is better to move instance from one server to a new one with a new OS.
 
 You can create a clone of an instance (and its attached hard disk) if you
-want to test first that this operation works correctly. Update your file */etc/hosts* to be able
-to test an instance on the new server. 
+want to test first that this operation works correctly. 
+Update your file */etc/hosts* to be able to test an instance on the new server. 
 
 To update Ubuntu to a higher LTS version on a SellYourSaas server:
 
@@ -4651,11 +4644,18 @@ sudo add-apt-repository ppa:ondrej/php
 apt install php-mysql
 a2enmod php7.4
 apt remove php-fpm php7-fpm
+
+# if you move from 20.04 to 22.04, you must anable the correct php version
+a2dismod php7.4; a2enmod php8.1; 
 ---------------
+
+If you get a timeout error when running do-release-upgrade, take a look ath the troubleshooting section.
 
 
 [[check_database_used]]
-=== Follow space used by database
+=== Follow space used
+
+==== By database
 
 The following request gives the "real" space taken by databases (without the "padding")
 
@@ -4699,6 +4699,15 @@ AND engine IS NOT NULL GROUP BY engine WITH ROLLUP) B,
 (SELECT 3 pw) A ORDER BY TSize;
 ---------------
 
+==== By instances on disk
+
+On the deployment server, run:
+
+[source,bash]
+---------------
+scripts/disk_used_per_instance.sh
+---------------
+
 
 === Read or find deadlocks on the database
 
@@ -4712,34 +4721,6 @@ echo "show engine innodb status" | mysql  | sed 's/\\n/\n/g' > /tmp/innodbstatus
 kill query ...
 kill ...
 ---------------
-
-
-
-=== Follow files modified (using Afick)
-
-To update the list of modified files since afick run last:
-
-[source,bash]
----------------
-afick.pl -k
----------------
-
-See the history of changes:
-
-[source,bash]
----------------
-vi /var/lib/afick/history
----------------
-
-See details of changes for a specific day:
-
-[source,bash]
----------------
-vi /var/lib/afick/archive/afick.YYYMMDD*
----------------
-
-Check out *afick.pl* documentation for more options.
-
 
 
 === Restore a lost config file of a package
@@ -4904,117 +4885,6 @@ blkid
 mount /dev/sdX9 /mnt
 vi /mnt/etc/fstab
 ---------------
-
- 
-
-
-
-=== Restoring a root access or a server blocked by a firewall
-
-To restore a root access, first you need to reboot your server in boot rescue mode.
-Use the Cloud service interface to switch to rescue mode. The server will be rebooted and a link to log in will be provided.
-
-*Reboot in rescue mode With OVH Public Cloud*
-
-* Click on the instance where you want to reset the password. 
-
-* Click on the "Reboot in rescue mode" entry and validate.
-
-When the server is completely restarted a login and a password will be displayed, use it to connect to the server. You can also go in the menu VNC console (it will open a console directly connected to the server
-or the root password for the resuce mode will be shown). If you don't received the password, do a reboot with an ubuntu image and try a ssh using the ubuntu from a user owning the private ssh key associated to the public ssh key published on OVH.
-
-Find attached disks to identify the system partition disk.
-
-[source,bash]
----------------
-lsblk -a / lsblk -f
-of 
-fdisk -l
----------------
-
-Example when using lsblk -a:
-
-[source,bash]
----------------
-NAME    MAJ:MIN RM   SIZE RO TYPE MOUNTPOINT
-sda       8:0    0   2.5G  0 disk 
-└─sda1    8:1    0   2.5G  0 part /
-sdb       8:16   0   200G  0 disk 
-├─sdb1    8:17   0 199.9G  0 part 
-├─sdb14   8:30   0     4M  0 part 
-└─sdb15   8:31   0   106M  0 part 
----------------
-
-In this exemple, the system partition /dev/sda1 it the rescue partition, the oroginal partition is /dev/sdb1. Note : if your server is in RAID configuration the system partition is the raid volume partition.
-
-* Once the system partition is identified, you need to mount it.
-
-[source,bash]
----------------
-mount /dev/sdXY /mnt    #(with X=a, b, c, etc and Y the partition number, 1, 2, 3, etc)
----------------
-
-The disk is then accessible and writable in /mnt
-
-
-* Now we need to change root directory, you can use this command:
-
-[source,bash]
----------------
-chroot /mnt
----------------
-
-* Finnaly, to change the password, use this command:
-
-[source,bash]
----------------
-passwd root
----------------
-
-* You can also edit the */mnt/etc/ssh/sshd_config.d/sellyoursaas.conf* to allow direct SSH access to root using SSH (should not be used, good practice is to ssh using key to a user then doing a sudo using user password)
-
-[source,ini]
----------------
-PermitRootLogin yes
-PasswordAuthentication yes
----------------
-
-Then
-
-[source,bash]
----------------
-/etc/init.d/ssh restart
----------------
-
-
-* If you have also doubt on the firewall, to disable firewall rules, use this command:
-
-[source,bash]
----------------
-# Accept all traffic first to avoid ssh lockdown  via iptables firewall rules #
-iptables -P INPUT ACCEPT
-iptables -P FORWARD ACCEPT
-iptables -P OUTPUT ACCEPT
- 
-# Flush All Iptables Chains/Firewall rules #
-iptables -F
- 
-# Delete all Iptables Chains #
-iptables -X
-
-# To list rules
-iptables -L
----------------
-
-When all this is done you can reboot your server by using the button Exit rescue mode in the dashboard.
-
-
-=== Analysing changes in system files
-
-This can be done using afick.pl
-
-@TODO
-
 
 
 === Move the database (var/lib/mysql into /mnt/diskhome/mysql/)
@@ -5201,6 +5071,159 @@ Launch the script:
 ---------------
 
 
+=== Forensic tools - analysis
+
+Before any forensic anaylisis, you can:
+- block any network access from the Public Cloud service.
+- use the Public Cloud tool to make an image of the instance. 
+
+
+==== Restoring a lost root access or a server blocked by a firewall
+
+To restore a root access, first you need to reboot your server in boot rescue mode.
+Use the Cloud service interface to switch to rescue mode. The server will be rebooted and a link to log in will be provided.
+
+*Reboot in rescue mode fomr the Public Cloud console*
+
+* Click on the instance where you want to reset the password. 
+
+* Click on the "Reboot in rescue mode" entry and validate.
+
+When the server is completely restarted a login and a password will be displayed, use it to connect to the server. You can also go in the menu VNC console (it will open a console directly connected to the server
+or the root password for the resuce mode will be shown). If you don't received the password, do a reboot with an ubuntu image and try a ssh using the ubuntu from a user owning the private ssh key associated to the public ssh key published on OVH.
+
+Find attached disks to identify the system partition disk.
+
+[source,bash]
+---------------
+lsblk -a / lsblk -f
+of 
+fdisk -l
+---------------
+
+Example when using lsblk -a:
+
+[source,bash]
+---------------
+NAME    MAJ:MIN RM   SIZE RO TYPE MOUNTPOINT
+sda       8:0    0   2.5G  0 disk 
+└─sda1    8:1    0   2.5G  0 part /
+sdb       8:16   0   200G  0 disk 
+├─sdb1    8:17   0 199.9G  0 part 
+├─sdb14   8:30   0     4M  0 part 
+└─sdb15   8:31   0   106M  0 part 
+---------------
+
+In this exemple, the system partition /dev/sda1 it the rescue partition, the oroginal partition is /dev/sdb1. Note : if your server is in RAID configuration the system partition is the raid volume partition.
+
+* Once the system partition is identified, you need to mount it.
+
+[source,bash]
+---------------
+mount /dev/sdXY /mnt    #(with X=a, b, c, etc and Y the partition number, 1, 2, 3, etc)
+---------------
+
+The disk is then accessible and writable in /mnt
+
+
+* Now we need to change root directory, you can use this command:
+
+[source,bash]
+---------------
+chroot /mnt
+---------------
+
+* Finnaly, to change the password, use this command:
+
+[source,bash]
+---------------
+passwd root
+---------------
+
+* You can also edit the */mnt/etc/ssh/sshd_config.d/sellyoursaas.conf* to allow direct SSH access to root using SSH (should not be used, good practice is to ssh using key to a user then doing a sudo using user password)
+
+[source,ini]
+---------------
+PermitRootLogin yes
+PasswordAuthentication yes
+---------------
+
+Then
+
+[source,bash]
+---------------
+/etc/init.d/ssh restart
+---------------
+
+
+* If you have also doubt on the firewall, to disable firewall rules, use this command:
+
+[source,bash]
+---------------
+# Accept all traffic first to avoid ssh lockdown  via iptables firewall rules #
+iptables -P INPUT ACCEPT
+iptables -P FORWARD ACCEPT
+iptables -P OUTPUT ACCEPT
+ 
+# Flush All Iptables Chains/Firewall rules #
+iptables -F
+ 
+# Delete all Iptables Chains #
+iptables -X
+
+# To list rules
+iptables -L
+---------------
+
+When all this is done you can reboot your server by using the button Exit rescue mode in the dashboard.
+
+
+==== Follow files modified - Analysing changes in system files (using Afick)
+
+To compare the list of modified files since the last afick run:
+
+[source,bash]
+---------------
+afick.pl -k			# Compare current files with last database
+afick.pl -u			# Compare current files with last database and update database
+---------------
+
+See a summary of history of daily changes:
+
+[source,bash]
+---------------
+vi /var/lib/afick/history
+---------------
+
+See details of changes for a specific day:
+
+[source,bash]
+---------------
+cd /var/lib/afick/archive/
+vi /var/lib/afick/archive/afick.YYYMMDD*
+---------------
+
+Check out *afick.pl* documentation for more options.
+
+
+==== Follow shell activities
+
+You can use the following tools to follow shell activities, tracked by the kernel:
+
+[source,bash]
+---------------
+ac -d -p					# Statistics about linux user connections
+sa -m						# Statistics about linux user commands run
+lastcomm --user unixlogin	# last command of a user
+---------------
+
+You can also use the journal to track logs:
+
+[source,bash]
+---------------
+journalctl --since="YYYY-MM-DD HH:MM:SS" _UID=1001
+---------------
+
 
 <<<<
 
@@ -5330,7 +5353,7 @@ Into field *shell after*
 [source,bash]
 ---------------
 touch __INSTANCEDIR__/documents/install.lock;
-chown __OSUSERNAME__.__OSUSERNAME__ __INSTANCEDIR__/documents/install.lock
+chown __OSUSERNAME__:__OSUSERNAME__ __INSTANCEDIR__/documents/install.lock
 chmod -R a-w __INSTANCEDIR__/htdocs
 chmod -R u+w __INSTANCEDIR__/htdocs/custom
 ---------------
@@ -5371,7 +5394,7 @@ REPLACE INTO llx_const (name, entity, value, type, visible) values('MAIN_HELPCEN
 REPLACE INTO llx_const (name, entity, value, type, visible) values('MAIN_LOGEVENTS_USER_LOGIN', 1, '1', 'chaine', 0);
 REPLACE INTO llx_const (name, entity, value, type, visible) values('MAIN_LOGEVENTS_USER_LOGIN_FAILED', 1, '1', 'chaine', 0);
 REPLACE INTO llx_const (name, entity, value, type, visible) values('MAIN_LOGEVENTS_USER_LOGOUT', 1, '1', 'chaine', 0);
-REPLACE INTO llx_const (name, entity, value, type, visible) values('MAIN_SECURITY_HASH_ALGO', 0, '1', 'password_hash', 1);
+REPLACE INTO llx_const (name, entity, value, type, visible) values('MAIN_SECURITY_HASH_ALGO', 0, 'password_hash', 'chaine', 1);
 ---------------
 
 Change the value 18.0.0 with version of the image you will build to deploy.
@@ -5663,9 +5686,92 @@ ufw delete X
 ==== Ping hangs in input, not in output. IP v4 or V6 fails in input or output
 
 If you are using a server hosted on OpenStack, a security group may exists that block network in some direction/protocols.
-Check that your *security group* match the following setup
+If on a Public Cloud based on OpenStack, check that your *security group* match the following setup
 
 image::Example_setup_security_group_horizon.png[Example of setup of security group on horizon]
+
+On other Cloud solution, you may also need to check the *security group* applied to your server.
+
+
+=== Failed to ping or use IPv4 after cloning a server ===
+
+If you can ping with IPv6 but not using IPv4, there is a sometimes a trouble when setting the IPv4 layer.
+You can first try to restore the IPv4 manually by adding the declaration of the IP v4 manually by creating a netplan config file */etc/netplan/fixed-ip.yaml* for a static IP v4
+
+[source,bash]
+---------------
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    eth0:
+      dhcp4: no
+      addresses:
+        - the.static.ipv4.server/24      # Adresse IPv4 statique avec le préfixe CIDR
+      gateway4: the.static.ipv4.gateway  # Adresse de la passerelle (gateway)
+      nameservers:
+        addresses:
+          - 8.8.8.8         # Serveur DNS primaire
+          - 8.8.4.4         # Serveur DNS secondaire 
+---------------
+
+Then run *netplan try* and apply.
+
+Check by doing an apt update your network and outgoing connexion are ok. If yes, you can follow this tutorial provided by scaleway https://www.scaleway.com/en/docs/compute/instances/troubleshooting/fix-unreachable-focal-with-two-public-ips/ to
+fix definetly the bad generation of the netplan file during boot. It will add a line *- on-link: true* into the routes section for IPv4 that solve the trouble. You can then remove 
+the file */etc/netplan/fixed-ip.yaml* that was previously added manually and reboot. IPv4 should be available.
+
+
+=== Failed to ping or use IPv6 after cloning a server ===
+
+If after creating the server, you can't ping on IPv6, check the file */etc/network/interfaces* or */etc/netplan/???.yaml* to set the correct MAC address into 
+the section *match: macaddress:" if it exists a condition to get a dhcp IP address, and reboot if needed (removing the match may also work).
+Check also that there is no old IP in file.
+
+For exemple here:
+
+[source,bash]
+---------------
+network:
+    version: 2
+    ethernets:
+        ens3:
+            accept-ra: false
+            addresses:
+            - 2402:1f00:8102:100::38d/56
+            dhcp4: true
+            match:
+                macaddress: fa:16:3e:75:62:dc
+			nameservers:
+                addresses:
+                - ip.of.dns.server
+                search: []                
+			routes:
+            -   to: ::/0
+                via: 2402:1f00:8102:100::1
+            set-name: ens3
+---------------
+
+You can get the MAC address by connecting to the console of server from the cloud provider dashboard. Execute *ip link show* to get the MAC address (just after the "link/ether" text). For example with the output:
+ 
+[source,bash]
+---------------
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+2: ens3: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP mode DEFAULT group default qlen 1000
+    link/ether fa:16:3e:75:62:dc brd ff:ff:ff:ff:ff:ff
+    altname enp0s3
+---------------
+
+The MAC address is "fa:16:3e:75:62:dc".
+
+Then correct IPv6 setup into a file */etc/netplan/???.yaml*.
+
+[source,bash]
+---------------
+netplan try
+netplan apply
+---------------
 
 
 ==== error when enabling firewall with UFW
@@ -5815,17 +5921,6 @@ aa-disable usr.sbin.mysqld
 Then reboot server.
 
 
-==== Extracting a zip file with file paths or names including backslash \
-
-The problem is into the zip file (may be generated by the bugged Powershell). To solve this, try to unzip from command line with 
-
-	unzip  file.zip
-
-If it fails, you can fix path of extracted files with this command:
-
-	for file in *\\*; do target="${file//\\//}"; mkdir -p "${target%/*}"; mv -v "$file" "$target"; done
-
-
 ==== Error Cannot open datafile during start of mysql
 
 Example of logs:
@@ -5837,6 +5932,114 @@ Example of logs:
 
 The directory of a database may have been removed when the databases was not dropped.
 Try to restart mysql. Once logged, do a CREATE DATABASE thedatabase; DROP DATABASE thedatabase;
+
+
+
+==== Error when doing mysqldump (need PROCESS privileges)
+
+mysqldump: Error: 'Access denied; you need (at least one of) the PROCESS privilege(s) for this operation' when trying to dump tablespaces
+
+Try to add the parameter --no-tablespaces into the mysqldump command.
+
+
+==== Error when doing mysqldump (max execution time exceeded)
+
+mysqldump: Error 3024: 'Query execution was interrupted, maximum statement execution time exceeded when dumping table'
+
+Try to read the *max_execution_time* of your database with:  
+
+[source,sql]
+---------------
+show variables like '%max_execution_time%';
+---------------
+
+Then try to increase it with:  
+
+[source,sql]
+---------------
+SET global max_execution_time = ...;    with millisecond 
+---------------
+
+Note: The change will be effective on next SQL connection. To have the change persistent after a reboot, you must edit the file */etc/mysql/mysql.conf.d/mysqld.cnf*
+
+See also chapter <<check_database_used>> to analyze the size of database. A table may be abnormaly large.
+
+
+==== Error mysql when connecting to database
+
+When logged with a customer linux account osu..., you get this error:
+mysql -A -C -u dbu... -p'...' -h localhost -D dbn...
+ERROR 2002 (HY000): Can't connect to local MySQL server through socket '/var/run/mysqld/mysqld.sock' (13)
+
+Mariadb may try to use socket mode to connect to the database instead of IP. Try to replace "localhost" with "127.0.0.1" or add the parameter *--protocol tcp*.
+
+
+==== Error mysqldump "Got a packet bigger than 'max_allowed_packet' bytes"
+
+Try to read the *max_allowed_packet* of your database with:  
+
+[source,sql]
+---------------
+show variables like '%max_allowed_packet%';
+---------------
+
+You can change this in live from mysql command tool:
+
+[source,bash]
+---------------
+set global net_buffer_length=100000;
+set global max_allowed_packet=100000000;
+---------------
+
+You can edit the section [mysqld] of the file *mysql.cnf* to increase this limits permanently
+
+[source,bash]
+---------------
+# increase net_buffer_length to 100K and max_allowed_packet to 100M to 
+# avoid error "Got a packet bigger than 'max_allowed_packet' bytes"
+net_buffer_length=100000 
+max_allowed_packet=100000000
+---------------
+
+==== Error mysql connect pb with caching_sha2_password
+
+Error can be: Client does not support authentication protocol requested by server; consider upgrading MySQL client
+
+The client may be the mariadb mysql client and the user on server may be encrypted with *caching_sha2_password* instead of *mysql_native_password*.
+If this is the case, you must modify the encryption of user password with the *mysql_native_password*. For this you can run
+
+[source,bash]
+---------------
+ALTER USER dbu... IDENTIFIED WITH mysql_native_password BY 'userpassword';
+---------------
+
+You can also run the script to generate a SQL file to update all passwords of the deployment server in one script.
+
+[source,bash]
+---------------
+sudo /home/admin/wwwroot/dolibarr/htdocs/custom/sellyoursaas/scripts/master_build_sql_for_instances.php withX.mysaasdomain.com userresetpass
+---------------
+
+
+==== A lot of warnings  Error mysql connect pb with caching_sha2_password
+
+There is a lot of warning into /var/log/mysql/error.log like this one 
+Aborted connection 594 to db: 'unconnected' user: 'datadog' host: 'localhost' (CLOSE_CONNECTION)
+
+The warning appear into log file when we disconnect, even if we disconnect correctly.
+
+To avoid this, check that the *log_warning = 2* (default value of mysql and mariadb) instead of a higher value.
+
+
+==== Extracting a zip file with file paths or names including backslash \
+
+The problem is into the zip file (may be generated by the bugged Powershell). To solve this, try to unzip from command line with 
+
+	unzip  file.zip
+
+If it fails, you can fix path of extracted files with this command:
+
+	for file in *\\*; do target="${file//\\//}"; mkdir -p "${target%/*}"; mv -v "$file" "$target"; done
 
 
 ==== Error 77 when using the option MAIN_ODT_AS_PDF to build PDF from ODT automatically
@@ -5936,7 +6139,7 @@ Then change the [default_sect] section with the followin
 ==== Some remote action generates a PHP coredump or return a page "No answer received"
 
 This occurs on some distributions due to a bug in PHP method ssh2_disconnect().
-You can disable the call to *ssh2_disconnect()* by setting constant SELLYOURSAAS_SSH2_DISCONNECT_DISABLED to 1
+You can disable the call to *ssh2_disconnect()* by setting constant SELLYOURSAAS_SSH2_DISCONNECT_DISABLED to 1 into Dolibarr, menu *Home - Setup - Other*.
 
 
 ==== Failed to start ssh server, message "sshd: no hostkeys available -- exiting"
@@ -5959,105 +6162,9 @@ ssh-keygen -A
 then restart the server.
 
 
-==== On a deployment server, the user root can read files into /home/admin/wwwroot/dolibarr_documents/sellyoursaas
+==== On a deployment server, the user root can't read files into /home/admin/wwwroot/dolibarr_documents/sellyoursaas
 
 Check that on the master server, the option *no_root_squash* is present into the file */var/exports*
-
-
-==== Error when doing mysqldump (need PROCESS privileges)
-
-mysqldump: Error: 'Access denied; you need (at least one of) the PROCESS privilege(s) for this operation' when trying to dump tablespaces
-
-Try to add the parameter --no-tablespaces into the mysqldump command.
-
-
-==== Error when doing mysqldump (max execution time exceeded)
-
-mysqldump: Error 3024: 'Query execution was interrupted, maximum statement execution time exceeded when dumping table'
-
-Try to read the *max_execution_time* of your database with:  
-
-[source,sql]
----------------
-show variables like '%max_execution_time%';
----------------
-
-Then try to increase it with:  
-
-[source,sql]
----------------
-SET global max_execution_time = ...;    with millisecond 
----------------
-
-Note: The change will be effective on next SQL connection. To have the change persistent after a reboot, you must edit the file */etc/mysql/mysql.conf.d/mysqld.cnf*
-
-See also chapter <<check_database_used>> to analyze the size of database. A table may be abnormaly large.
-
-
-==== Error mysql when connecting to database
-
-When logged with a customer linux account osu..., you get this error:
-mysql -A -C -u dbu... -p'...' -h localhost -D dbn...
-ERROR 2002 (HY000): Can't connect to local MySQL server through socket '/var/run/mysqld/mysqld.sock' (13)
-
-Mariadb may try to use socket mode to connect to the database instead of IP. Try to replace "localhost" with "127.0.0.1" or add the parameter *--protocol tcp*.
-
-
-==== Error mysqldump "Got a packet bigger than 'max_allowed_packet' bytes"
-
-Try to read the *max_allowed_packet* of your database with:  
-
-[source,sql]
----------------
-show variables like '%max_allowed_packet%';
----------------
-
-You can change this in live from mysql command tool:
-
-[source,bash]
----------------
-set global net_buffer_length=100000;
-set global max_allowed_packet=100000000;
----------------
-
-You can edit the section [mysqld] of the file *mysql.cnf* to increase this limits permanently
-
-[source,bash]
----------------
-# increase net_buffer_length to 100K and max_allowed_packet to 100M to 
-# avoid error "Got a packet bigger than 'max_allowed_packet' bytes"
-net_buffer_length=100000 
-max_allowed_packet=100000000
----------------
-
-==== Error mysql connect pb with caching_sha2_password
-
-Error can be: Client does not support authentication protocol requested by server; consider upgrading MySQL client
-
-The client may be the mariadb mysql client and the user on server may be encrypted with *caching_sha2_password* instead of *mysql_native_password*.
-If this is the case, you must modify the encryption of user password with the *mysql_native_password*. For this you can run
-
-[source,bash]
----------------
-ALTER USER dbu... IDENTIFIED WITH mysql_native_password BY 'userpassword';
----------------
-
-You can also run the script to generate a SQL file to update all passwords of the deployment server in one script.
-
-[source,bash]
----------------
-sudo /home/admin/wwwroot/dolibarr/htdocs/custom/sellyoursaas/scripts/master_build_sql_for_instances.php withX.mysaasdomain.com userresetpass
----------------
-
-
-==== A lot of warnings  Error mysql connect pb with caching_sha2_password
-
-There is a lot of warning into /var/log/mysql/error.log like this one 
-Aborted connection 594 to db: 'unconnected' user: 'datadog' host: 'localhost' (CLOSE_CONNECTION)
-
-The warning appear into log file when we disconnect, even if we disconnect correctly.
-
-To avoid this, check that the *log_warning = 2* (default value of mysql and mariadb) instead of a higher value.
 
 
 ==== Error on apt on shim-signed of grub-efi-amd64-signed package
@@ -6147,6 +6254,18 @@ Aug 27 10:50:00 xxxxx kernel: [9800813.155984] audit: type=1400 audit(1661597400
 
 You may have updated the apparmor profile of apache but apache was not restarted completely.
 Try to stop and kill all apache process not stopped. Restart apache.
+
+
+==== Error apparmor on ntpd
+
+If you have such an error:
+
+[source,bash]
+---------------
+apparmor="DENIED" operation="open" profile="/usr/sbin/ntpd" name="/snap/bin/" pid=3516308 comm="ntpd" requested_mask="r" denied_mask="r" fsuid=0 ouid=0
+---------------
+
+You must remove the ntpd package and use instead the package *systemd-timesyncd* with sudo apt install systemd-timesyncd
 
 
 ==== Error missing profile snap.certbot.certbot
@@ -6261,4 +6380,30 @@ It may mean that your IPv6 connection is wrong. Disable the firewall, and try to
 ---------------
 ip -6 addr flush eth0
 ---------------
+
+==== Web site blocked by an antivirus. Error is reported as PR_CONNECT_RESET_ERROR. 
+
+An antivirus return a false positive saying myaccount.mysellyoursaas.com is blacklisted.
+For example, Avast will report message: "URL:blacklist"
+
+First, check that the URL is ok using https://www.virustotal.com/ 
+
+Then if this is a deployment server, check malicious files by running:
+
+[source,bash]
+---------------
+/home/admin/wwwroot/dolibarr/htdocs/custom/sellyoursaas/scripts/batch_detect_evil_instances.php test 86400
+---------------
+
+You can then check files with:
+
+[source,bash]
+---------------
+clamdscan --fdpass -v /home/jail/home/osu*/dbn...
+---------------
+
+TODO Add command for local antivirus
+
+If you confirm, this is a false positive, you can report it to the Antivirus provider.
+For example for AVAST: https://www.avast.com/report-false-positive#pc (need the report ID)
 
