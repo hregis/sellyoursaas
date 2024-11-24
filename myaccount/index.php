@@ -49,6 +49,11 @@ if (! defined('NOBROWSERNOTIF')) {
 	define('NOBROWSERNOTIF', '1');
 }
 
+
+define('SYSLOG_FILE_ADDIP', 1);
+define('SYSLOG_FILE_ADDSUFFIX', 'myaccountindex');
+
+
 // Load Dolibarr environment
 include './mainmyaccount.inc.php';
 
@@ -122,7 +127,6 @@ dol_include_once('/sellyoursaas/class/deploymentserver.class.php');
 dol_include_once('/sellyoursaas/lib/sellyoursaas.lib.php');
 dol_include_once('/sellyoursaas/class/sellyoursaasutils.class.php');
 
-$conf->global->SYSLOG_FILE_ONEPERSESSION=2;
 
 $welcomecid = GETPOST('welcomecid', 'int');
 $mode = GETPOST('mode', 'aZ09');
@@ -168,6 +172,7 @@ $bic = GETPOST('bic', 'alphanohtml');
 
 
 $MAXINSTANCEVIGNETTE = 4;
+$MAXMONTHFORTRIAL = 4;
 
 // Load variable for pagination
 $limit = GETPOST('limit', 'int') ? GETPOST('limit', 'int') : ($mode == 'instance' ? $MAXINSTANCEVIGNETTE : 20);
@@ -739,9 +744,10 @@ if ($action == 'updateurl') {	// update URL from the tab "Domain"
 			$topic = '[Ticket '.getDolGlobalString('SELLYOURSAAS_NAME', getDolGlobalString('MAIN_INFO_SOCIETE_NOM')).' - '.$mythirdpartyaccount->name.'] '.$topic;
 		}
 
-		// Set $content
-		$content .= "<br><br>\n\n";
+		// Complete the $content
+		$content = dol_concatdesc($content, "<br><br>\n\n");
 
+		// Now we are sure that $content is HTML content.
 		if (!empty($mythirdpartyaccount->default_lang)) {
 			$content .= '<div lang="'.$mythirdpartyaccount->default_lang.'" class="cartouche">'."\n";
 		} else {
@@ -1111,7 +1117,9 @@ if ($action == 'updateurl') {	// update URL from the tab "Domain"
 		$db->begin();
 
 		// First update or insert payment mode 'ban'
-		if (! $error) {
+		if (!$error) {
+			dol_syslog("No error on BAN validation, so we create the bank account in database");
+
 			$companybankid = $companybankaccount->create($user);	// Create with main data
 
 			if (empty($companybankaccount->rum)) {
@@ -1138,8 +1146,7 @@ if ($action == 'updateurl') {	// update URL from the tab "Domain"
 				if (!$error) {
 					$resultbanksetdefault = $companybankaccount->setAsDefault(0, '');
 					if ($resultbanksetdefault > 0) {
-						setEventMessages($langs->trans("BankSaved"), null, 'mesgs');
-						//setEventMessages($langs->trans("WeWillContactYouForMandaSepate"), null, 'warnings');
+						// No message here. An error can occur later.
 					} else {
 						setEventMessages($companybankaccount->error, $companybankaccount->errors, 'errors');
 						$error++;
@@ -1155,8 +1162,10 @@ if ($action == 'updateurl') {	// update URL from the tab "Domain"
 			}
 		}
 
-		// Then create record on Stripe side
+		// Then create record of bank on Stripe side
 		if (!$error && isModEnabled('stripe')) {
+			dol_syslog("Creation record of bank account on Stripe side");
+
 			$companybankaccount->fetch(GETPOSTINT('bankid'));
 			$service = 'StripeTest';
 			$servicestatus = 0;
@@ -1196,6 +1205,8 @@ if ($action == 'updateurl') {	// update URL from the tab "Domain"
 		}
 
 		if (!$error) {
+			dol_syslog("Update existing invoices with the new payment mode");
+
 			$id_payment_mode_ban = dol_getIdFromCode($db, 'PRE', 'c_paiement', 'code', 'id', 1);
 
 			// Update all pending recurring invoices of the thirdparty to the payment mode direct debit. Update also the open invoices.
@@ -1235,7 +1246,7 @@ if ($action == 'updateurl') {	// update URL from the tab "Domain"
 
 			if ($mythirdpartyaccount->client == 2) {
 				dol_syslog("--- Set status of thirdparty to prospect+client instead of only prospect", LOG_DEBUG, 0);
-				$mythirdpartyaccount->set_as_client();
+				$mythirdpartyaccount->setAsCustomer();
 			}
 
 			if (! $error) {
@@ -1262,7 +1273,18 @@ if ($action == 'updateurl') {	// update URL from the tab "Domain"
 				//$actioncomm->fk_element  = $mythirdpartyaccount->id;
 				//$actioncomm->elementtype = 'thirdparty';
 				$ret=$actioncomm->create($user);       // User creating action
+
+				if ($ret <= 0) {
+					setEventMessages($actioncomm->error, $actioncomm->errors, 'errors');
+					$error++;
+				}
 			}
+		}
+
+		// If not error, we show the message
+		if (!$error) {
+			setEventMessages($langs->trans("BankSaved"), null, 'mesgs');
+			//setEventMessages($langs->trans("WeWillContactYouForMandaSepate"), null, 'warnings');
 		}
 
 		// Create a recurring invoice (+real invoice + contract renewal if payment try success and not 'ban') if there is no recurring invoice yet
@@ -1341,7 +1363,10 @@ if ($action == 'updateurl') {	// update URL from the tab "Domain"
 			$companypaymentmode->label           = 'Setup intent for '.$payment_method->id;
 			$companypaymentmode->number          = '';
 			$companypaymentmode->last_four       = $payment_method->card->last4;
-			$companypaymentmode->proprio         = GETPOST('proprio', 'alpha');
+
+			$companypaymentmode->owner_name      = GETPOST('proprio', 'alpha');
+			$companypaymentmode->proprio         = $companypaymentmode->owner_name;
+
 			$companypaymentmode->exp_date_month  = $payment_method->card->exp_month;
 			$companypaymentmode->exp_date_year   = $payment_method->card->exp_year;
 			$companypaymentmode->cvn             = '';
@@ -2122,6 +2147,75 @@ if ($action == 'updateurl') {	// update URL from the tab "Domain"
 		header('Location: '.$_SERVER["PHP_SELF"].'?mode=instances&tab=resources_'.$object->id);
 		exit();
 	}
+} elseif ($action == 'confirmeditfreeperiod' && getDolGlobalInt("SELLYOURSAAS_MAX_NB_MONTH_FREE_PERIOD_RESELLERS", $MAXMONTHFORTRIAL) > 0) {
+	$error = 0;$nothingdone =0;
+	$contractid = GETPOSTINT("contractid");
+	$freeprioddate = dol_mktime(0, 0, 0, GETPOSTINT("freeperioddatemonth"), GETPOSTINT("freeperioddateday"), GETPOSTINT("freeperioddateyear"));
+	$maxnbmonthfreeperiod = getDolGlobalInt("SELLYOURSAAS_MAX_NB_MONTH_FREE_PERIOD_RESELLERS", $MAXMONTHFORTRIAL);
+	if ($contractid <= 0) {
+		setEventMessages($langs->trans("ErrorFieldRequired", $langs->transnoentitiesnoconv("Id")), null, 'errors');
+		header("Location: ".$backtourl);
+		exit;
+	}
+	if (!$freeprioddate) {
+		setEventMessages($langs->trans("ErrorFieldRequired", $langs->transnoentitiesnoconv("DateEndTrial")), null, 'errors');
+		header("Location: ".$backtourl);
+		exit;
+	}
+	if ($mythirdpartyaccount->isareseller != 1 || !array_key_exists($contract->socid, $listofcustomeridreseller) || !array_key_exists(GETPOSTINT("contractid"), $listofcontractidreseller)) {
+		setEventMessages($langs->trans("NotEnoughPermissions"), null, 'errors');
+		header("Location: ".$backtourl);
+		exit;
+	}
+
+	$db->begin();
+
+	$tmpcontract = new Contrat($db);
+	$res = $tmpcontract->fetch($contractid);
+	if ($res <= 0) {
+		setEventMessages($tmpcontract->error, null, 'errors');
+		$error++;
+	}
+	if (!$error) {
+		$date_contract = $tmpcontract->date_contrat;
+		$date_currentendoffreeperiod = $tmpcontract->array_options["options_date_endfreeperiod"];
+
+		if ($date_currentendoffreeperiod != $freeprioddate) {
+			if ($date_contract < $freeprioddate) {
+				$maxendfreeperiod = dol_time_plus_duree($date_contract, $maxnbmonthfreeperiod, 'm');
+				if ($maxendfreeperiod >= $freeprioddate) {
+					$tmpcontract->array_options["options_date_endfreeperiod"] = $freeprioddate;
+					$res = $tmpcontract->update($user);
+					if ($res <= 0) {
+						setEventMessages($tmpcontract->error, null, 'errors');
+						$error++;
+					}
+				} else {
+					setEventMessages($langs->trans("ErrorDateEndFreePeriodTooLate", dol_print_date($maxendfreeperiod, 'day')), null, 'errors');
+					$error++;
+				}
+			} else {
+				setEventMessages($langs->trans("ErrorDateEndFreePeriodTooEarly"), null, 'errors');
+				$error++;
+			}
+		} else {
+			$nothingdone = 1;
+		}
+	}
+
+	if ($error) {
+		$db->rollback();
+	} else {
+		$db->commit();
+		if ($nothingdone) {
+			setEventMessages($langs->trans("FreePeriodeDateAlreadyThisDate"), null, 'warnings');
+		} else {
+			setEventMessages($langs->trans("EditFreePeriodDateDone"), null, 'mesgs');
+		}
+	}
+
+	header("Location: ".$backtourl);
+	exit;
 }
 
 

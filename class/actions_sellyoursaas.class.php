@@ -87,25 +87,32 @@ class ActionsSellyoursaas
 	 */
 	public function getNomUrl($parameters, &$object, &$action)
 	{
-		global $db,$langs,$conf,$user;
+		global $langs,$conf,$user;
 
 		if ($object->element == 'societe') {
+			if (empty($conf->cache['thirdparty_options'][$object->id])) {
+				$object->fetch_optionals();
+				$conf->cache['thirdparty_options'][$object->id] = $object->array_options;
+			}
+
+			$tmparray = $conf->cache['thirdparty_options'][$object->id];
+
 			// Dashboard
-			if ($user->hasRight('sellyoursaas', 'read') && ! empty($object->array_options['options_dolicloud'])) {
+			if ($user->hasRight('sellyoursaas', 'read') && ! empty($tmparray['options_dolicloud'])) {
 				$url = '';
-				if ($object->array_options['options_dolicloud'] == 'yesv2') {
+				if ($tmparray['options_dolicloud'] == 'yesv2') {
 					$urlmyaccount = getDolGlobalString('SELLYOURSAAS_ACCOUNT_URL');
 					$sellyoursaasname = getDolGlobalString('SELLYOURSAAS_NAME');
-					if (! empty($object->array_options['options_domain_registration_page'])
-						&& $object->array_options['options_domain_registration_page'] != $conf->global->SELLYOURSAAS_MAIN_DOMAIN_NAME) {
-						$constforaltname = $object->array_options['options_domain_registration_page'];
+					if (! empty($tmparray['options_domain_registration_page'])
+						&& $tmparray['options_domain_registration_page'] != $conf->global->SELLYOURSAAS_MAIN_DOMAIN_NAME) {
+						$constforaltname = $tmparray['options_domain_registration_page'];
 						$newnamekey = 'SELLYOURSAAS_NAME_FORDOMAIN-'.$constforaltname;
 						if (getDolGlobalString($newnamekey)) {
 							$newurlkey = 'SELLYOURSAAS_ACCOUNT_URL-'.$constforaltname;
 							if (getDolGlobalString($newurlkey)) {
 								$urlmyaccount = getDolGlobalString($newurlkey);
 							} else {
-								$urlmyaccount = preg_replace('/' . getDolGlobalString('SELLYOURSAAS_MAIN_DOMAIN_NAME').'/', $object->array_options['options_domain_registration_page'], $urlmyaccount);
+								$urlmyaccount = preg_replace('/' . getDolGlobalString('SELLYOURSAAS_MAIN_DOMAIN_NAME').'/', $tmparray['options_domain_registration_page'], $urlmyaccount);
 							}
 
 							$sellyoursaasname = getDolGlobalString($newnamekey);
@@ -116,9 +123,30 @@ class ActionsSellyoursaas
 					$url=$urlmyaccount.'?mode=logout_dashboard&action=login&token='.newToken().'&actionlogin=login&username='.urlencode(empty($object->email) ? '' : $object->email).'&password=&login_hash='.urlencode($dol_login_hash);
 				}
 
+				$this->resprints = '';
+
 				if ($url) {
-					$this->resprints = (empty($parameters['notiret']) ? ' -' : '').'<!-- Added by getNomUrl hook of SellYourSaas -->';
-					$this->resprints .= '<a href="'.$url.'" target="_myaccount" alt="'.$sellyoursaasname.' '.$langs->trans("Dashboard").'"><span class="fa fa-desktop paddingleft"></span></a>';
+					$this->resprints = '<!-- Added by getNomUrl hook of SellYourSaas -->';
+					//$this->resprints .= (empty($parameters['notiret']) ? ' -' : '');
+					$this->resprints .= '<a href="'.$url.'" target="_myaccount" alt="'.$sellyoursaasname.' '.$langs->trans("Dashboard").'"><span class="fa fa-desktop paddingleft paddingright pictofixedwidth"></span></a>';
+				}
+
+				if (!empty($parameters['getnomurl'])) {
+					if (!empty($tmparray['options_spammer'])) {
+						$this->resprints = $this->resprints.img_picto($langs->trans("EvilInstance"), 'fa-book-dead', 'class="pictofixedwidth"').$parameters['getnomurl'];
+					} else {
+						$this->resprints = $this->resprints.$parameters['getnomurl'];
+					}
+				} else {
+					if (!empty($tmparray['options_spammer'])) {
+						$this->resprints .= img_picto($langs->trans("EvilInstance"), 'fa-book-dead', 'class="pictofixedwidth"');
+					}
+				}
+
+				if (!empty($parameters['getnomurl'])) {
+					return 1;
+				} else {
+					return 0;
 				}
 			}
 		}
@@ -126,16 +154,22 @@ class ActionsSellyoursaas
 		if ($object->element == 'contrat') {
 			$reg = array();
 			if (preg_match('/title="([^"]+)"/', $parameters['getnomurl'], $reg)) {
-				$object->fetch_optionals();
+				if (empty($conf->cache['contract_options'][$object->id])) {
+					$object->fetch_optionals();
+					$conf->cache['contract_options'][$object->id] = $object->array_options;
+				}
+
+				$tmparray = $conf->cache['contract_options'][$object->id];
+
 				$newtitle = $reg[1].dol_escape_htmltag('<!-- Added by getNomUrl hook for contrat of SellYourSaas --><br>', 1);
-				$newtitle .= dol_escape_htmltag('<b>'.$langs->trans("DeploymentStatus").'</b> : '.(empty($object->array_options['options_deployment_status']) ? '' : $object->array_options['options_deployment_status']), 1);
-				if (!empty($object->array_options['options_suspendmaintenance_message']) && preg_match('/^http/i', $object->array_options['options_suspendmaintenance_message'])) {
-					$newtitle .= dol_escape_htmltag('<br><b>'.$langs->trans("Redirection").'</b> : '.(empty($object->array_options['options_suspendmaintenance_message']) ? '' : $object->array_options['options_suspendmaintenance_message']), 1);
+				$newtitle .= dol_escape_htmltag('<b>'.$langs->trans("DeploymentStatus").'</b> : '.(empty($tmparray['options_deployment_status']) ? '' : $tmparray['options_deployment_status']), 1);
+				if (!empty($tmparray['options_suspendmaintenance_message']) && preg_match('/^http/i', $tmparray['options_suspendmaintenance_message'])) {
+					$newtitle .= dol_escape_htmltag('<br><b>'.$langs->trans("Redirection").'</b> : '.(empty($tmparray['options_suspendmaintenance_message']) ? '' : $tmparray['options_suspendmaintenance_message']), 1);
 				}
 				$this->resprints = preg_replace('/title="([^"]+)"/', 'title="'.$newtitle.'"', $parameters['getnomurl']);
 
-				if (!empty($object->array_options['options_spammer'])) {
-					$this->resprints .= img_picto($langs->trans("EvilInstance"), 'fa-book-dead', 'class="paddingleft"');
+				if (!empty($tmparray['options_spammer'])) {
+					$this->resprints = img_picto($langs->trans("EvilInstance"), 'fa-book-dead', 'class="pictofixedwidth"').$this->resprints;
 				}
 
 				return 1;
@@ -157,7 +191,7 @@ class ActionsSellyoursaas
 	 */
 	public function getFormatedCustomerRef($parameters, &$object, &$action)
 	{
-		global $conf, $langs;
+		global $langs;
 
 		if (! empty($parameters['objref'])) {
 			$isanurlofasellyoursaasinstance=false;
@@ -327,7 +361,6 @@ class ActionsSellyoursaas
 
 		return 0;
 	}
-
 
 
 	/**
@@ -680,7 +713,7 @@ class ActionsSellyoursaas
 
 			include_once DOL_DOCUMENT_ROOT.'/societe/class/companypaymentmode.class.php';
 			$companypaymentmode = new CompanyPaymentMode($db);
-			$companypaymentmode->fetch(GETPOST('companymodeid', 'int'));     // Read into llx_societe_rib
+			$companypaymentmode->fetch(GETPOSTINT('companymodeid'));     // Read into llx_societe_rib
 
 			if ($companypaymentmode->id > 0) {
 				$result = $sellyoursaasutils->doTakePaymentStripeForThirdparty($service, $servicestatusstripe, $object->id, $companypaymentmode, null, 0, 1, 1);
@@ -704,6 +737,232 @@ class ActionsSellyoursaas
 		dol_syslog(get_class($this).'::doActions end');
 		return 0;
 	}
+
+
+	/**
+	 * Complete the mass action of contract list
+	 *
+	 * @param   array           $parameters     Hook metadatas (context, etc...)
+	 * @param   string          $action         Current action (if set). Generally create or edit or null
+	 * @param   HookManager     $hookmanager    Hook manager propagated to allow calling another hook
+	 * @return  int 		      			  	=0
+	 */
+	public function addMoreMassActions($parameters, &$action, $hookmanager)
+	{
+		global $langs;
+		$langs->load("sellyoursaas@sellyoursaas");
+
+		if ($parameters['currentcontext'] == 'contractlist') {
+			$label = img_picto('', 'fa-book-dead', 'class="pictofixedwidth"').$langs->trans("MarkAsSpamAndClose");
+			$this->resprints = '<option value="markasspamandclose" data-html="' . dol_escape_htmltag($label) . '">' . $label . '</option>';
+
+			$label = img_picto('', 'delete', 'class="pictofixedwidth"').$langs->trans("Undeploy");
+			$this->resprints .= '<option value="undeploy" data-html="' . dol_escape_htmltag($label) . '">' . $label . '</option>';
+		}
+	}
+
+	/**
+	 *    Execute action
+	 *
+	 *    @param	array			$parameters		Array of parameters
+	 *    @param	CommonObject    $object         The object to process (an invoice if you are in invoice module, a propale in propale's module, etc...)
+	 *    @param    string			$action      	'add', 'update', 'view'
+	 *    @return   int         					<0 if KO,
+	 *                              				=0 if OK but we want to process standard actions too,
+	 *                              				>0 if OK and we want to replace standard actions.
+	 */
+	public function doMassActions($parameters, &$object, &$action)
+	{
+		global $db,$langs,$user;
+
+		$error = 0;
+
+		dol_syslog(get_class($this).'::doActions action='.$action);
+		$langs->load("sellyoursaas@sellyoursaas");
+
+		$toselect = $parameters['toselect'];
+
+		if (in_array($parameters['currentcontext'], array('contractlist'))) {
+			if ($parameters['massaction'] == 'undeploy') {
+				//$db->begin();
+				if (!$error) {
+					$nbok = 0;
+					foreach ($toselect as $toselectid) {
+						//var_dump($toselectid);
+						$db->begin();
+
+						$object->fetch($toselectid);
+
+						// SAME CODE THAN INTO MYACCOUNT INDEX.PHP
+
+						// Disable template invoice
+						$object->fetchObjectLinked();
+
+						$foundtemplate=0;
+						$freqlabel = array('d'=>$langs->trans('Day'), 'm'=>$langs->trans('Month'), 'y'=>$langs->trans('Year'));
+						if (is_array($object->linkedObjects['facturerec']) && count($object->linkedObjects['facturerec']) > 0) {
+							// Sort on ascending date
+							usort($object->linkedObjects['facturerec'], "sellyoursaasCmpDate");	// function "cmp" to sort on ->date is inside sellyoursaas.lib.php
+
+							//var_dump($object->linkedObjects['facture']);
+							//dol_sort_array($object->linkedObjects['facture'], 'date');
+							foreach ($object->linkedObjects['facturerec'] as $idinvoice => $invoice) {
+								if ($invoice->suspended == FactureRec::STATUS_NOTSUSPENDED) {
+									$result = $invoice->setStatut(FactureRec::STATUS_SUSPENDED);
+									if ($result <= 0) {
+										$error++;
+										$this->error=$invoice->error;
+										$this->errors=$invoice->errors;
+										setEventMessages($this->error, $this->errors, 'errors');
+									}
+								}
+							}
+						}
+
+						if (! $error) {
+							dol_include_once('sellyoursaas/class/sellyoursaasutils.class.php');
+							$sellyoursaasutils = new SellYourSaasUtils($db);
+							$result = $sellyoursaasutils->sellyoursaasRemoteAction('undeploy', $object, 'admin', '', '', '0', 'Undeployed by a mass action from contract list', 300);
+							if ($result <= 0) {
+								$error++;
+								$this->error=$sellyoursaasutils->error;
+								$this->errors=$sellyoursaasutils->errors;
+								setEventMessages($this->error, $this->errors, 'errors');
+							}
+						}
+
+						// Finish deployall
+
+						$comment = 'Close after a mass action undeploy from contract list';
+
+						// Unactivate all lines
+						if (! $error) {
+							dol_syslog("Unactivate all lines - doMassActions undeploy");
+
+							$result = $object->closeAll($user, 1, $comment);
+							if ($result <= 0) {
+								$error++;
+								$this->error=$object->error;
+								$this->errors=$object->errors;
+								setEventMessages($this->error, $this->errors, 'errors');
+							}
+						}
+
+						// End of undeployment is now OK / Complete
+						if (! $error) {
+							$object->array_options['options_deployment_status'] = 'undeployed';
+							$object->array_options['options_undeployment_date'] = dol_now();
+							$object->array_options['options_undeployment_ip'] = $_SERVER['REMOTE_ADDR'];
+							$object->array_options['options_suspendmaintenance_message'] = '';
+
+							$result = $object->update($user);
+							if ($result < 0) {
+								// We ignore errors. This should not happen in real life.
+								//setEventMessages($contract->error, $contract->errors, 'errors');
+							} else {
+								//setEventMessages($langs->trans("InstanceWasUndeployed"), null, 'mesgs');
+								//setEventMessages($langs->trans("InstanceWasUndeployedToConfirm"), null, 'mesgs');
+							}
+						}
+
+						if (! $error) {
+							$db->commit();
+						} else {
+							$db->rollback();
+						}
+
+						/*
+						$urlto=preg_replace('/action=[a-z_]+/', '', $_SERVER['REQUEST_URI']);
+						$urlto=preg_replace('/&confirm=yes/', '', $urlto);
+						$urlto=preg_replace('/&token=/', '&tokendisabled=', $urlto);
+						if ($urlto) {
+							dol_syslog("Redirect to page urlto=".$urlto." to avoid to do action twice if we do back");
+							header("Location: ".$urlto);
+							exit;
+						}
+						*/
+
+						$nbok++;
+					}
+				}
+
+				if (!$error) {
+					if ($nbok > 1) {
+						setEventMessages($langs->trans("NInstancesUndeployed", $nbok), null, 'mesgs');
+					} elseif ($nbok == 1) {
+						setEventMessages($langs->trans("OneInstanceUndeployed"), null, 'mesgs');
+					}
+					//$db->commit();
+					$toselect = array();
+				} else {
+					//$db->rollback();
+				}
+			}
+
+			if ($parameters['massaction'] == 'markasspamandclose') {
+				$db->begin();
+				if (!$error) {
+					$nbok = 0;
+					foreach ($toselect as $toselectid) {
+						//var_dump($toselectid);
+
+						$idtoclose = $toselectid;
+						//$idtoclose = GETPOST('idtoclose', 'int');
+						$tmpcontract = new Contrat($db);
+						$tmpcontract->fetch($idtoclose);
+						$tmpcontract->array_options['options_spammer'] = 1;
+						$tmpcontract->update($user, 1);
+
+						$result = $tmpcontract->closeAll($user, 0, 'Closed by spammer inspector.');
+						if ($result > 0) {
+							dol_include_once("/sellyoursaas/class/blacklistip.class.php");
+
+							$blacklistip = new Blacklistip($db);
+							$result = $blacklistip->fetch(0, $tmpcontract->array_options['options_deployment_ip']);
+							if ($result == 0) {
+								// If record does not exist yet
+								$blacklistip->status = Blacklistip::STATUS_ENABLED;
+								$blacklistip->date_use = $tmpcontract->array_options['options_deployment_date_start'];
+								$blacklistip->content = $tmpcontract->array_options['options_deployment_ip'];
+								$blacklistip->comment = "Flagged as Spammer (from a massaction in the backoffice by ".$user->login."), after manual analyzis of the user activity";
+
+								$result2 = $blacklistip->create($user);
+								if ($result2 <= 0) {
+									setEventMessages($blacklistip->error, $blacklistip->errors, 'errors');
+									$error++;
+								}
+							} elseif ($result > 0) {
+								setEventMessages("IP was already blacklisted", null, 'mesgs');
+							}
+
+							if (!$error) {
+								$tmpcontract->fetch_thirdparty();
+								$tmpcontract->thirdparty->array_options['options_spammer'] = 1;
+								$tmpcontract->thirdparty->update(0, $user, 1);
+							}
+
+							if (!$error) {
+								//setEventMessages("Suspended", null, 'mesgs');	// Disabled, message will be output by main page
+							}
+						} else {
+							$error++;
+							setEventMessages($tmpcontract->error, $tmpcontract->errors, 'errors');
+						}
+					}
+				}
+				if (!$error) {
+					if ($nbok > 1) {
+						setEventMessages($langs->trans("Done"), null, 'mesgs');
+					}
+					$db->commit();
+					$toselect = array();
+				} else {
+					$db->rollback();
+				}
+			}
+		}
+	}
+
 
 	/**
 	 *    formConfirm
@@ -1347,7 +1606,6 @@ class ActionsSellyoursaas
 
 		return 0;
 	}
-
 
 	/**
 	 * Overloading the restrictedArea function : check permission on an object

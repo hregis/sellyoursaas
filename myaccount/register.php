@@ -39,6 +39,11 @@ if (! defined('NOBROWSERNOTIF')) {
 	define('NOBROWSERNOTIF', '1');
 }
 
+
+//define('SYSLOG_FILE_ADDIP', 1);
+define('SYSLOG_FILE_ADDSUFFIX', 'register');
+
+
 // Add specific definition to allow a dedicated session management
 include './mainmyaccount.inc.php';
 
@@ -78,9 +83,6 @@ require_once DOL_DOCUMENT_ROOT.'/product/class/product.class.php';
 require_once DOL_DOCUMENT_ROOT.'/contrat/class/contrat.class.php';
 dol_include_once('/sellyoursaas/class/packages.class.php');
 dol_include_once('/sellyoursaas/class/deploymentserver.class.php');
-
-// Re set variables specific to new environment
-$conf->global->SYSLOG_FILE_ONEPERSESSION='register';
 
 
 //$langs=new Translate('', $conf);
@@ -279,10 +281,21 @@ $head .= '<!-- Bootstrap core CSS -->';
 $head .= '<link href="dist/css/bootstrap.css" type="text/css" rel="stylesheet">';
 $head .= '<link href="'.$extcss.'" type="text/css" rel="stylesheet">';
 
+if (getDolGlobalString('SELLYOURSAAS_GOOGLE_RECAPTCHA_ON')) {
+	$head .= '<script src="https://www.google.com/recaptcha/api.js"></script>';
+}
+
 // Javascript code on logon page only to detect user tz, dst_observed, dst_first, dst_second
-$arrayofjs=array(
-	'/core/js/dst.js'.(empty($conf->dol_use_jmobile) ? '' : '?version='.urlencode(DOL_VERSION))
-);
+if ((float) DOL_VERSION <= 19) {
+	$arrayofjs=array(
+		'/includes/jstz/jstz.min.js'.(empty($conf->dol_use_jmobile)?'':'?version='.urlencode(DOL_VERSION)),
+		'/core/js/dst.js'.(empty($conf->dol_use_jmobile) ? '' : '?version='.urlencode(DOL_VERSION))
+	);
+} else {
+	$arrayofjs=array(
+		'/core/js/dst.js'.(empty($conf->dol_use_jmobile) ? '' : '?version='.urlencode(DOL_VERSION))
+	);
+}
 
 $title = $langs->trans("Registration").($tmpproduct->label ? ' ('.$tmpproduct->label.')' : '');
 
@@ -343,7 +356,7 @@ if ($reshook == 0) {
 		}
 
 		$linklogo = '';
-		$homepage = 'https://'.(!getDolGlobalString('SELLYOURSAAS_FORCE_MAIN_DOMAIN_NAME') ? $sellyoursaasdomain : $conf->global->SELLYOURSAAS_MAIN_DOMAIN_NAME);
+		$homepage = 'https://'.getDolGlobalString('SELLYOURSAAS_FORCE_MAIN_DOMAIN_NAME', $sellyoursaasdomain);
 		if (isset($partnerthirdparty) && $partnerthirdparty->id > 0) {     // Show logo of partner
 			require_once DOL_DOCUMENT_ROOT.'/ecm/class/ecmfiles.class.php';
 			$ecmfile=new EcmFiles($db);
@@ -490,7 +503,7 @@ if ($reshook == 0) {
 			}
 			?>
 
-		  <form action="register_instance.php" method="post" id="formregister">
+		  <form action="register_instance.php" name="formregister" method="post" id="formregister">
 			<div class="form-content">
 			  <input type="hidden" name="token" value="<?php echo newToken(); ?>" />
 			  <input type="hidden" name="forcesubdomain" value="<?php echo dol_escape_htmltag(GETPOST('forcesubdomain', 'alpha')); ?>" />
@@ -656,24 +669,42 @@ if ($reshook == 0) {
 				<div class="fld select-domain required">
 				  <label trans="1"><?php echo $langs->trans("ChooseANameForYourApplication") ?></label>
 				  <div class="linked-flds">
-					  <span class="nowraponall">
+					  <span class="nowraponall sldAndSubdomaininput">
 					<span class="opacitymedium">https://</span>
 					<input<?php echo $disabled; ?> class="sldAndSubdomain" type="text" name="sldAndSubdomain" id="sldAndSubdomain" value="<?php echo $sldAndSubdomain; ?>" maxlength="29" required="" />
 					</span>
-					<select<?php echo $disabled; ?> name="tldid" id="tldid" >
+					<select<?php echo $disabled; ?> name="tldid" id="tldid" placeholder="aaa">
 						<?php
 						// SERVER_NAME here is myaccount.mydomain.com (we can exploit only the part mydomain.com)
 						$domainname = getDomainFromURL($_SERVER["SERVER_NAME"], 1);
+
 						$domainstosuggest = array();
 						$domainstosuggestcountryfilter = array();
+
 						if (!getDolGlobalString('SELLYOURSAAS_OBJECT_DEPLOYMENT_SERVER_MIGRATION')) {
 							$listofdomain = explode(',', getDolGlobalString('SELLYOURSAAS_SUB_DOMAIN_NAMES'));   // This is list of all sub domains to show into combo list
 						} else {
 							$staticdeploymentserver = new Deploymentserver($db);
-							$listofdomain = $staticdeploymentserver->fetchAllDomains();
+							$listofdomain = $staticdeploymentserver->fetchAllDomains('', '', 1000, 0, '', 'AND', 1);
 						}
+
+						// Get the country of the user
+						$ipuser = getUserRemoteIP();
+						$countryuser = dolGetCountryCodeFromIp($ipuser);
+						if (GETPOST('country')) {	// Can force a country instead of default autodetected value
+							$countryuser = GETPOST('country');
+						}
+						if (empty($countryuser)) {
+							$countryuser = 'us';
+						}
+						$countryuser = strtolower($countryuser);
+
+						// For tests
+						//$countryuser = 'es';
+						//$conf->global->SELLYOURSAAS_FORCE_NO_SELECTION_IF_SEVERAL = 1;
+
 						foreach ($listofdomain as $val) {
-							$newval = $val;
+							$newval = $val['fullstring'];
 							$reg = array();
 							if (preg_match('/:(.+)$/', $newval, $reg)) {      // If this domain must be shown only if domain match
 								$newval = preg_replace('/:.*$/', '', $newval);	// the part before the : that we use to compare the forcesubdomain parameter.
@@ -709,29 +740,25 @@ if ($reshook == 0) {
 									continue;   // The subdomain in SELLYOURSAAS_SUB_DOMAIN_NAMES has not a domain inside restrictlist of package, so we discard it.
 								}
 							}
-							if (getDolGlobalString('SELLYOURSAAS_OBJECT_DEPLOYMENT_SERVER_MIGRATION')) {
-								$deploymentserver = new Deploymentserver($db);
-								$deploymentserver->fetch(0, $newval);
 
-								if (!empty($deploymentserver->servercountries)) {
-									$servercountries = explode(',', $deploymentserver->servercountries);
-									$ipuser = getUserRemoteIP();
-									$countryuser = dolGetCountryCodeFromIp($ipuser);
-									if (GETPOST('country')) {	// Can force a country instead of default autodetected value
-										$countryuser = GETPOST('country');
-									}
-									if (empty($countryuser)) {
-										$countryuser='US';
-									}
-									$countryuser = strtolower($countryuser);
+							// Restriction on country
+							if (getDolGlobalString('SELLYOURSAAS_OBJECT_DEPLOYMENT_SERVER_MIGRATION')) {
+								$servercountriesstring = $val['servercountries'];
+								//var_dump($servercountries);
+								//$deploymentserver = new Deploymentserver($db);
+								//$deploymentserver->fetch(0, $newval);
+
+								if (!empty($servercountriesstring)) {
+									$servercountries = explode(',', $servercountriesstring);
 
 									if (in_array($countryuser, $servercountries)) {
 										if (! preg_match('/^\./', $newval)) {
 											$newval='.'.$newval;
 										}
 										$domainstosuggestcountryfilter[] = $newval; // Servers with user country
+										$domainstosuggest[] = $newval;
 									} else {
-										print '<!-- '.$newval.' disabled. Server country range '.$deploymentserver->servercountries.' does not contain '.$countryuser.' -->';
+										print '<!-- '.$newval.' disabled. Server country list '.$servercountriesstring.' does not contain '.$countryuser.' -->';
 										continue;
 									}
 								} else {
@@ -747,31 +774,63 @@ if ($reshook == 0) {
 								$domainstosuggest[] = $newval;
 							}
 						}
-						if (!empty($domainstosuggestcountryfilter)) {
-							foreach ($domainstosuggest as $key => $value) {
-								print '<!-- '.$value.' disabled. Matching server found with user location -->';
+
+						if (getDolGlobalString('SELLYOURSAAS_IF_ONE_SERVER_MATCH_COUNTRY_DO_NOT_SUGGEST_NO_COUNTRY_SERVERS')) {
+							if (!empty($domainstosuggestcountryfilter)) {
+								foreach ($domainstosuggest as $key => $value) {
+									print '<!-- '.$value.' disabled. Matching server found with user location -->';
+								}
+								$domainstosuggest = $domainstosuggestcountryfilter;
 							}
-							$domainstosuggest = $domainstosuggestcountryfilter;
 						}
 
 						// Defined a preselected domain
 						$randomselect = '';
 						$randomindex = 0;
 						if (empty($tldid) && ! GETPOSTISSET('tldid') && ! GETPOSTISSET('forcesubdomain') && count($domainstosuggest) >= 1) {
-							$maxforrandom = (count($domainstosuggest) - 1);
+							if (!empty($domainstosuggestcountryfilter)) {
+								// If there is at least one server that match the country, we make our random choice among them
+								$domainstouseforrandom = $domainstosuggestcountryfilter;
+							} else {
+								// If there is no server matching the country, we make our random choice among all enabled servers
+								$domainstouseforrandom = $domainstosuggest;
+							}
+
+							$maxforrandom = (count($domainstouseforrandom) - 1);
 							$randomindex = mt_rand(0, $maxforrandom);
-							$randomselect = $domainstosuggest[$randomindex];
+							$randomselect = $domainstouseforrandom[$randomindex];
 						}
-						// Force selection with no way to change value if SELLYOURSAAS_FORCE_RANDOM_SELECTION is set
+
+						// If SELLYOURSAAS_FORCE_RANDOM_SELECTION is set, force the selection on the value randomly selected with no way to select another choice;
 						if (getDolGlobalString('SELLYOURSAAS_FORCE_RANDOM_SELECTION') && !empty($randomselect)) {
 							$domainstosuggest = array();
 							$domainstosuggest[] = $randomselect;
 						}
+
+						// If SELLYOURSAAS_FORCE_NO_SELECTION is set, force a human selection (no auto-selection at all)
+						if (getDolGlobalString('SELLYOURSAAS_FORCE_NO_SELECTION_IF_SEVERAL') && count($domainstosuggest) > 1) {
+							array_unshift($domainstosuggest, "SelectAServer");
+							$randomselect = null;
+						}
+
 						foreach ($domainstosuggest as $val) {
-							print '<option value="'.$val.'"'.(($tldid == $val || ($val == '.'.GETPOST('forcesubdomain', 'alpha')) || $val == $randomselect) ? ' selected="selected"' : '').'>'.$val.'</option>';
+							$valwithoutfirstdot = preg_replace('/^\./', '', $val);
+							if (preg_match('/selectaserver/i', $val)) {
+								print '<option value="" class="opacitymedium" data-html="'.dol_escape_htmltag('<span class="opacitymedium">'.$langs->trans("SelectAServer").'</span>').'">'.$langs->trans("SelectAServer").'</option>';
+							} else {
+								$valtoshow = $val.(empty($listofdomain[$valwithoutfirstdot]['label']) ? '' : ' <span class="opacitymedium">('.$listofdomain[$valwithoutfirstdot]['label'].')</span>');
+
+								print '<option value="'.dol_escape_htmltag($val).'"'.(($tldid == $val || ($val == '.'.GETPOST('forcesubdomain', 'alpha')) || $val == $randomselect) ? ' selected="selected"' : '');
+								print ' data-html="'.dol_escape_htmltag($valtoshow).'"';
+								print '>';
+								print $valtoshow;
+								print '</option>';
+							}
 						} ?>
 					</select>
 						<?php
+						print ajax_combobox('tldid');
+
 						// Show warning if forcesubdomain set and not found
 						if (GETPOST('forcesubdomain', 'alpha')) {
 							$forcesubdomainfound = false;
@@ -815,9 +874,9 @@ if ($reshook == 0) {
 				if (getDolGlobalInt('SELLYOURSAAS_ONLY_NON_PROFIT_ORGA') == 2) {
 					echo $langs->trans("ConfirmNonProfitOrgaCaritative", $sellyoursaasname).'. ';
 				} elseif (getDolGlobalInt('SELLYOURSAAS_ONLY_NON_PROFIT_ORGA') == 3) {
-					echo $langs->trans("ConfirmNonProfitOrgaSmall", $sellyoursaasname).'. ';
+					echo $langs->trans("ConfirmNonProfitOrgaSmall", getDolGlobalInt('SELLYOURSAAS_ONLY_NON_PROFIT_ORGA_MAX_MEMBERS', 50), getDolGlobalInt('SELLYOURSAAS_ONLY_NON_PROFIT_ORGA_MAX_EMPLOYEES', 2)).'. ';
 				} else {
-					echo $langs->trans("ConfirmNonProfitOrga", $sellyoursaasname).'. ';
+					echo $langs->trans("ConfirmNonProfitOrga").'. ';
 				}
 				// Show the link for commecial service if there is a commercial alternative service
 				if (getDolGlobalString('SELLYOURSAAS_ONLY_NON_PROFIT_ORGA_LINK_COMMERCIAL')) {
@@ -866,13 +925,20 @@ if ($reshook == 0) {
 			?>
 			  <div class="form-actions center"">
 				<?php
+
+				$paramrecaptcha = '';
+				if (getDolGlobalString('SELLYOURSAAS_GOOGLE_RECAPTCHA_ON')) {
+					$paramrecaptcha = ' data-sitekey="'.getDolGlobalString('SELLYOURSAAS_GOOGLE_RECAPTCHA_SITE_KEY').'" data-callback="onSubmitCallBackForReCaptcha" data-action="submit"';
+					//$paramrecaptcha = ' data-sitekey="'.getDolGlobalString('SELLYOURSAAS_GOOGLE_RECAPTCHA_SITE_KEY').'" data-action="submit"';
+				}
+
 				if ($productref != 'none') {
 					?>
-					<input type="submit"<?php echo $disabled; ?> name="newinstance" style="margin: 10px;" value="<?php echo $langs->trans("SignMeUp") ?>" class="btn btn-primary" id="newinstance" />
+					<input type="submit"<?php echo $disabled; echo $paramrecaptcha; ?> name="newinstance" style="margin: 10px;" value="<?php echo $langs->trans("SignMeUp") ?>" class="btn btn-primary g-recaptcha" id="newinstance" />
 					<?php
 				} else {
 					?>
-					<input type="submit"<?php echo $disabled; ?> name="newinstance" style="margin: 10px;" value="<?php echo $langs->trans("CreateMyAccount") ?>" class="btn btn-primary" id="newinstance" />
+					<input type="submit"<?php echo $disabled; echo $paramrecaptcha; ?> name="newinstance" style="margin: 10px;" value="<?php echo $langs->trans("CreateMyAccount") ?>" class="btn btn-primary g-recaptcha" id="newinstance" />
 					<?php
 				}
 				?>
@@ -937,8 +1003,28 @@ if ($reshook >= 0) {
 		return domain
 	}
 
-	jQuery(document).ready(function() {
 
+	/* Add code for Google reCaptcha (if option enabled) */
+	/* we will test result from parameter g-recaptcha-response into the posted form register_instance.php */
+
+	function onSubmitCallBackForReCaptcha(token) {
+		event.preventDefault();
+
+		console.log("onSubmitCallBackForReCaptcha");
+		//console.log("token = "+token);
+
+		// Check if all required fields are filled
+		let form = document.getElementById('formregister');
+		if (!form.checkValidity()) {
+			 form.reportValidity();
+			 return false;
+		}
+
+		document.getElementById("formregister").submit();
+	}
+
+
+	jQuery(document).ready(function() {
 		/* Autofill the domain when filling the company */
 		jQuery("#formregister").on("change keyup", "#orgName", function() {
 			console.log("Update sldAndSubdomain in register.php");

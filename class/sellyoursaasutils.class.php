@@ -1163,11 +1163,16 @@ class SellYourSaasUtils
 					} else {
 						dol_syslog("* Process invoice id=".$invoice->id." ref=".$invoice->ref);
 
-						$result = $this->doTakePaymentStripeForThirdparty($service, $servicestatus, $obj->socid, $companypaymentmode, $invoice, 0, $noemailtocustomeriferror);
-						if ($result == 0) {	// No error
-							$invoiceprocessedok[$obj->rowid]=$invoice->ref;
+						if (!empty($invoice->array_options['options_invoicepaymentdisputed'])) {
+							dol_syslog("The invoice is flagged as invoicepaymentdisputed so we discard it for any other payment");
+							$invoiceprocessedko[$obj->rowid] = $invoice->ref;
 						} else {
-							$invoiceprocessedko[$obj->rowid]=$invoice->ref;
+							$result = $this->doTakePaymentStripeForThirdparty($service, $servicestatus, $obj->socid, $companypaymentmode, $invoice, 0, $noemailtocustomeriferror);
+							if ($result == 0) {	// No error
+								$invoiceprocessedok[$obj->rowid] = $invoice->ref;
+							} else {
+								$invoiceprocessedko[$obj->rowid] = $invoice->ref;
+							}
 						}
 					}
 
@@ -1188,7 +1193,7 @@ class SellYourSaasUtils
 		}
 
 		$this->output = count($invoiceprocessedok).' invoice(s) paid among '.count($invoiceprocessed).' qualified invoice(s) with a valid Stripe default payment mode processed'.(count($invoiceprocessedok)>0 ? ' : '.join(',', $invoiceprocessedok) : '').' (ran in mode '.$servicestatus.') (search done on SellYourSaas customers only)';
-		$this->output .= ' - '.count($invoiceprocessedko).' discarded (missing Stripe customer/card id, payment error or other reason)'.(count($invoiceprocessedko)>0 ? ' : '.join(',', $invoiceprocessedko) : '');
+		$this->output .= ' - '.count($invoiceprocessedko).' discarded (missing Stripe customer/card id, payment error, dispute open or other reason)'.(count($invoiceprocessedko)>0 ? ' : '.join(',', $invoiceprocessedko) : '');
 
 		$conf->global->SYSLOG_FILE = $savlog;
 
@@ -1274,7 +1279,7 @@ class SellYourSaasUtils
 						$invoice = new Facture($this->db);
 						$result = $invoice->fetch($obj->rowid);
 						if ($result > 0) {
-							if ($invoice->statut == Facture::STATUS_DRAFT) {
+							if ($invoice->status == Facture::STATUS_DRAFT) {
 								$user->rights->facture->creer = 1;	// Force permission to user to validate invoices because code may be executed by anonymous user
 								if (!$user->hasRight('facture', 'invoice_advance')) {
 									$user->rights->facture->invoice_advance = new stdClass();
@@ -2158,18 +2163,24 @@ class SellYourSaasUtils
 					} else {
 						dol_syslog("* Process invoice id=".$invoice->id." ref=".$invoice->ref);
 
-						// Create a direct debit payment request (if none already exists)
-						$result = $invoice->demande_prelevement($user, 0, 'direct-debit', 'facture', 1);
-						if ($result == 0) {
+						if (!empty($invoice->array_options['options_invoicepaymentdisputed'])) {
 							$errorforinvoice++;
-							//$error++;		// This case should not generate a global error
-							dol_syslog('A direct-debit request already exists for invoice id='.$obj->rowid.', so we cancel payment try', LOG_ERR);
-							$this->errors[] = 'A direct-debit request already exists for the invoice '.$invoice->ref.', so we cancel payment try';
-						} elseif ($result < 0) {
-							$errorforinvoice++;
-							$error++;
-							dol_syslog('Failed to create withdrawal request for a direct debit order for the invoice id='.$obj->rowid, LOG_ERR);
-							$this->errors[] = 'Failed to create withdrawal request for a direct debit order for the invoice '.$obj->ref;
+							dol_syslog("The invoice is flagged as invoicepaymentdisputed so we discard it for any other payment");
+							$this->errors[] = "The invoice is flagged as invoicepaymentdisputed so we discard it for any other payment";
+						} else {
+							// Create a direct debit payment request (if none already exists)
+							$result = $invoice->demande_prelevement($user, 0, 'direct-debit', 'facture', 1);
+							if ($result == 0) {
+								$errorforinvoice++;
+								//$error++;		// This case should not generate a global error
+								dol_syslog('A direct-debit request already exists for invoice id='.$obj->rowid.', so we cancel payment try', LOG_ERR);
+								$this->errors[] = 'A direct-debit request already exists for the invoice '.$invoice->ref.', so we cancel payment try';
+							} elseif ($result < 0) {
+								$errorforinvoice++;
+								$error++;
+								dol_syslog('Failed to create withdrawal request for a direct debit order for the invoice id='.$obj->rowid, LOG_ERR);
+								$this->errors[] = 'Failed to create withdrawal request for a direct debit order for the invoice '.$obj->ref;
+							}
 						}
 					}
 
@@ -2199,7 +2210,7 @@ class SellYourSaasUtils
 									}
 								}
 
-								$result = $invoice->makeStripeSepaRequest($user, $objd->rowid, 'direct-debit', 'facture', $service, $forcestripe);
+								$result = $invoice->makeStripeSepaRequest($user, (int) $objd->rowid, 'direct-debit', 'facture', $service, $forcestripe);
 								if ($result < 0) {
 									$errorforinvoice++;
 									$error++;

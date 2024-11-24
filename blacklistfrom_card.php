@@ -149,7 +149,7 @@ $upload_dir = $conf->sellyoursaas->multidir_output[isset($object->entity) ? $obj
 //if ($user->socid > 0) $socid = $user->socid;
 //$isdraft = (isset($object->status) && ($object->status == $object::STATUS_DRAFT) ? 1 : 0);
 //restrictedArea($user, $object->element, $object->id, $object->table_element, '', 'fk_soc', 'rowid', $isdraft);
-if (empty($conf->sellyoursaas->enabled)) {
+if (!isModEnabled("sellyoursaas")) {
 	accessforbidden();
 }
 if (!$permissiontoread) {
@@ -592,7 +592,11 @@ if ($object->id > 0 && (empty($action) || ($action != 'edit' && $action != 'crea
 		}
 
 		// Show links to link elements
-		$linktoelem = $form->showLinkToObjectBlock($object, null, array('blacklistfrom'));
+		$tmparray = $form->showLinkToObjectBlock($object, array(), array('blacklistfrom'), 1);
+		$linktoelem = $tmparray['linktoelem'];
+		$htmltoenteralink = $tmparray['htmltoenteralink'];
+		print $htmltoenteralink;
+
 		$somethingshown = $form->showLinkedObjectBlock($object, $linktoelem);
 
 

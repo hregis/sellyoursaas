@@ -3,6 +3,7 @@
 #
 # To run the script:
 # ansible-playbook -K launch_install_check.yml -i hosts-xxx -e 'target=targethost'
+# ansible-playbook -K launch_install_check.yml -i hosts-xxx -e 'target=targethost apache=1'
 # ansible-playbook -K launch_install_check.yml -i hosts-xxx -e 'target=targethost php74=1 apache=1'
 # ansible-playbook -K launch_install_check.yml -i hosts-xxx -e 'target=targethost php80=1 apache=1'
 # ansible-playbook -K launch_install_check.yml -i hosts-xxx -e 'target=targethost php81=1 apache=1'
@@ -355,7 +356,7 @@
       path: /etc/php/7.0/apache2/php.ini
       section: PHP
       option: disable_functions
-      value: "pcntl_alarm,pcntl_fork,pcntl_waitpid,pcntl_wait,pcntl_wifexited,pcntl_wifstopped,pcntl_wifsignaled,pcntl_wifcontinued,pcntl_wexitstatus,pcntl_wtermsig,pcntl_wstopsig,pcntl_signal,pcntl_signal_get_handler,pcntl_signal_dispatch,pcntl_get_last_error,pcntl_strerror,pcntl_sigprocmask,pcntl_sigwaitinfo,pcntl_sigtimedwait,pcntl_exec,pcntl_getpriority,pcntl_setpriority,pcntl_async_signals,pcntl_unshare,passthru,shell_exec,system,proc_open,popen,dl,apache_note,apache_setenv,show_source,virtual"
+      value: "pcntl_alarm,pcntl_fork,pcntl_waitpid,pcntl_wait,pcntl_wifexited,pcntl_wifstopped,pcntl_wifsignaled,pcntl_wifcontinued,pcntl_wexitstatus,pcntl_wtermsig,pcntl_wstopsig,pcntl_signal,pcntl_signal_get_handler,pcntl_signal_dispatch,pcntl_get_last_error,pcntl_strerror,pcntl_sigprocmask,pcntl_sigwaitinfo,pcntl_sigtimedwait,pcntl_exec,pcntl_getpriority,pcntl_setpriority,pcntl_async_signals,pcntl_unshare,passthru,system,proc_open,dl,apache_note,apache_setenv,show_source,virtual"
     when: 
       - php70 is defined
 
@@ -529,7 +530,7 @@
       path: /etc/php/7.4/apache2/php.ini
       section: PHP
       option: disable_functions
-      value: "pcntl_alarm,pcntl_fork,pcntl_waitpid,pcntl_wait,pcntl_wifexited,pcntl_wifstopped,pcntl_wifsignaled,pcntl_wifcontinued,pcntl_wexitstatus,pcntl_wtermsig,pcntl_wstopsig,pcntl_signal,pcntl_signal_get_handler,pcntl_signal_dispatch,pcntl_get_last_error,pcntl_strerror,pcntl_sigprocmask,pcntl_sigwaitinfo,pcntl_sigtimedwait,pcntl_exec,pcntl_getpriority,pcntl_setpriority,pcntl_async_signals,pcntl_unshare,passthru,shell_exec,system,proc_open,popen,dl,apache_note,apache_setenv,show_source,virtual"
+      value: "pcntl_alarm,pcntl_fork,pcntl_waitpid,pcntl_wait,pcntl_wifexited,pcntl_wifstopped,pcntl_wifsignaled,pcntl_wifcontinued,pcntl_wexitstatus,pcntl_wtermsig,pcntl_wstopsig,pcntl_signal,pcntl_signal_get_handler,pcntl_signal_dispatch,pcntl_get_last_error,pcntl_strerror,pcntl_sigprocmask,pcntl_sigwaitinfo,pcntl_sigtimedwait,pcntl_exec,pcntl_getpriority,pcntl_setpriority,pcntl_async_signals,pcntl_unshare,passthru,system,proc_open,dl,apache_note,apache_setenv,show_source,virtual"
     when: 
       - php74 is defined
 
@@ -703,7 +704,7 @@
       path: /etc/php/8.0/apache2/php.ini
       section: PHP
       option: disable_functions
-      value: "pcntl_alarm,pcntl_fork,pcntl_waitpid,pcntl_wait,pcntl_wifexited,pcntl_wifstopped,pcntl_wifsignaled,pcntl_wifcontinued,pcntl_wexitstatus,pcntl_wtermsig,pcntl_wstopsig,pcntl_signal,pcntl_signal_get_handler,pcntl_signal_dispatch,pcntl_get_last_error,pcntl_strerror,pcntl_sigprocmask,pcntl_sigwaitinfo,pcntl_sigtimedwait,pcntl_exec,pcntl_getpriority,pcntl_setpriority,pcntl_async_signals,pcntl_unshare,passthru,shell_exec,system,proc_open,popen,dl,apache_note,apache_setenv,show_source,virtual"
+      value: "pcntl_alarm,pcntl_fork,pcntl_waitpid,pcntl_wait,pcntl_wifexited,pcntl_wifstopped,pcntl_wifsignaled,pcntl_wifcontinued,pcntl_wexitstatus,pcntl_wtermsig,pcntl_wstopsig,pcntl_signal,pcntl_signal_get_handler,pcntl_signal_dispatch,pcntl_get_last_error,pcntl_strerror,pcntl_sigprocmask,pcntl_sigwaitinfo,pcntl_sigtimedwait,pcntl_exec,pcntl_getpriority,pcntl_setpriority,pcntl_async_signals,pcntl_unshare,passthru,system,proc_open,dl,apache_note,apache_setenv,show_source,virtual"
     when: 
       - php80 is defined
 
@@ -893,7 +894,7 @@
       path: /etc/php/8.1/apache2/php.ini
       section: PHP
       option: disable_functions
-      value: "pcntl_alarm,pcntl_fork,pcntl_waitpid,pcntl_wait,pcntl_wifexited,pcntl_wifstopped,pcntl_wifsignaled,pcntl_wifcontinued,pcntl_wexitstatus,pcntl_wtermsig,pcntl_wstopsig,pcntl_signal,pcntl_signal_get_handler,pcntl_signal_dispatch,pcntl_get_last_error,pcntl_strerror,pcntl_sigprocmask,pcntl_sigwaitinfo,pcntl_sigtimedwait,pcntl_exec,pcntl_getpriority,pcntl_setpriority,pcntl_async_signals,pcntl_unshare,passthru,shell_exec,system,proc_open,popen,dl,apache_note,apache_setenv,show_source,virtual"
+      value: "pcntl_alarm,pcntl_fork,pcntl_waitpid,pcntl_wait,pcntl_wifexited,pcntl_wifstopped,pcntl_wifsignaled,pcntl_wifcontinued,pcntl_wexitstatus,pcntl_wtermsig,pcntl_wstopsig,pcntl_signal,pcntl_signal_get_handler,pcntl_signal_dispatch,pcntl_get_last_error,pcntl_strerror,pcntl_sigprocmask,pcntl_sigwaitinfo,pcntl_sigtimedwait,pcntl_exec,pcntl_getpriority,pcntl_setpriority,pcntl_async_signals,pcntl_unshare,passthru,system,proc_open,dl,apache_note,apache_setenv,show_source,virtual"
     when: 
       - php81 is defined
 
@@ -1083,7 +1084,7 @@
       path: /etc/php/8.3/apache2/php.ini
       section: PHP
       option: disable_functions
-      value: "pcntl_alarm,pcntl_fork,pcntl_waitpid,pcntl_wait,pcntl_wifexited,pcntl_wifstopped,pcntl_wifsignaled,pcntl_wifcontinued,pcntl_wexitstatus,pcntl_wtermsig,pcntl_wstopsig,pcntl_signal,pcntl_signal_get_handler,pcntl_signal_dispatch,pcntl_get_last_error,pcntl_strerror,pcntl_sigprocmask,pcntl_sigwaitinfo,pcntl_sigtimedwait,pcntl_exec,pcntl_getpriority,pcntl_setpriority,pcntl_async_signals,pcntl_unshare,passthru,shell_exec,system,proc_open,popen,dl,apache_note,apache_setenv,show_source,virtual"
+      value: "pcntl_alarm,pcntl_fork,pcntl_waitpid,pcntl_wait,pcntl_wifexited,pcntl_wifstopped,pcntl_wifsignaled,pcntl_wifcontinued,pcntl_wexitstatus,pcntl_wtermsig,pcntl_wstopsig,pcntl_signal,pcntl_signal_get_handler,pcntl_signal_dispatch,pcntl_get_last_error,pcntl_strerror,pcntl_sigprocmask,pcntl_sigwaitinfo,pcntl_sigtimedwait,pcntl_exec,pcntl_getpriority,pcntl_setpriority,pcntl_async_signals,pcntl_unshare,passthru,system,proc_open,dl,apache_note,apache_setenv,show_source,virtual"
     when: 
       - php81 is defined
 
@@ -1229,12 +1230,28 @@
   - debug:
       var: phpversionmodified.changed
       
+
+  # All PHP versions      
+  - name: Set php init config files /etc/php/sellyoursaas.ini
+    ignore_errors: true
+    ansible.builtin.template:
+      src: ../../etc/php/sellyoursaas.ini
+      dest: /etc/php/sellyoursaas.ini
+      owner: root
+      group: root
+      mode: '0644'  
+
       
-  #- name: Reload Apache configs if pyapp or Apache - files are changed
+  # TODO Create a symlink for PHP config
+  # ln -fs /etc/php/sellyoursaas.ini /etc/php/8.2/apache2/conf.d/sellyoursaas.ini
+  
+  
+  #- name: Reload Apache configs if php or apache config files were changed
   #  service: name=httpd state=reloaded
   #  when: phpversionmodified.changed
 
   - name: Removed unexpected apt packages
+    ignore_errors: yes
     apt:
       pkg:
       - php7.2-fpm 

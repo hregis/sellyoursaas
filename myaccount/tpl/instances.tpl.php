@@ -453,6 +453,7 @@ if (count($listofcontractid) == 0) {				// If all contracts were removed
 		$datenextinvoice='';
 		$pricetoshow = '';
 		$priceinvoicedht = 0;
+		$atleastonediscount = 0;
 		$freqlabel = array('d'=>$langs->trans('Day'), 'm'=>$langs->trans('Month'), 'y'=>$langs->trans('Year'));
 		if (isset($contract->linkedObjects['facturerec']) && is_array($contract->linkedObjects['facturerec'])) {
 			foreach ($contract->linkedObjects['facturerec'] as $idtemplateinvoice => $templateinvoice) {
@@ -478,6 +479,15 @@ if (count($listofcontractid) == 0) {				// If all contracts were removed
 				}
 				if ((! $templateinvoice->suspended) && $contract->array_options['options_deployment_status'] == 'done') {
 					$datenextinvoice = $templateinvoice->date_when;
+				}
+
+				// Loop on each line of the template invoice to see if there is a discount
+				if (is_array($templateinvoice->lines)) {
+					foreach ($templateinvoice->lines as $tmpline) {
+						if ($tmpline->remise_percent > 0) {
+							$atleastonediscount++;
+						}
+					}
 				}
 			}
 		}
@@ -811,7 +821,7 @@ if (count($listofcontractid) == 0) {				// If all contracts were removed
 							$arraywebsitesenabled[$websiteref] = $websitecustomurl;
 						}
 					}
-					foreach ($listofwebsitestoactivate as $website) {
+					foreach ($websitestatic->records as $website) {
 						$isalreadyactivated = 0;
 						if (isset($arraywebsitesenabled[$website->ref])) {
 							$isalreadyactivated = 1;
@@ -1000,7 +1010,7 @@ if (count($listofcontractid) == 0) {				// If all contracts were removed
 		} else {
 			print '<span class="bold">'.$planlabel.'</span>';
 			if ($statuslabel != 'undeployed') {
-				if ($foundtemplate == 0 || $priceinvoicedht == $contract->total_ht) {
+				if ($foundtemplate == 0 || ($priceinvoicedht == $contract->total_ht && !$atleastonediscount)) {
 					print ' - <a href="'.$_SERVER["PHP_SELF"].'?mode=instances&action=changeplan&id='.$contract->id.'#contractid'.$contract->id.'">'.$langs->trans("ChangePlan").'</a>';
 				}
 			}
@@ -1027,7 +1037,7 @@ if (count($listofcontractid) == 0) {				// If all contracts were removed
 				print '<span style="color:orange">'.$langs->trans("WarningFoundMoreThanOneInvoicingTemplate", $sellyoursaasemail).'</span>';
 			} else {
 				// Invoice amount line
-				if ($foundtemplate != 0 && $priceinvoicedht != $contract->total_ht) {
+				if ($foundtemplate != 0 && ($priceinvoicedht != $contract->total_ht || $atleastonediscount)) {
 					if ($pricetoshow != '') {
 						print $langs->trans("FlatOrDiscountedPrice").' = ';
 					}
@@ -1682,7 +1692,7 @@ if ($MAXINSTANCESPERACCOUNT && count($listofcontractidopen) < $MAXINSTANCESPERAC
 			$listofdomain = explode(',', getDolGlobalString('SELLYOURSAAS_SUB_DOMAIN_NAMES'));
 		} else {
 			$staticdeploymentserver = new Deploymentserver($db);
-			$listofdomain = $staticdeploymentserver->fetchAllDomains();
+			$listofdomain = $staticdeploymentserver->fetchAllDomains('', '', 1000, 0, '', 'AND');
 		}
 		foreach ($listofdomain as $val) {
 			$newval=$val;
@@ -1777,7 +1787,9 @@ if ($MAXINSTANCESPERACCOUNT && count($listofcontractidopen) < $MAXINSTANCESPERAC
 			foreach ($tmpdomains as $tmpdomain) {	// list of restrictions for the deployment server $newval
 				print ' optionvisibleondomain-'.preg_replace('/[^a-z0-9]/i', '', $tmpdomain);
 			}
-			print '" value="'.$val.'"'.(($tldid == $val || ($val == '.'.GETPOST('forcesubdomain', 'alpha')) || $val == $randomselect) ? ' selected="selected"' : '').'>'.$val.'</option>';
+			print '" value="'.$val.'"'.(($tldid == $val || ($val == '.'.GETPOST('forcesubdomain', 'alpha')) || $val == $randomselect) ? ' selected="selected"' : '').'>';
+			print $val;
+			print '</option>';
 		}
 
 		print '</select>

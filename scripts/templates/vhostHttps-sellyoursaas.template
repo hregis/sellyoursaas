@@ -17,6 +17,10 @@
 
         # Need mpm-itk module
         <IfModule mpm_itk_module>
+        	# MaxRequestWorkers = MaxClients
+        	# MaxClientsVHost is for vhost/itk only
+        	MaxClientsVHost 50
+
         	AssignUserID __osUsername__ __osGroupname__
         </IfModule>
 

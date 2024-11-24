@@ -126,9 +126,11 @@ if ($ispaid) {
 		$restorestringfromarchiveshort = getDolGlobalString('DOLICLOUD_SCRIPTS_PATH') . '/restore_instance.php ' . getDolGlobalString('SELLYOURSAAS_PAID_ARCHIVES_PATH').'/'.$object->array_options['options_username_os'].'/'.$object->array_options['options_database_db'].' autoscan';
 		$restorestringfromarchive = getDolGlobalString('DOLICLOUD_SCRIPTS_PATH') . '/restore_instance.php ' . getDolGlobalString('SELLYOURSAAS_PAID_ARCHIVES_PATH').'/'.$object->array_options['options_username_os'].'/'.$object->array_options['options_database_db'].' autoscan '.$object->ref_customer.' (test|confirm)';
 
-		$restorestringfromremotebackup = getDolGlobalString('DOLICLOUD_SCRIPTS_PATH') . '/restore_instance.php remotebackup:/mnt/diskbackup/.snapshots/diskbackup-xxx/backup_yyy/'.$object->array_options['options_username_os'].' autoscan '.$object->ref_customer.' (test|confirm)';
+		$servershorthostname = 'yyy';
+
+		$restorestringfromremotebackup = getDolGlobalString('DOLICLOUD_SCRIPTS_PATH') . '/restore_instance.php remotebackup:/mnt/diskbackup/.snapshots/diskbackup-DAYNUMBER/backup_'.$servershorthostname.'/'.$object->array_options['options_username_os'].' autoscan '.$object->ref_customer.' (test|confirm)';
 		$restorestringfromremotebackup .= "\n".$langs->trans("or")."\n";
-		$restorestringfromremotebackup .= getDolGlobalString('DOLICLOUD_SCRIPTS_PATH') . '/restore_instance.php remotebackup:/mnt/diskbackup/backup_yyy/'.$object->array_options['options_username_os'].' autoscan '.$object->ref_customer.' (test|confirm)';
+		$restorestringfromremotebackup .= getDolGlobalString('DOLICLOUD_SCRIPTS_PATH') . '/restore_instance.php remotebackup:/mnt/diskbackup/backup_'.$servershorthostname.'/'.$object->array_options['options_username_os'].' autoscan '.$object->ref_customer.' (test|confirm)';
 	} else {
 		//$restorestringpretoshow = 'sudo chown -R admin '.$conf->global->SELLYOURSAAS_PAID_ARCHIVES_PATH.'/'.$object->array_options['options_username_os']."\n";
 		$restorestringpretoshow .= "cd " . getDolGlobalString('SELLYOURSAAS_PAID_ARCHIVES_PATH').'/'.$object->array_options['options_username_os']."\n";
@@ -179,9 +181,11 @@ if ($ispaid) {
 		$restorestringfromarchiveshort = getDolGlobalString('DOLICLOUD_SCRIPTS_PATH') . '/restore_instance.php ' . getDolGlobalString('SELLYOURSAAS_TEST_ARCHIVES_PATH').'/'.$object->array_options['options_username_os'].'/'.$object->array_options['options_database_db'].' autoscan ';
 		$restorestringfromarchive = getDolGlobalString('DOLICLOUD_SCRIPTS_PATH') . '/restore_instance.php ' . getDolGlobalString('SELLYOURSAAS_TEST_ARCHIVES_PATH').'/'.$object->array_options['options_username_os'].'/'.$object->array_options['options_database_db'].' autoscan '.$object->ref_customer.' (test|confirm)';
 
-		$restorestringfromremotebackup = getDolGlobalString('DOLICLOUD_SCRIPTS_PATH') . '/restore_instance.php remotebackup:/mnt/diskbackup/.snapshots/diskbackup-xxx/backup_yyy/'.$object->array_options['options_username_os'].' autoscan '.$object->ref_customer.' (test|confirm)';
+		$servershorthostname = 'yyy';
+
+		$restorestringfromremotebackup = getDolGlobalString('DOLICLOUD_SCRIPTS_PATH') . '/restore_instance.php remotebackup:/mnt/diskbackup/.snapshots/diskbackup-DAYNUMBER/backup_'.$servershorthostname.'/'.$object->array_options['options_username_os'].' autoscan '.$object->ref_customer.' (test|confirm)';
 		$restorestringfromremotebackup .= "\n".$langs->trans("or")."\n";
-		$restorestringfromremotebackup .= getDolGlobalString('DOLICLOUD_SCRIPTS_PATH') . '/restore_instance.php remotebackup:/mnt/diskbackup/backup_yyy/'.$object->array_options['options_username_os'].' autoscan '.$object->ref_customer.' (test|confirm)';
+		$restorestringfromremotebackup .= getDolGlobalString('DOLICLOUD_SCRIPTS_PATH') . '/restore_instance.php remotebackup:/mnt/diskbackup/backup_'.$servershorthostname.'/'.$object->array_options['options_username_os'].' autoscan '.$object->ref_customer.' (test|confirm)';
 	} else {
 		$restorestringpretoshow .= "cd " . getDolGlobalString('SELLYOURSAAS_TEST_ARCHIVES_PATH').'/'.$object->array_options['options_username_os']."\n";
 		// If there is an old dir used by a previous extract, we remove it
@@ -431,9 +435,18 @@ if ($id > 0 && $action != 'edit' && $action != 'create') {
 	// ----- Backup result
 
 	print '<tr class="liste_titre">';
-	print '<td>'.$langs->trans("LocalBackup").'</td>';
-	print '<td>';
-	print '</td>';
+	print '<th>'.$langs->trans("LocalBackup").'</th>';
+	print '<th class="right">';
+
+	if (! $user->socid) {
+		if ($user->hasRight('sellyoursaas', 'write') && $object->array_options['options_deployment_status'] !== 'undeployed') {
+			print '<a class="butAction smallpaddingimp" href="'.$_SERVER["PHP_SELF"].'?id='.$object->id.'&action=backupinstance&token='.newToken().'">'.$langs->trans('BackupNow').'</a>';
+		} else {
+			print '<a class="butActionRefused smallpaddingimp" href="#">'.$langs->trans('BackupNow').'</a>';
+		}
+	}
+
+	print '</th>';
 	print '</tr>';
 
 	// Backup dir
@@ -483,15 +496,16 @@ if ($id > 0 && $action != 'edit' && $action != 'create') {
 	// ----- Remote backup
 
 	print '<tr class="liste_titre">';
-	print '<td>'.$langs->trans("RemoteBackup").'</td>';
-	print '<td></td>';
-	print '</td>';
+	print '<th>'.$langs->trans("RemoteBackup").'</th>';
+	print '<th class="right">';
+	print '<a class="butActionRefused smallpaddingimp" href="#" title="'.dol_escape_htmltag($langs->trans("NotYetAvailable")).'">'.$langs->trans('BackupNow').'</a>';
+	print '</th>';
 	print '</tr>';
 
 	// Backup dir
 	print '<tr class="oddeven">';
 	print '<td>'.$langs->trans("BackupDir").'</td>';
-	print '<td>'.$backupdirremote.'/'.$login.' or '.$backupdirremote2.'/'.$login.'</td>';
+	print '<td>'.$backupdirremote.'/'.$login.' &nbsp;<span class="opacitymedium">or</span>&nbsp; '.$backupdirremote2.'/'.$login.'</td>';
 	print '</tr>';
 
 	// Last remote backup date try
@@ -535,10 +549,6 @@ if ($id > 0 && $action != 'edit' && $action != 'create') {
 	if (! $user->socid) {
 		print '<div class="tabsAction">';
 
-		if ($user->hasRight('sellyoursaas', 'write') && $object->array_options['options_deployment_status'] !== 'undeployed') {
-			print '<a class="butAction" href="'.$_SERVER["PHP_SELF"].'?id='.$object->id.'&action=backupinstance&token='.newToken().'">'.$langs->trans('BackupNow').'</a>';
-		}
-
 		print "</div>";
 	}
 }
@@ -551,7 +561,7 @@ print '<span class="fa fa-database secondary"></span> -> <span class="fa fa-file
 print '<input type="text" name="backupstring" id="backupstring" value="'.$backupstringtoshow.'" class="quatrevingtpercent" spellcheck="false"><br>';
 print ajax_autoselect('backupstring');
 
-print '<br>';
+print '<br><br>';
 
 // Restore command line from backup
 if ($restorestringfrombackup) {
@@ -560,7 +570,7 @@ if ($restorestringfrombackup) {
 	print '<input type="text" name="restorestring" id="restorestring" value="'.$restorestringtoshow.'" class="quatrevingtpercent" spellcheck="false"><br>';
 	print ajax_autoselect('restorestring');
 
-	print '<br>';
+	print '<br><br>';
 }
 
 // Restore commands from remote backup
@@ -571,9 +581,9 @@ if ($restorestringfromremotebackup) {
 	print $restorestringtoshow;
 	print '</textarea>';
 	print '<br>';
-	print ajax_autoselect('restorestringfromremotebackup');
+	//print ajax_autoselect('restorestringfromremotebackup');
 
-	print '<br>';
+	print '<br><br>';
 }
 
 // Restore commands from archive
@@ -587,7 +597,7 @@ if ($restorestringfromarchive) {
 	print '</textarea>';
 	//print ajax_autoselect('restorestringfromarchive');
 
-	print '<br>';
+	print '<br><br>';
 	print '<br>';
 }
 
@@ -601,7 +611,7 @@ if ($restorestringfrombackupshort) {
 	print $restorestringtoshow;
 	print '</textarea>';
 
-	print '<br>';
+	print '<br><br>';
 	print '<br>';
 }
 
@@ -613,13 +623,13 @@ if ($moveinstancestringtoshow) {
 	print $moveinstancestringtoshow;
 	print '</textarea>';
 
-	print '<br>';
+	print '<br><br>';
 }
 
 
 
 if (! empty($mesg)) {
-	print '<br>';
+	print '<br><br>';
 	print $mesg;
 }
 

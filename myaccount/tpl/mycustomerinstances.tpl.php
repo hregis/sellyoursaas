@@ -437,7 +437,7 @@ if (count($listofcontractidreseller) == 0) {
 				}
 			} else { // If there is no product, this is a free product
 				print '<span class="opacitymedium small">';
-				print($this->description ? $this->description : ($line->label ? $line->label : $line->libelle));
+				print ($line->description ? $line->description : ($line->label ? $line->label : $line->libelle));
 				// TODO
 				print ' / '.$langs->trans("Month");
 				print '</span>';
@@ -509,7 +509,7 @@ if (count($listofcontractidreseller) == 0) {
 			if ($foundtemplate > 1) {
 				$sellyoursaasemail = getDolGlobalString('SELLYOURSAAS_MAIN_EMAIL');
 				if (! empty($tmpcustomer->array_options['options_domain_registration_page'])
-					&& $tmpcustomer->array_options['options_domain_registration_page'] != $conf->global->SELLYOURSAAS_MAIN_DOMAIN_NAME) {
+					&& $tmpcustomer->array_options['options_domain_registration_page'] != getDolGlobalString('SELLYOURSAAS_MAIN_DOMAIN_NAME')) {
 					$newnamekey = 'SELLYOURSAAS_MAIN_EMAIL_FORDOMAIN-'.$tmpcustomer->array_options['options_domain_registration_page'];
 					if (getDolGlobalString($newnamekey)) {
 						$sellyoursaasemail = getDolGlobalString($newnamekey);
@@ -534,7 +534,22 @@ if (count($listofcontractidreseller) == 0) {
 
 					print ' <span style="color:'.$color.'">';
 					if ($contract->array_options['options_date_endfreeperiod'] > 0) {
-						print $langs->trans("TrialUntil", dol_print_date($contract->array_options['options_date_endfreeperiod'], 'day'));
+						if ($action == "editfreeperiod" && GETPOST("idcontract", "int") == $contract->id) {
+							print '<form name="formupdatefreedate">';
+							print '<input type="hidden" name="token" value="'.newToken().'">';
+							print '<input type="hidden" name="action" value="confirmeditfreeperiod">';
+							print '<input type="hidden" name="mode" value="mycustomerinstances">';
+							print '<input type="hidden" name="backtourl" value="'.$_SERVER["PHP_SELF"].'?mode=mycustomerinstances">';
+							print '<input type="hidden" name="contractid" value="'.$contract->id.'">';
+
+							print $langs->trans("TrialUntil");
+							print $form->selectDate($contract->array_options['options_date_endfreeperiod'], "freeperioddate");
+							print $form->buttonsSaveCancel("Save", "Cancel", array(), true);
+							print "</form>";
+						} else {
+							print $langs->trans("TrialUntil", dol_print_date($contract->array_options['options_date_endfreeperiod'], 'day'));
+							print '<a href="'.$_SERVER["PHP_SELF"].'?mode=mycustomerinstances&action=editfreeperiod&idcontract='.$contract->id.'&token='.newToken().'#contractid'.$contract->id.'"> '.img_edit().'</a>';
+						}
 					} else {
 						print $langs->trans("Trial");
 					}
@@ -560,7 +575,7 @@ if (count($listofcontractidreseller) == 0) {
 						$sqlpaymentmodes = 'SELECT rowid, default_rib FROM '.MAIN_DB_PREFIX."societe_rib";
 						$sqlpaymentmodes.= " WHERE type in ('ban', 'card', 'paypal')";
 						$sqlpaymentmodes.= " AND fk_soc = ".$tmpcustomer->id;
-						$sqlpaymentmodes.= " AND (type = 'ban' OR (type = 'card' AND status = ".$servicestatusstripe.") OR (type = 'paypal' AND status = ".$servicestatuspaypal."))";
+						$sqlpaymentmodes.= " AND (type = 'ban' OR (type = 'card' AND status = ".((int) $servicestatusstripe).") OR (type = 'paypal' AND status = ".((int) $servicestatuspaypal)."))";
 						$sqlpaymentmodes.= " ORDER BY default_rib DESC, tms DESC";
 
 						$resqlpaymentmodes = $db->query($sqlpaymentmodes);
@@ -895,7 +910,7 @@ if (getDolGlobalInt('SELLYOURSAAS_DISABLE_NEW_INSTANCES') && !in_array(getUserRe
 		$listofdomain = explode(',', getDolGlobalString('SELLYOURSAAS_SUB_DOMAIN_NAMES'));
 	} else {
 		$staticdeploymentserver = new Deploymentserver($db);
-		$listofdomain = $staticdeploymentserver->fetchAllDomains();
+		$listofdomain = $staticdeploymentserver->fetchAllDomains('', '', 1000, 0, '', 'AND');
 	}
 	foreach ($listofdomain as $val) {
 		$newval=$val;
@@ -928,7 +943,9 @@ if (getDolGlobalInt('SELLYOURSAAS_DISABLE_NEW_INSTANCES') && !in_array(getUserRe
 		foreach ($tmpdomains as $tmpdomain) {	// list of restrictions for the deployment server $newval
 			print ' optionvisibleondomain-'.preg_replace('/[^a-z0-9]/i', '', $tmpdomain);
 		}
-		print '" value="'.$newval.'"'.(($newval == '.'.GETPOST('forcesubdomain', 'alpha')) ? ' selected="selected"' : '').'>'.$newval.'</option>';
+		print '" value="'.$newval.'"'.(($newval == '.'.GETPOST('forcesubdomain', 'alpha')) ? ' selected="selected"' : '').'>';
+		print $newval;
+		print '</option>';
 	}
 	print '</select>
 	    		<br class="unfloat" />

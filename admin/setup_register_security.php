@@ -130,6 +130,19 @@ if ($action == 'set') {
 			dolibarr_set_const($db, "SELLYOURSAAS_BLOCK_DISPOSABLE_EMAIL_ENABLED", GETPOST("SELLYOURSAAS_BLOCK_DISPOSABLE_EMAIL_ENABLED", 'alpha'), 'chaine', 0, '', $conf->entity);
 		}
 
+
+		// Google recaptcha
+		if (GETPOSTISSET("SELLYOURSAAS_GOOGLE_RECAPTCHA_ON")) {
+			dolibarr_set_const($db, "SELLYOURSAAS_GOOGLE_RECAPTCHA_ON", GETPOST("SELLYOURSAAS_GOOGLE_RECAPTCHA_ON", 'alpha'), 'chaine', 0, '', $conf->entity);
+		}
+		if (GETPOSTISSET("SELLYOURSAAS_GOOGLE_RECAPTCHA_SITE_KEY")) {
+			dolibarr_set_const($db, "SELLYOURSAAS_GOOGLE_RECAPTCHA_SITE_KEY", GETPOST("SELLYOURSAAS_GOOGLE_RECAPTCHA_SITE_KEY", 'alpha'), 'chaine', 0, '', $conf->entity);
+		}
+		if (GETPOSTISSET("SELLYOURSAAS_GOOGLE_RECAPTCHA_SECRET_KEY")) {
+			dolibarr_set_const($db, "SELLYOURSAAS_GOOGLE_RECAPTCHA_SECRET_KEY", GETPOST("SELLYOURSAAS_GOOGLE_RECAPTCHA_SECRET_KEY", 'alpha'), 'chaine', 0, '', $conf->entity);
+		}
+
+		// IP Intel
 		if (GETPOSTISSET("SELLYOURSAAS_GETIPINTEL_ON")) {
 			dolibarr_set_const($db, "SELLYOURSAAS_GETIPINTEL_ON", GETPOST("SELLYOURSAAS_GETIPINTEL_ON", 'alpha'), 'chaine', 0, '', $conf->entity);
 		}
@@ -197,8 +210,9 @@ print '<input type="hidden" name="action" value="set">';
 
 print '<div class="div-table-responsive">'; // You can use div-table-responsive-no-min if you dont need reserved height for your table
 print '<table class="noborder centpercent">';
+
 print '<tr class="liste_titre">';
-print '<td>'.$langs->trans("Parameters").'</td><td>'.$langs->trans("Value").'</td>';
+print '<td>'.$langs->trans("Parameters").'</td><td></td>';
 print '<td><div class="float">'.$langs->trans("Examples").'</div><div class="floatright"><input type="submit" class="button buttongen" value="'.$langs->trans("Save").'"></div></td>';
 print "</tr>\n";
 
@@ -213,7 +227,7 @@ print '</tr>';
 print '<tr class="oddeven"><td>'.$langs->trans("SELLYOURSAAS_ONLY_NON_PROFIT_ORGA").'</td>';
 print '<td>';
 $array = array('0' => 'No', '1' => 'NonProfitOrganization', '2' => 'NonProfitOrganizationAndCaritative', '3' => 'NonProfitOrganizationAndSmall');
-print $form->selectarray('SELLYOURSAAS_ONLY_NON_PROFIT_ORGA', $array, getDolGlobalString('SELLYOURSAAS_ONLY_NON_PROFIT_ORGA'), 0, 0, 0, '', 1, 0, 0, '', 'maxwidth200');
+print $form->selectarray('SELLYOURSAAS_ONLY_NON_PROFIT_ORGA', $array, getDolGlobalString('SELLYOURSAAS_ONLY_NON_PROFIT_ORGA'), 0, 0, 0, '', 1, 0, 0, '', 'maxwidth250');
 print '</td>';
 print '<td><span class="opacitymedium small">Set to a value if you want to restrict registration to some non-profit organizations only</span></td>';
 print '</tr>';
@@ -225,6 +239,66 @@ print '</td>';
 print '<td><span class="opacitymedium small">^mycompany[0-9]*\.</span></td>';
 print '</tr>';
 
+// Option to disable the random autoselect of server
+print '<tr class="oddeven"><td>';
+print $form->textwithpicto($langs->trans("SELLYOURSAAS_FORCE_NO_SELECTION_IF_SEVERAL"), $langs->trans("SELLYOURSAAS_FORCE_NO_SELECTION_IF_SEVERALHelp"));
+print '</td>';
+print '<td>';
+if ($conf->use_javascript_ajax) {
+	print ajax_constantonoff('SELLYOURSAAS_FORCE_NO_SELECTION_IF_SEVERAL', array(), null, 0, 0, 1);
+} else {
+	if (!getDolGlobalString('SELLYOURSAAS_FORCE_NO_SELECTION_IF_SEVERAL')) {
+		print '<a href="'.$_SERVER['PHP_SELF'].'?action=setSELLYOURSAAS_FORCE_NO_SELECTION_IF_SEVERAL">'.img_picto($langs->trans("Disabled"), 'off').'</a>';
+	} else {
+		print '<a href="'.$_SERVER['PHP_SELF'].'?action=delSELLYOURSAAS_FORCE_NO_SELECTION_IF_SEVERAL">'.img_picto($langs->trans("Enabled"), 'on').'</a>';
+	}
+}
+print '</td>';
+print '<td></td>';
+print '</tr>';
+
+
+
+// Google recaptcha
+print '<tr class="liste_titre">';
+print '<td>Google ReCaptcha</td>';
+print '<td></td>';
+print '<td></td>';
+print "</tr>\n";
+
+print '<tr class="oddeven"><td>'.$form->textwithpicto($langs->trans("SELLYOURSAAS_GOOGLE_RECAPTCHA_ON"), 'This is a usefull component to fight against spam instances').'</td>';
+print '<td>';
+if ($conf->use_javascript_ajax) {
+	print ajax_constantonoff('SELLYOURSAAS_GOOGLE_RECAPTCHA_ON', array(), null, 0, 0, 1);
+} else {
+	if (!getDolGlobalString('SELLYOURSAAS_GETIPINTEL_ON')) {
+		print '<a href="'.$_SERVER['PHP_SELF'].'?action=setSELLYOURSAAS_GOOGLE_RECAPTCHA_ON">'.img_picto($langs->trans("Disabled"), 'off').'</a>';
+	} else {
+		print '<a href="'.$_SERVER['PHP_SELF'].'?action=delSELLYOURSAAS_GOOGLE_RECAPTCHA_ON">'.img_picto($langs->trans("Enabled"), 'on').'</a>';
+	}
+}
+print '</td>';
+print '<td></td>';
+print '</tr>';
+
+if (getDolGlobalInt('SELLYOURSAAS_GOOGLE_RECAPTCHA_ON')) {
+	print '<tr class="oddeven"><td>'.$langs->trans("SELLYOURSAAS_GOOGLE_RECAPTCHA_SITE_KEY");
+	print ' &nbsp; <a href="https://www.google.com/recaptcha/admin/create" target="_blank">(Admin...)</a>';
+	print '</td>';
+	print '<td>';
+	print '<input class="minwidth300" type="text" name="SELLYOURSAAS_GOOGLE_RECAPTCHA_SITE_KEY" value="'.getDolGlobalString('SELLYOURSAAS_GOOGLE_RECAPTCHA_SITE_KEY').'">';
+	print '</td>';
+	print '<td><span class="opacitymedium small">abc123...</span></td>';
+	print '</tr>';
+
+	print '<tr class="oddeven"><td>'.$langs->trans("SELLYOURSAAS_GOOGLE_RECAPTCHA_SECRET_KEY").'</td>';
+	print '<td>';
+	print '<input class="minwidth300" type="text" name="SELLYOURSAAS_GOOGLE_RECAPTCHA_SECRET_KEY" value="'.getDolGlobalString('SELLYOURSAAS_GOOGLE_RECAPTCHA_SECRET_KEY').'">';
+	print '</td>';
+	print '<td><span class="opacitymedium small">abc123...</span></td>';
+	print '</tr>';
+}
+
 if (getDolGlobalInt('SELLYOURSAAS_EMAIL_ADDRESSES_BANNED_ENABLED')) {
 	print '<tr class="oddeven"><td>'.$langs->trans("SELLYOURSAAS_EMAIL_ADDRESSES_BANNED").'</td>';
 	print '<td>';
@@ -235,6 +309,12 @@ if (getDolGlobalInt('SELLYOURSAAS_EMAIL_ADDRESSES_BANNED_ENABLED')) {
 }
 
 // Enable DisposableEmail service
+print '<tr class="liste_titre">';
+print '<td>DisposableEmail (free)</td>';
+print '<td></td>';
+print '<td></td>';
+print "</tr>\n";
+
 print '<tr class="oddeven"><td>'.$form->textwithpicto($langs->trans("SELLYOURSAAS_BLOCK_DISPOSABLE_EMAIL_ENABLED"), 'This is a usefull component to fight against spam instances').'</td>';
 print '<td>';
 if ($conf->use_javascript_ajax) {
@@ -260,6 +340,12 @@ if (getDolGlobalString('SELLYOURSAAS_BLOCK_DISPOSABLE_EMAIL_ENABLED')) {
 }
 
 // Enable GetIPIntel
+print '<tr class="liste_titre">';
+print '<td>GetIPIntel (free)</td>';
+print '<td></td>';
+print '<td></td>';
+print "</tr>\n";
+
 print '<tr class="oddeven"><td>'.$form->textwithpicto($langs->trans("SELLYOURSAAS_GETIPINTEL_ON"), 'This is a usefull component to fight against spam instances').'</td>';
 print '<td>';
 if ($conf->use_javascript_ajax) {
@@ -285,6 +371,12 @@ if (getDolGlobalString('SELLYOURSAAS_GETIPINTEL_ON')) {
 }
 
 // Enable IPQualityScore
+print '<tr class="liste_titre">';
+print '<td>IPQuality</td>';
+print '<td></td>';
+print '<td></td>';
+print "</tr>\n";
+
 print '<tr class="oddeven"><td>'.$form->textwithpicto($langs->trans("SELLYOURSAAS_IPQUALITY_ON"), 'This is a very important component to fight against spam instances').'</td>';
 print '<td>';
 if ($conf->use_javascript_ajax) {
@@ -381,6 +473,8 @@ if (!empty($conf->use_javascript_ajax)) {
 print '</td>';
 print '<td><span class="opacitymedium small">Define a value to add a security signature of messages. This key must also be added into all deployment servers into file /etc/sellyoursaas.conf on key "signature_key=..."</span></td>';
 print '</tr>';
+
+print '<tr class="liste_titre"><td colspan="3">SSH2</td></tr>';
 
 print '<tr class="oddeven"><td>'.$langs->trans("SELLYOURSAAS_SSH2_HOSTKEYALGO").'</td>';
 print '<td>';

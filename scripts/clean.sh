@@ -368,11 +368,13 @@ if [ "x$IPSERVERDEPLOYMENT" != "x" ]; then
 	echo "***** Search osu unix account for $IPSERVERDEPLOYMENT with very old undeployed database into /tmp/osutoclean-oldundeployed and search entries with existing home dir and without dbn* subdir, and save it into /tmp/osutoclean" 
 	Q1="use $database; "
 	Q2="SELECT ce.username_os FROM llx_contrat as c, llx_contrat_extrafields as ce WHERE c.rowid = ce.fk_object AND ce.deployment_host = '$IPSERVERDEPLOYMENT' AND c.rowid IN ";
-	Q3=" (SELECT fk_contrat FROM llx_contratdet as cd, llx_contrat_extrafields as ce2 WHERE cd.fk_contrat = ce2.fk_object AND cd.STATUT = 5 AND ce2.deployment_status = 'undeployed' AND ce2.undeployment_date < ADDDATE(NOW(), INTERVAL -1 MONTH)); ";
+	Q3=" (SELECT fk_contrat FROM llx_contratdet as cd, llx_contrat_extrafields as ce2 WHERE cd.fk_contrat = ce2.fk_object AND cd.STATUT = 5 AND ce2.deployment_status = 'undeployed' AND ce2.undeployment_date < ADDDATE(NOW(), INTERVAL -1 MONTH)); ";		# TODO Add a limit to not retreive too old one.
 	SQL="${Q1}${Q2}${Q3}"
 
 	echo "$MYSQL -h $databasehost -P $databaseport -u$databaseuser -pxxxxxx -e $SQL"
 	$MYSQL -h $databasehost -P $databaseport -u$databaseuser -p$databasepass -e "$SQL" | grep '^osu' >> /tmp/osutoclean-oldundeployed
+	
+	# The file /tmp/osutoclean-oldundeployed may contains a very high number of lines.
 	if [ -s /tmp/osutoclean-oldundeployed ]; then
 		for osusername in `cat /tmp/osutoclean-oldundeployed`
 		do
@@ -705,12 +707,13 @@ if [[ $testorconfirm == "test" ]]; then
 	done
 	export idlistofdb=`cat /tmp/idlistofdb | sed -e 's/,$//' `
 	if [[ "x$idlistofdb" != "x" ]]; then
-		echo "echo 'DROP TABLE llx_contracttoupdate_tmp;' | $MYSQL -h $databasehost -P $databaseport -u$databaseuser -pxxxxxx $database"
-		echo "DROP TABLE llx_contracttoupdate_tmp;" | $MYSQL -h $databasehost -P $databaseport -u$databaseuser -p$databasepass $database
-		echo "echo 'CREATE TABLE llx_contracttoupdate_tmp AS SELECT s.nom, s.client, c.rowid, c.ref, c.ref_customer, ce.deployment_date_start, ce.undeployment_date FROM llx_contrat as c LEFT JOIN llx_societe as s ON s.rowid = c.fk_soc, llx_contrat_extrafields as ce WHERE c.rowid = ce.fk_object AND ce.database_db IN (0) AND ce.deployment_status = 'undeployed';' | $MYSQL -usellyoursaas -pxxxxxx -h $databasehost $database"
-		echo "CREATE TABLE llx_contracttoupdate_tmp AS SELECT s.nom, s.client, c.rowid, c.ref, c.ref_customer, ce.deployment_date_start, ce.undeployment_date FROM llx_contrat as c LEFT JOIN llx_societe as s ON s.rowid = c.fk_soc, llx_contrat_extrafields as ce WHERE c.rowid = ce.fk_object AND ce.database_db IN ($idlistofdb) AND ce.deployment_status = 'undeployed';" | $MYSQL -usellyoursaas -p$databasepass -h $databasehost $database
-		echo If there is some contracts not correctly undeployed, they are into llx_contracttoupdate_tmp of database master.
-		echo You can execute "update llx_contrat_extrafields set deployment_status = 'done' where deployment_status = 'undeployed' AND fk_object in (select rowid from llx_contracttoupdate_tmp);"
+		echo "echo 'DELETE FROM llx_sellyoursaas_clean_dbnotindisk WHERE deployment_host = '$IPSERVERDEPLOYMENT';' | $MYSQL -usellyoursaas -p$databasepass -h $databasehost $database"
+		echo "DELETE FROM llx_sellyoursaas_clean_dbnotindisk WHERE deployment_host = '$IPSERVERDEPLOYMENT';" | $MYSQL -usellyoursaas -p$databasepass -h $databasehost $database
+		echo "echo \"INSERT INTO llx_sellyoursaas_clean_dbnotindisk(nom, client, rowid, ref, ref_customer, deployment_date_start, undeployment_date, deployment_host, deployment_ip) SELECT s.nom, s.client, c.rowid, c.ref, c.ref_customer, ce.deployment_date_start, ce.undeployment_date, ce.deployment_host, ce.deployment_ip FROM llx_contrat as c LEFT JOIN llx_societe as s ON s.rowid = c.fk_soc, llx_contrat_extrafields as ce WHERE c.rowid = ce.fk_object AND ce.database_db IN ($idlistofdb) AND ce.deployment_status = 'undeployed';\" | $MYSQL -usellyoursaas -p$databasepass -h $databasehost $database"
+		echo "INSERT INTO llx_sellyoursaas_clean_dbnotindisk(nom, client, rowid, ref, ref_customer, deployment_date_start, undeployment_date, deployment_host, deployment_ip) SELECT s.nom, s.client, c.rowid, c.ref, c.ref_customer, ce.deployment_date_start, ce.undeployment_date, ce.deployment_host, ce.deployment_ip FROM llx_contrat as c LEFT JOIN llx_societe as s ON s.rowid = c.fk_soc, llx_contrat_extrafields as ce WHERE c.rowid = ce.fk_object AND ce.database_db IN ($idlistofdb) AND ce.deployment_status = 'undeployed';" | $MYSQL -usellyoursaas -p$databasepass -h $databasehost $database
+		echo
+		echo "If there is some contracts not correctly undeployed, they are into llx_sellyoursaas_clean_dbnotindisk of database master."
+		#echo "You can execute: update llx_contrat_extrafields set deployment_status = 'done' where deployment_status = 'undeployed' AND fk_object in (select rowid from llx_sellyoursaas_clean_dbnotindisk);"
 	fi
 fi
 

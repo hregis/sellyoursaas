@@ -125,7 +125,8 @@ if (! $error) {
 		$frequency=1;
 		$frequency_unit='m';
 		$discountcode = strtoupper(trim(GETPOST('discountcode', 'aZ09')));	// If a discount code was prodived on page
-		/* If a discount code exists on contract level, it was used to prefill the payment page, so it is received into the GETPOST('discountcode', 'int').
+		$discountcode = preg_replace('/\-\d+$/', '', $discountcode);		// Remove the part "-123" into "MYCODE-123"
+		/* If a discount code exists on contract level, it was used to prefill the payment page, so it is received into the GETPOST('discountcode', 'aZ09').
 		if (empty($discountcode) && ! empty($contract->array_options['options_discountcode'])) {    // If no discount code provided, but we find one on contract, we use this one
 			$discountcode = $contract->array_options['options_discountcode'];
 		}*/
@@ -241,16 +242,21 @@ if (! $error) {
 					$frequency = $tmpproduct->duration_value;
 					$frequency_unit = $tmpproduct->duration_unit;
 
+					// Process the discount code
 					if ($tmpproduct->array_options['options_register_discountcode']) {
 						$tmpvaliddiscountcodearray = explode(',', $tmpproduct->array_options['options_register_discountcode']);
 						foreach ($tmpvaliddiscountcodearray as $valdiscount) {
 							$valdiscountarray = explode(':', $valdiscount);
 							$tmpcode = strtoupper(trim($valdiscountarray[0]));
-							$tmpval = str_replace('%', '', trim($valdiscountarray[1]));
-							if (is_numeric($tmpval)) {
-								$validdiscountcodearray[$tmpcode] = array('code'=>$tmpcode, 'type'=>'percent', 'value'=>$tmpval);
+							if (preg_match('/%/', trim($valdiscountarray[1]))) {	// This is a percent discount
+								$tmpval = (int) str_replace('%', '', trim($valdiscountarray[1]));
+								if ($tmpval > 0 && $tmpval < 100) {
+									$validdiscountcodearray[$tmpcode] = array('code'=>$tmpcode, 'type'=>'percent', 'value'=>$tmpval);
+								} else {
+									dol_syslog("Error: Bad definition of discount for product id = ".$tmpproduct->id." with value ".$tmpproduct->array_options['options_register_discountcode'], LOG_ERR);
+								}
 							} else {
-								dol_syslog("Error: Bad definition of discount for product id = ".$tmpproduct->id." with value ".$tmpproduct->array_options['options_register_discountcode'], LOG_ERR);
+								dol_syslog("Error: Type of discount not yet supported for product id = ".$tmpproduct->id." with value ".$tmpproduct->array_options['options_register_discountcode'], LOG_ERR);
 							}
 						}
 						// If we entered a discountcode or get it from contract
@@ -263,7 +269,7 @@ if (! $error) {
 						//var_dump($validdiscountcodearray); var_dump($discountcode); var_dump($discounttype); var_dump($discountval); exit;
 						if ($discounttype == 'percent') {
 							if ($discountval > $discount) {
-								$discount = $discountval;		// If discount with coupon code is higher than the one defined into contract.
+								$discount = $discountval;		// If discount with coupon code is higher than the one defined into contract, we use it.
 							}
 						}
 					}

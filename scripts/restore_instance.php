@@ -348,9 +348,10 @@ if (empty($login) || empty($dirdb)) {
 }
 
 
+// Case we do a restore from a remote backup server
 if (preg_match('/:/', $dirroot)) {	// $dirroot = 'remoteserer:/mnt/diskbackup/backup_servername/osu...'
 	// Rsync to get backup into /tmp/restore_instance
-	print "Recreate /tmp/restore_instance directory\n";
+	print "Delete and recreate /tmp/restore_instance directory\n";
 	dol_delete_dir_recursive('/tmp/restore_instance');
 	dol_mkdir('/tmp/restore_instance');
 
@@ -387,16 +388,22 @@ if (preg_match('/:/', $dirroot)) {	// $dirroot = 'remoteserer:/mnt/diskbackup/ba
 		print $outputline."\n";
 	}
 
+	if ($return_var > 0) {
+		exit(1);
+	}
+
 	// Change user and permission
 	$command = 'chown admin /tmp/restore_instance/';
+	$param = array();
 	$fullcommand=$command." ".join(" ", $param);
-	$output=array();
+	$output = array();
 	print dol_print_date(dol_now('gmt'), "%Y%m%d-%H%M%S", 'gmt').' '.$fullcommand."\n";
 	exec($fullcommand, $output, $return_var);
 
 	$command = 'chown -R admin /tmp/restore_instance/'.$object->username_os;
+	$param = array();
 	$fullcommand=$command." ".join(" ", $param);
-	$output=array();
+	$output = array();
 	print dol_print_date(dol_now('gmt'), "%Y%m%d-%H%M%S", 'gmt').' '.$fullcommand."\n";
 	exec($fullcommand, $output, $return_var);
 
@@ -426,6 +433,7 @@ if (preg_match('/:/', $dirroot)) {	// $dirroot = 'remoteserer:/mnt/diskbackup/ba
 	exit(0);
 }
 
+// Case we do a restore from a local backup
 print 'Restore from '.$dirroot." to ".$targetdir.' into instance '.$instance."\n";
 print 'Target SFTP password '.dol_trunc($object->password_os, 2, 'right', 'UTF-8', 1).preg_replace('/./', '*', dol_substr($object->password_os, 3))."\n";
 print 'Target Database password '.dol_trunc($object->password_db, 2, 'right', 'UTF-8', 1).preg_replace('/./', '*', dol_substr($object->password_db, 3))."\n";
@@ -435,7 +443,7 @@ if (! in_array($mode, array('testrsync', 'testdatabase', 'test', 'confirmrsync',
 	exit(-6);
 }
 
-if ($dayofmysqldump == 'autoscan') {
+if ($dayofmysqldump == 'autoscan' && $mode != 'testrsync' && $mode != 'confirmrsync') {
 	print 'Scan directory '.$dirroot.'/.. for database dumps.'."\n";
 	$arrayoffiles = dol_dir_list($dirroot.'/..', 'files', 0, 'sql\.gz|sql\.bz2|sql\.zst', null, 'name', SORT_ASC, 1);
 	if (count($arrayoffiles)) {

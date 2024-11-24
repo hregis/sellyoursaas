@@ -105,9 +105,9 @@ class modSellYourSaas extends DolibarrModules
 			10=>array('AUDIT_ENABLE_PREFIX_SESSION', 'chaine', 1, 'Enable column prefix session in audit view', 1, 'current', 0),
 		);
 
-		if (! isset($conf->sellyoursaas) || ! isset($conf->sellyoursaas->enabled)) {
-			$conf->sellyoursaas=new stdClass();
-			$conf->sellyoursaas->enabled=0;
+		if (!isModEnabled("sellyoursaas")) {
+			$conf->sellyoursaas = new stdClass();
+			$conf->sellyoursaas->enabled = 0;
 		}
 
 
@@ -151,10 +151,11 @@ class modSellYourSaas extends DolibarrModules
 		$this->boxes = array();			// List of boxes
 		$r=0;
 
+		$this->boxes[$r][1] = 'box_sellyoursaas_backup_errors.php@sellyoursaas';
+		$this->boxes[$r][0] = 'home';
+		$r++;
 		// Add here list of php file(s) stored in includes/boxes that contains class to show a box.
 		// Example:
-		//$this->boxes[$r][1] = "myboxa.php";
-		//$r++;
 		//$this->boxes[$r][1] = "myboxb.php";
 		//$r++;
 
@@ -590,11 +591,28 @@ class modSellYourSaas extends DolibarrModules
 		$this->menu[$r]=array(
 			'fk_menu'=>'fk_mainmenu=sellyoursaas,fk_leftmenu=sellyoursaas_blacklist',
 			'type'=>'left',
+			'titre'=>'EvilThirdParties',
+			'prefix' => '',
+			'mainmenu'=>'sellyoursaas',
+			'leftmenu'=>'sellyoursaas_evilthidparties',
+			'url'=>'/societe/list.php?contextpage=sellyoursaasevilthirdparties&search_options_spammer=1',
+			'langs'=>'sellyoursaas@sellyoursaas',
+			'position'=>651,
+			'enabled'=>'isModEnabled("sellyoursaas")',         // Define condition to show or hide menu entry. Use '$conf->NewsSubmitter->enabled' if entry must be visible if module is enabled.
+			'perms'=>'$user->hasRight("sellyoursaas", "read")',
+			'target'=>'',
+			'user'=>0
+		);
+		$r++;
+
+		$this->menu[$r]=array(
+			'fk_menu'=>'fk_mainmenu=sellyoursaas,fk_leftmenu=sellyoursaas_blacklist',
+			'type'=>'left',
 			'titre'=>'EvilInstances',
 			'prefix' => '',
 			'mainmenu'=>'sellyoursaas',
 			'leftmenu'=>'sellyoursaas_evilinstances',
-			'url'=>'/contrat/list.php?leftmenu=contracts&contextpage=sellyoursaasevilinstances&search_options_spammer=1&search_product_category=__[SELLYOURSAAS_DEFAULT_PRODUCT_CATEG]__',
+			'url'=>'/contrat/list.php?contextpage=sellyoursaasevilinstances&search_options_spammer=1&search_product_category=__[SELLYOURSAAS_DEFAULT_PRODUCT_CATEG]__',
 			'langs'=>'sellyoursaas@sellyoursaas',
 			'position'=>651,
 			'enabled'=>'isModEnabled("sellyoursaas")',         // Define condition to show or hide menu entry. Use '$conf->NewsSubmitter->enabled' if entry must be visible if module is enabled.
@@ -752,7 +770,7 @@ class modSellYourSaas extends DolibarrModules
 		$resultx=$extrafields->addExtraField('option_condition', "OptionCondition", 'varchar', 111, '200', 'product', 0, 0, '', $param, 1, '', 1, 'HelpOnOptionCondition', '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
 		$resultx=$extrafields->addExtraField('availabelforresellers', "AvailableForResellers", 'boolean', 111, '', 'product', 0, 0, '', '', 1, '', 1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
 		$param=array('options'=>array('Packages:sellyoursaas/class/packages.class.php'=>null));
-		$resultx=$extrafields->addExtraField('package', "Package", 'link', 111, '', 'product', 0, 0, '', $param, 1, '', 1, 'IfSomethingMustBeDeployed', '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
+		$resultx=$extrafields->addExtraField('package', "Package", 'link', 111, '', 'product', 0, 0, '', $param, 1, '', 1, 'IfSomethingMustBeDeployed', '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")', 0, 0, array('csslist'=>'tdoverflowmax100'));
 		$resultx=$extrafields->addExtraField('resource_formula', "QuantityCalculationFormula", 'text', 112, '8192', 'product', 0, 0, '', '', 1, '', -1, 'QtyFormulaExamples', '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
 		$resultx=$extrafields->addExtraField('resource_label', "ResourceUnitLabel", 'varchar', 112, '32', 'product', 0, 0, '', '', 1, '', -1, 'ResourceUnitLabelDesc', '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
 
@@ -785,8 +803,8 @@ class modSellYourSaas extends DolibarrModules
 		$resultx=$extrafields->addExtraField('ip_confirm_email', "IPConfirmEmail", 'ip', 180, '', 'thirdparty', 0, 0, '', '', 1, '', -1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
 		$resultx=$extrafields->addExtraField('source', "Source", 'varchar', 104, '64', 'thirdparty', 0, 0, '', '', 1, '', 1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")', 0, 0, array('csslist'=>'tdoverflowmax200'));
 		$resultx=$extrafields->addExtraField('source_utm', "SourceUtm", 'varchar', 104, '64', 'thirdparty', 0, 0, '', '', 1, '', 1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")', 0, 0, array('csslist'=>'tdoverflowmax150'));
-		$resultx=$extrafields->addExtraField('firstname', "FirstName", 'varchar', 105, '64', 'thirdparty', 0, 0, '', '', 1, '', 1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
-		$resultx=$extrafields->addExtraField('lastname', "LastName", 'varchar', 106, '64', 'thirdparty', 0, 0, '', '', 1, '', 1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
+		$resultx=$extrafields->addExtraField('firstname', "FirstName", 'varchar', 105, '64', 'thirdparty', 0, 0, '', '', 1, '', 1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")', 0, 0, array('csslist'=>'tdoverflowmax120'));
+		$resultx=$extrafields->addExtraField('lastname', "LastName", 'varchar', 106, '64', 'thirdparty', 0, 0, '', '', 1, '', 1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")', 0, 0, array('csslist'=>'tdoverflowmax120'));
 		$param=array('options'=>array('auto'=>null));	// Must use a non reversible password.
 		$resultx=$extrafields->addExtraField('password', "DashboardPassword", 'password', 150, '128', 'thirdparty', 0, 0, '', $param, 1, '', 1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
 		$resultx=$extrafields->addExtraField('oldpassword', "OldDashboardPassword", 'password', 151, '128', 'thirdparty', 0, 0, '', $param, 0, '', -2, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
@@ -800,6 +818,7 @@ class modSellYourSaas extends DolibarrModules
 		$resultx=$extrafields->addExtraField('commission', "PartnerCommission", 'int', 196, '3', 'thirdparty', 0, 0, '', $param, 1, '', 1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
 		$resultx=$extrafields->addExtraField('stripeaccount', "StripeAccount", 'varchar', 197, '255', 'thirdparty', 0, 0, '', '', 1, '', -1, 'StripeAccountForCustomerHelp', '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
 		$resultx=$extrafields->addExtraField('maxnbofinstances', "MaxNbOfInstances", 'int', 198, '3', 'thirdparty', 0, 0, '4', '', 1, '', -1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
+		$resultx=$extrafields->addExtraField('spammer', "EvilUser", 'varchar', 300, '8', 'thirdparty', 0, 0, '', '', 1, '', -1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
 		$arrayoptions=array(
 			'profit'=>'ProfitOrganization',
 			'nonprofit'=>'NonProfitOrganization'

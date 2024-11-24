@@ -340,19 +340,9 @@ chmod go-rw /etc/ssh/sshd_config
 ---------------
 
 
-Copy the file into  */etc/ssh/sshd_config.d/sellyoursaas.conf* on the server in file */etc/ssh/sshd_config.d/sellyoursaas.conf*
+Copy the file into  */etc/ssh/sshd_config.d/sellyoursaas.conf* onto the server under the name */etc/ssh/sshd_config.d/sellyoursaas.conf*
 
 For Ubuntu 18.04: you can concat the content into file *sshd_config*, but be sure to not have duplicate values.
-
-
-Copy the file into  */etc/ssh/sshd_config.d/sellyoursaas-users.conf* on the server in file */etc/ssh/sshd_config.d/sellyoursaas-users.conf* and
-add entries for each sysadmin users.
-
-[source, conf]
----------------
-AllowUsers myunixlogin
-AllowUsers otherunixlogin
----------------
 
 
 Now add this at end of file */etc/ssh/sshd_config* (ssh does not allow Match Rules into the custom file)
@@ -360,8 +350,8 @@ Now add this at end of file */etc/ssh/sshd_config* (ssh does not allow Match Rul
 [source, conf]
 ---------------
 # BEGIN Block for SellYourSaas
-# Warning Match rule works only insshd_config not into include files
-# You can test a Match User rule with ssd -T -C user=aaa | grep param
+# Warning Match rule works only in sshd_config, not into include files
+# You can test a Match User rule with: ssd -T -C user=aaa | grep param
 #Match User osu*
 #  ChrootDirectory "/home/jail/home/"
 #  ForceCommand /usr/bin/secureBash
@@ -372,22 +362,36 @@ Match User osu*
 # END Block for SellYourSaas
 ---------------
 
-To test a ssh config, you can run
-
-[source, conf]
----------------
-sshd -T -C user=mylogin -C host=clienthost -C addr=clientaddr
----------------
-
-Then reload ssh 
-
-Please note: check you have replaced *myunixlogin* with the correct values before taking changes into account.
+Then reload ssh:
 
 [source, conf]
 ---------------
 /etc/init.d/ssh reload
 ---------------
 
+
+To test a ssh config, you can run
+
+[source, conf]
+---------------
+sshd -T -C user=logintotest -C host=clienthost -C addr=clientaddr
+---------------
+
+
+==== SSH add admin user
+
+Note: All the following steps can also be done with the script *desktop_admin_users.php*. 
+
+Copy the file into  */etc/ssh/sshd_config.d/sellyoursaas-users.conf* on the server in file */etc/ssh/sshd_config.d/sellyoursaas-users.conf* and
+add entries for each admin users.
+
+[source, conf]
+---------------
+AllowUsers myadminunixlogin
+AllowUsers otheradminunixlogin
+---------------
+
+Please note: check you have replaced *myadminunixlogin* with the correct values before taking changes into account.
 
 Add the following line in the */etc/sudoers* file to reposition the HOME according to the user after a sudo -s:
 
@@ -397,15 +401,21 @@ Defaults set_home
 Defaults use_pty
 ---------------
 
-Create a file */etc/sudoers.d/myunixlogin* with the content
+[source, conf]
+---------------
+/etc/init.d/ssh reload
+---------------
+
+
+Create a file */etc/sudoers.d/myadminunixlogin* with the content
 
 [source, conf]
 ---------------
-myunixlogin ALL=(ALL) ALL
-# You can also add this lines to avoid users to re-enter a password when switching to 'admin' or 'osu*'
+myadminunixlogin ALL=(ALL) ALL
+# You can also add this lines to avoid user to re-enter a password when switching to 'admin' or 'osu*'
 # This allows to switch to admin or osu* with "sudo su - admin" or "sudo su - osu..."
-#myunixlogin ALL=(ALL) /usr/bin/su - admin
-#myunixlogin ALL=(ALL) /usr/bin/su - osu*
+#myadminunixlogin ALL=(ALL) /usr/bin/su - admin
+#myadminunixlogin ALL=(ALL) /usr/bin/su - osu*
 ---------------
 
 This allows you to switch to *admin* or *osu...* without typing your password too:
@@ -416,23 +426,23 @@ sudo su - admin
 sudo su - osu...
 ---------------
 
-Please note: check you have replaced *myunixlogin* with the correct values before taking changes into account.
+Please note: check you have replaced *myadminunixlogin* with the correct values before taking changes into account.
 
 
 And set the *root*.*root* and the permissions *r--r-----*
 
 [source, conf]
 ---------------
-chmod a-w /etc/sudoers.d/myunixlogin
-chmod o-r /etc/sudoers.d/myunixlogin
+chmod a-w /etc/sudoers.d/myadminunixlogin
+chmod o-r /etc/sudoers.d/myadminunixlogin
 ---------------
 
 
-Test that you can connect using *myunixlogin* and you can make a sudo with
+Test that you can connect using *myadminunixlogin* and you can make a sudo with
 
 [source,bash]
 ---------------
-ssh -v myunixlogin@x.y.z.a
+ssh -v myadminunixlogin@x.y.z.a
 sudo -s
 ---------------
 
@@ -441,7 +451,7 @@ Add your public key to your unix account.
 
 [source, bash]
 ---------------
-ssh-copy-id myunixlogin@x.y.z.a
+ssh-copy-id myadminunixlogin@x.y.z.a
 ---------------
 
 
@@ -453,7 +463,7 @@ passwd root
 passwd admin
 ---------------
 
-Run *ssh-keygen* for all these acounts : *root*, *admin* and *myunixlogin*
+Run *ssh-keygen* for all these acounts : *root*, *admin* and *myadminunixlogin*
 
 
 === Deletion of information files at login
@@ -760,12 +770,13 @@ domain=mysaasdomainname.com
 # If deployment server: url of subdomain for user instances
 subdomain=withX.mysaasdomainname.com
 
-# Set to 1 if this server is the master server, 
-# or 2 if the ssh and mysql access are restricted to ips into /etc/sellyoursaas.d/sellyoursaas-allowed-ip.conf only
+# Set to 1 if this server is the master server and must still have ssh and mysql port open, 
+# or 2 if the ssh and mysql access are restricted to ips into /etc/sellyoursaas.d/sellyoursaas-allowed-ip[-ssh|-mysql].conf only
 masterserver=1
-# Set to 1 if this server host instances for the pool (deployment server), 
-# or 2 if the ssh and mysql access are restricted to ips into /etc/sellyoursaas.d/sellyoursaas-allowed-ip.conf only
+# Set to 1 if this server host instances for the pool (deployment server) and must have ssh and mysql port open, 
+# or 2 if the ssh and mysql access are restricted to ips into /etc/sellyoursaas.d/sellyoursaas-allowed-ip[-ssh|-mysql].conf only
 instanceserver=1
+
 # Set to 1 if this server hosts a dns for the pool (deployment server)
 dnsserver=1
 
@@ -892,9 +903,11 @@ mkdir -p /etc/sellyoursaas.d
 * Optional: If you want to restrict access to some IP (to the web admin on *Master server* or to ssh or mysql to the *Deployment servers*), you can also
 create a file */etc/sellyoursaas.d/**-allowed-ip.conf* (http, ssh and mysql) or */etc/sellyoursaas.d/**-allowed-ip-ssh.conf* (ssh only) or */etc/sellyoursaas.d/**-allowed-ip-mysql.conf* (mysql only) 
 
+Example:
+
 [source,conf]
 ---------------
-# File /etc/sellyoursaas.d/xxx-allowed-ip-zzz.conf
+# File /etc/sellyoursaas.d/sellyoursaas-allowed-ip-zzz.conf
 
 # User 1
 Require ip ip.user.1
@@ -1043,7 +1056,7 @@ There are two scenarios depending on your version of Ubuntu. Follow the instruct
 [source,bash]
 ---------------
 sudo apt update
-sudo apt install -y systemd-timesyncd git gzip zip zstd memcached ncdu duc iotop acl ufw sudo
+sudo apt install -y ntp git gzip zip zstd memcached ncdu duc iotop acl ufw sudo
 sudo apt install -y mariadb-server mariadb-client
 sudo apt install -y apache2 apache2-bin lynx
 sudo apt install -y php php-cli libapache2-mod-php php-fpm php-gd php-imap php-json php-ldap php-mysqlnd php-curl php-memcached php-imagick php-geoip php-mcrypt php-intl php-xml php-zip php-bz2 php-ssh2 php-mbstring php-soap php-tidy
@@ -1076,7 +1089,7 @@ sudo apt install -y libreoffice-common libreoffice-writer
 sudo apt install -y mailutils postfix
 ---------------
 
-* Installation of the 22.04+ Ubuntu packages
+* Installation of the 22.04+ or 24.04+ Ubuntu packages
 
 [source,bash]
 ---------------
@@ -1167,7 +1180,9 @@ mkdir sellyoursaas-available sellyoursaas-online sellyoursaas-offline
 ln -fs /etc/apache2/sellyoursaas-online /etc/apache2/sellyoursaas-enabled
 ---------------
 
-* On Ubuntu 18.04 and +, check that the *PrivateTmp* parameter is *false* in the *apache2.service* Apache launch configuration. This will make it possible to have a directory */tmp* which is not unique and not isolated to each instance, making debugging and analysis operations possible on the problems of sending emails and controlling spam. It also allows to send antivirus into a separate process on uploaded files that are stored into this temporary directory.
+* On Ubuntu 18.04 and +, check that the *PrivateTmp* parameter is *false* in the *apache2.service* Apache launch configuration
+This will make it possible to have a directory */tmp* which is not unique and not isolated to each instance, making debugging and analysis operations possible on the problems of sending emails and controlling spam.
+It also allows to send antivirus into a separate process on uploaded files that are stored into this temporary directory.
 
 [source, bash]
 ---------------
@@ -1974,9 +1989,10 @@ exclude_suffix := tmp old bak
 ---------------
 /snap/bin all
 
-! /var/log/mysql
-! /var/log/letsencrypt
-! /var/log/datadog
+!/var/log/mysql
+!/var/log/letsencrypt
+!/var/log/datadog
+!/var/log/clamav/
 
 !/etc/apache2/sellyoursaas-available
 !/etc/apache2/sellyoursaas-online
@@ -2550,6 +2566,21 @@ SHOW VARIABLES LIKE 'default_authentication_plugin';
 
 Note: To delete active plugins, empty the mysql *plugin* table. See "Starting mysql without permissions" if this blocks the server from starting if necessary.
 
+Note: If there is a crash during upgrade and a need to restart, you may need to remove the redo log bild "id...*".
+
+
+[Starting mysql without permissions]
+
+To start mysql without password:
+
+[source,bash]
+---------------
+sudo mysqld_safe --skip-grant-tables &
+mysql -uroot
+use mysql;
+update user set password=PASSWORD("newpassword") where User='root';
+flush privileges;
+---------------
 
 
 [[creer_un_compte_db_sellyoursaas]]
@@ -2769,7 +2800,7 @@ Note for future: if we use php-fpm instead of mod_itk, create an apparmor file *
 
 [source,bash]
 ---------------
-include::repository_root/etc/apparmor.d/php-fpm7.4[]
+include::repository_root/etc/apparmor.d/php-fpm[]
 ---------------
 
 
@@ -3170,7 +3201,7 @@ chmod +t /dev/shm /var/lib/php/sessions
 
 ==== Define size of upload and session options
 
-Create a file */etc/php/sellyoursaas.ini* and enable it by adding the symlinks into *`/etc/php/*.*/*/php.ini+`* (the one for *apache*, the one for *cli* and for the *fpm*) to allow upload of bigger files:
+Create a file */etc/php/sellyoursaas.ini* and enable it by adding the symlinks into *`/etc/php/*.*/*/conf.d`* (the one for *apache*, the one for *cli* and for the *fpm*) to allow upload of bigger files:
 
 [source,bash]
 ---------------
@@ -3184,10 +3215,14 @@ Complete also the parameter *disable_functions* for the *apache* and *fpm* file 
 
 [source,bash]
 ---------------
-pcntl_alarm,pcntl_fork,pcntl_waitpid,pcntl_wait,pcntl_wifexited,pcntl_wifstopped,pcntl_wifsignaled,pcntl_wifcontinued,pcntl_wexitstatus,pcntl_wtermsig,pcntl_wstopsig,pcntl_signal,pcntl_signal_get_handler,pcntl_signal_dispatch,pcntl_get_last_error,pcntl_strerror,pcntl_sigprocmask,pcntl_sigwaitinfo,pcntl_sigtimedwait,pcntl_exec,pcntl_getpriority,pcntl_setpriority,pcntl_async_signals,pcntl_unshare,passthru,shell_exec,system,proc_open,popen,dl,apache_note,apache_setenv,show_source,virtual
+pcntl_alarm,pcntl_fork,pcntl_waitpid,pcntl_wait,pcntl_wifexited,pcntl_wifstopped,pcntl_wifsignaled,pcntl_wifcontinued,pcntl_wexitstatus,pcntl_wtermsig,pcntl_wstopsig,pcntl_signal,pcntl_signal_get_handler,pcntl_signal_dispatch,pcntl_get_last_error,pcntl_strerror,pcntl_sigprocmask,pcntl_sigwaitinfo,pcntl_sigtimedwait,pcntl_exec,pcntl_getpriority,pcntl_setpriority,pcntl_async_signals,pcntl_unshare,passthru,system,proc_open,dl,apache_note,apache_setenv,show_source,virtual
 ---------------
 
-Warning: Do not add "exec".
+Warning, do not add;
+
+"exec" - used by most PHP applications
+"popen" - used by /etc/init.d/smtp_watchdog_daemon1.php
+"shell_exec" - used by /usr/local/bin/phpsendmail.php
 
 
 ==== Add a wrapper PHP for the mail() function
@@ -3526,21 +3561,28 @@ For example, you can use *supervision@mysaasdomainname.com* as the email for let
 
 This create certificates and also enable the automatic renewal of wildcard certificates so you do not need to renew manually every 90 days (systemd timer is run regularly, if the certificate is within 30 days of expiry, it is renewed automatically and the symbolic links in */etc/letsencrypt/live/<domain>* are updated, so if you use those in your vhosts you have nothing more to do)
 
-To read certificate .crt or .pem files, you can run:
+
+* To read/list existing certificates, you can run:
+
+[source,bash]
+---------------
+certbot certificates
+---------------
+
+* To read certificate .crt or .pem files, you can run:
 
 [source,bash]
 ---------------
 openssl x509 -in fullchain.pem -text
 ---------------
 
-To read renewal scheduler:
+* To read renewal scheduler:
 
 [source,bash]
 ---------------
 systemctl list-timers
 systemctl status snap.certbot.renew.timer
 ---------------
-
 
 * To renew a certificate on the *master*:
 
@@ -3812,8 +3854,13 @@ certbot
 
 * Activate the "Cron / Scheduled Jobs" module and set the cron security key to the same value as what was set in the parameter of the call to *cron_run_jobs.php* in the cron of user *admin*.
 
-* Activate the "Stripe" module and set it. On Stripe side, you must enable the WebHooks for a least the message *payment_intent.succeeded* and *payment_intent.payment_failed*
-
+* Activate the "Stripe" module and set it. On Stripe side, you must enable the WebHooks for a least the message
+  *charge.dispute.funds_withdraw*		# When a withdraw is done
+  *payment_intent.succeeded*			# When a payment is created (required to flag SEPA payments as paid)
+  *payment_intent.payment_failed*		# When a payment fails (required to flag SEPA payments as error)
+  Not yet but may be used in a future, enable also the WebHooks for the message:
+  *charge.dispute.create*				# When a dispute start
+  *charge.dispute.closed*				# When a dispute is closed
 
 On *Deployment servers*:
 
@@ -4645,8 +4692,34 @@ apt install php-mysql
 a2enmod php7.4
 apt remove php-fpm php7-fpm
 
-# if you move from 20.04 to 22.04, you must anable the correct php version
-a2dismod php7.4; a2enmod php8.1; 
+# if you move from 20.04 to 22.04, you must enable the correct php version
+a2dismod php7.4; a2enmod php8.1;
+# You must also remove an old apache2 UFW profile that is duplicate with apache2-utils.ufw.profile
+rm -fr apache2.2-common
+# You must also remove old apparmor lxc profiles
+apt remove lxc
+rm -fr /etc/apparmor.d/lxc*
+# Fix the script to stop apparmor:
+vi /lib/apparmor/rc.apparmor.functions
+  # FIX LDR
+  # sed -e "s/ (\(enforce\|complain\))$//" "$SFS_MOUNTPOINT/profiles" | \
+  sed -e "s/ (\(enforce\|complain\|unconfined\))$//" "$SFS_MOUNTPOINT/profiles" | \
+
+# if you move from 22.04 to 24.04, you must enable the correct php version
+apt install apache2; apt install libapache2-mod-apparmor; apt install php-tidy;
+a2enmod php8.3; a2enmod apparmor
+a2disconf php8.3-fpm; a2enconf php8.3-fpm; 
+# You must also remove an old apache2 UFW profile that is duplicate with apache2-utils.ufw.profile
+rm -fr apache2.2-common
+# You must also remove old apparmor lxc profiles
+apt remove lxc
+rm -fr /etc/apparmor.d/lxc*
+# Fix the script to stop apparmor:
+vi /lib/apparmor/rc.apparmor.functions
+  # FIX LDR
+  # sed -e "s/ (\(enforce\|complain\))$//" "$SFS_MOUNTPOINT/profiles" | \
+  sed -e "s/ (\(enforce\|complain\|unconfined\))$//" "$SFS_MOUNTPOINT/profiles" | \
+
 ---------------
 
 If you get a timeout error when running do-release-upgrade, take a look ath the troubleshooting section.
@@ -4741,7 +4814,7 @@ or
 sudo apt install --reinstall -o Dpkg::Options::="--force-confask,confnew,confmiss" <package-name>
 ---------------
 
-Example when missing /etc/apparmor/severity.db, run sudo apt install --reinstall -o Dpkg::Options::="--force-confmiss" apparmor-utils
+Example when missing /etc/apparmor/severity.db, run: sudo apt install --reinstall -o Dpkg::Options::="--force-confmiss" apparmor-utils
 
 
 === Using OpenStack to manage server images
@@ -5717,7 +5790,7 @@ network:
 
 Then run *netplan try* and apply.
 
-Check by doing an apt update your network and outgoing connexion are ok. If yes, you can follow this tutorial provided by scaleway https://www.scaleway.com/en/docs/compute/instances/troubleshooting/fix-unreachable-focal-with-two-public-ips/ to
+Check by doing an apt update that your network and outgoing connexion are ok. If yes, you can follow this tutorial provided by scaleway https://www.scaleway.com/en/docs/compute/instances/troubleshooting/fix-unreachable-focal-with-two-public-ips/ to
 fix definetly the bad generation of the netplan file during boot. It will add a line *- on-link: true* into the routes section for IPv4 that solve the trouble. You can then remove 
 the file */etc/netplan/fixed-ip.yaml* that was previously added manually and reboot. IPv4 should be available.
 
@@ -6225,6 +6298,16 @@ RequestReadTimeout handshake=5 header=10 body=30
 ---------------
 
 
+==== very slow IO / iowait are high even if few IOs are done
+
+Launch 
+dstat -f
+If iowait (column "wai") is high in percentage and there is few read/write access on disk (see column read/writ) on devices;
+
+Launchthis command to know wich process is waiting  
+pidstat -dtu 1
+
+ 
 ==== Emails are blocked in postfix queue
 
 To scan all emails in postfix queue with Queue ID + Message-ID :
@@ -6265,7 +6348,7 @@ If you have such an error:
 apparmor="DENIED" operation="open" profile="/usr/sbin/ntpd" name="/snap/bin/" pid=3516308 comm="ntpd" requested_mask="r" denied_mask="r" fsuid=0 ouid=0
 ---------------
 
-You must remove the ntpd package and use instead the package *systemd-timesyncd* with sudo apt install systemd-timesyncd
+You must remove the ntpd package and use instead the package *systemd-timesyncd* with *sudo apt install systemd-timesyncd*
 
 
 ==== Error missing profile snap.certbot.certbot

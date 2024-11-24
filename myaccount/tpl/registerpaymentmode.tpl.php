@@ -87,7 +87,8 @@ if ($totalInvoiced == 0) {
 		}
 	}
 
-	$defaultdiscountcode = GETPOST('discountcode', 'aZ09');
+	$defaultdiscountcode = strtoupper(trim(GETPOST('discountcode', 'aZ09')));
+	$defaultdiscountcode = preg_replace('/\-\d+$/', '', $defaultdiscountcode);	// Remove the part "-123" into "MYCODE-123"
 	$acceptdiscountcode = getDolGlobalInt('SELLYOURSAAS_ACCEPT_DISCOUNTCODE');
 
 	// We are not yet a customer
@@ -226,19 +227,19 @@ if ($resql) {
 print '
 		<div class="radio-list">
 		<label class="radio-inline" style="margin-right: 0px" id="linkcard">
-		<div class="radio inline-block"><span class="checked">'.$langs->trans("CreditOrDebitCard").'<input type="radio" name="type" value="card" checked></span></div><br>
+		<div class="radio inline-block marginbottom"><span class="checked">'.$langs->trans("CreditOrDebitCard").'<input type="radio" name="type" value="card" checked></span></div><br>
 		<img src="/img/mastercard.png" width="50" height="31">
 		<img src="/img/visa.png" width="50" height="31">
 		<img src="/img/american_express.png" width="50" height="31">
 		</label>
 		<!--
 		<label class="radio-inline" id="linkpaypal" style="margin-left: 40px;">
-		<div class="radio inline-block"><span>'.$langs->trans("PayPal").'<input type="radio" name="type" value="PayPal"></span></div><br>
+		<div class="radio inline-block marginbottom"><span>'.$langs->trans("PayPal").'<input type="radio" name="type" value="PayPal"></span></div><br>
 		<img src="/img/paypal.png" width="50" height="31">
 		</label>
 		-->
 		<label class="radio-inline" id="linksepa" style="margin-left: 30px;">
-		<div class="radio inline-block"><span>'.$langs->trans("SEPAMandate").'<input type="radio" name="type" value="SepaMandate"></span></div><br>
+		<div class="radio inline-block marginbottom"><span>'.$langs->trans("SEPAMandate").'<input type="radio" name="type" value="SepaMandate"></span></div><br>
 		<img src="/img/sepa.png" width="50" height="31">
 		</label>
 		</div>
@@ -702,6 +703,10 @@ if ($mythirdpartyaccount->isInEEC()) {
 	$enabledformtoentersepa = getDolGlobalString('SELLYOURSAAS_ENABLE_SEPA');
 	$enabledformtoentersepaforids = explode(',', getDolGlobalString('SELLYOURSAAS_ENABLE_SEPA_FOR_THIRDPARTYID'));	// To test by enabling only on a given thirdparty, use SELLYOURSAAS_ENABLE_SEPA_FOR_THIRDPARTYID = 'id1,id2...' of thirparty.
 	//$enabledformtoentersepa = 1;
+
+	if (empty($enabledformtoentersepaforids[0])) {
+		unset($enabledformtoentersepaforids[0]);
+	}
 
 	if ($enabledformtoentersepa && (empty($enabledformtoentersepaforids) || in_array($mythirdpartyaccount->id, $enabledformtoentersepaforids))) {
 		// Form to enter SEPA

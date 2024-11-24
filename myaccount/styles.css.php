@@ -126,6 +126,8 @@ span.discountcodeko {
 	color: #800;
 }
 
+.maxwidthdate  { max-width: 100px; }
+
 .badge-status1 {
     background-color: #bc9526 !important;
 }
@@ -548,7 +550,10 @@ input.input-field {
     input.sldAndSubdomain {
         max-width: 150px;
     }
-
+	.sldAndSubdomaininput {
+		margin-bottom: 4px;
+		display: inline-block;
+	}
     img#logo {
         padding-top: 10px;
     }

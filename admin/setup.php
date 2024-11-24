@@ -238,14 +238,19 @@ print 'Function <b>checkdnsrr</b> available: '.(function_exists('checkdnsrr') ? 
 print 'Parameter <b>allow_url_fopen</b> is on: '.(ini_get('allow_url_fopen') ? img_picto('', 'tick', 'class="paddingrightonly"').yn(1) : img_picto('', 'warning', 'class="paddingrightonly"').yn(0)).'<br>';
 $arrayoffunctionsdisabled = explode(',', ini_get('disable_functions'));
 if (in_array('exec', $arrayoffunctionsdisabled)) {
-	print "Parameter <b>disable_functions</b>: Bad. Must not contain 'exec'<br>";
+	print "Parameter <b>disable_functions</b>: ".img_picto('', 'error', 'class="paddingrightonly"')." Bad. Must not contain 'exec'<br>";
 } else {
 	print 'Parameter <b>disable_functions</b>: '.img_picto('', 'tick', 'class="paddingrightonly"').' does not contains: exec<br>';
 }
 if (in_array('popen', $arrayoffunctionsdisabled)) {
-	print "Parameter <b>disable_functions</b>: Bad. Must not contain 'popen'<br>";
+	print "Parameter <b>disable_functions</b>: ".img_picto('', 'error', 'class="paddingrightonly"')." Bad. Must not contain 'popen'<br>";
 } else {
-	print 'Parameter <b>disable_functions</b>: '.img_picto('', 'tick', 'class="paddingrightonly"').' does not contains: popen (used by smtp_watchdog_daemon1.php)<br>';
+	print 'Parameter <b>disable_functions</b>: '.img_picto('', 'tick', 'class="paddingrightonly"').' does not contains: popen (used by /etc/init.d/smtp_watchdog_daemon1.php)<br>';
+}
+if (in_array('shell_exec', $arrayoffunctionsdisabled)) {
+	print "Parameter <b>disable_functions</b>: ".img_picto('', 'error', 'class="paddingrightonly"')." Bad. Must not contain 'shell_exec'<br>";
+} else {
+	print 'Parameter <b>disable_functions</b>: '.img_picto('', 'tick', 'class="paddingrightonly"').' does not contains: shell_exec (used by /usr/local/bin/phpsendmail.php)<br>';
 }
 print "<br>\n";
 
@@ -329,7 +334,7 @@ print '<tr class="oddeven"><td>'.$langs->trans("DirForScriptPath").'</td>';
 print '<td>';
 print '<input class="minwidth300" type="text" name="DOLICLOUD_SCRIPTS_PATH" value="'.getDolGlobalString('DOLICLOUD_SCRIPTS_PATH').'">';
 print '</td>';
-print '<td><span class="opacitymedium small">'.dol_buildpath('sellyoursaas/scripts').'</span></td>';
+print '<td><span class="opacitymedium small wordbreak">'.dol_buildpath('sellyoursaas/scripts').'</span></td>';
 print '</tr>';
 
 foreach ($arrayofsuffixfound as $service => $suffix) {
@@ -340,7 +345,8 @@ foreach ($arrayofsuffixfound as $service => $suffix) {
 	$constname = 'SELLYOURSAAS_DEFAULT_PRODUCT'.$suffix;
 	print '<!-- constname = '.$constname.' -->';
 	$defaultproductid = getDolGlobalString($constname);
-	print $form->select_produits($defaultproductid, 'SELLYOURSAAS_DEFAULT_PRODUCT'.$suffix, '', 0, 0, 1, 2, '', 0, array(), 0, '1', 0, 'maxwidth500');
+	print img_picto('', 'product', 'class="pictofixedwidth"');
+	print $form->select_produits($defaultproductid, 'SELLYOURSAAS_DEFAULT_PRODUCT'.$suffix, '', 0, 0, 1, 2, '', 0, array(), 0, '1', 0, 'minwidth175 maxwidth500 widthcentpercentminusx');
 	print '</td>';
 	print '<td><span class="opacitymedium small">My SaaS service for instance</span></td>';
 	print '</tr>';
@@ -378,14 +384,14 @@ print '</td>';
 print '<td>';
 print '<input class="minwidth300" type="text" name="SELLYOURSAAS_REFS_URL" value="'.getDolGlobalString('SELLYOURSAAS_REFS_URL').'">';
 print '</td>';
-print '<td><span class="opacitymedium small">https://admin.mysaasdomainname.com/git</span></td>';
+print '<td><span class="opacitymedium small wordbreak">https://admin.mysaasdomainname.com/git</span></td>';
 print '</tr>';
 
 print '<tr class="oddeven"><td class="fieldrequired">'.$langs->trans("SellYourSaasAccountUrl").'</td>';
 print '<td>';
 print '<input class="minwidth300" type="text" name="SELLYOURSAAS_ACCOUNT_URL" value="'.getDolGlobalString('SELLYOURSAAS_ACCOUNT_URL').'">';
 print '</td>';
-print '<td><span class="opacitymedium small">https://myaccount.mysaasdomainname.com<br>Note: The virtual host for this domain must point to <strong>'.dol_buildpath('sellyoursaas/myaccount').'</strong></span></td>';
+print '<td><span class="opacitymedium small wordbreak">https://myaccount.mysaasdomainname.com<br>Note: The virtual host for this domain must point to <strong>'.dol_buildpath('sellyoursaas/myaccount').'</strong></span></td>';
 print '</tr>';
 
 foreach ($arrayofsuffixfound as $service => $suffix) {

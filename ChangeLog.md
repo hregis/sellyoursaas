@@ -3,6 +3,18 @@
 
 ## Unreleased
 
+* NEW Support discount codes with a number part (MYDISCOUNTCODE-123)
+* NEW Add hostname property in list of deployment servers  
+* NEW Add option SELLYOURSAAS_FORCE_NO_SELECTION_IF_SEVERAL
+* NEW More protection on public registration
+* NEW Can show the label on server on registration page
+* NEW Add label on deployment servers
+* NEW When invoice is flagged as dispute, we do not try to take payment
+* NEW Can add recaptcha on registration page.
+* NEW Add picto evil and dashboard at begin of thirdparty link
+* NEW The action set as spammer flags also the thirdparty
+* NEW Better log for registration process
+* NEW Add mass action undeploy
 * NEW Add script master_move_several_instances.php 
 * NEW Add a tool to test the email like it is done during registration. 
 * NEW On payment by card, the last 4 numbers are saved into the field "numero" of the payment in database.

@@ -152,6 +152,12 @@ if (empty($reshook)) {
 			}
 
 			if (!$error) {
+				$tmpcontract->fetch_thirdparty();
+				$tmpcontract->thirdparty->array_options['options_spammer'] = 1;
+				$tmpcontract->thirdparty->update(0, $user, 1);
+			}
+
+			if (!$error) {
 				setEventMessages("Suspended", null, 'mesgs');
 			}
 		} else {
@@ -258,7 +264,7 @@ if (empty($reshook)) {
 		exit;
 	}
 
-	if ($action == 'upgradeinstance') {
+	if ($action == 'confirm_upgradeinstance' && GETPOST('confirm') == 'yes') {
 		include_once DOL_DOCUMENT_ROOT.'/core/lib/functions.lib.php';
 		$dataofcontract = sellyoursaasGetExpirationDate($object, 0);
 		$tmpproduct = new Product($db);
@@ -336,9 +342,10 @@ if (empty($reshook)) {
 		} else {
 			$db->rollback();
 		}
+		if (! in_array($action, array('upgradeinstance'))) {
+			$action = 'view';
+		}
 	}
-
-	$action = 'view';
 }
 
 
@@ -355,6 +362,10 @@ $form2 = new Form($db2);
 $formcompany = new FormCompany($db);
 
 $countrynotdefined=$langs->trans("ErrorSetACountryFirst").' ('.$langs->trans("SeeAbove").')';
+
+if ($action == 'upgradeinstance') {
+	print $form->formconfirm($_SERVER["PHP_SELF"].'?id='.$id, $langs->trans('UpgradeNow'), $langs->trans('ConfirmUpgradeNow'), 'confirm_upgradeinstance', '', 0, 1);
+}
 
 if ($action != 'create') {
 	// Show tabs
@@ -870,11 +881,9 @@ print '<td>'.$langs->trans("Modules").'</td>';
 print '<td colspan="3"><span class="small">'.$object->modulesenabled.'</span></td>';
 print '</tr>';
 
-print "</table><br>";
+print "</table>";
 
 print "</div>";	//  End fiche=center
-
-print '<br>';
 
 if (! $user->socid) {
 	$listmodules = dol_dir_list(DOL_DOCUMENT_ROOT."/core/modules/", "files");
@@ -915,6 +924,8 @@ if (! $user->socid) {
 	}
 
 	print "</div>";
+
+	print '<br>';
 }
 
 print getListOfLinks($object, $lastloginadmin, $lastpassadmin);

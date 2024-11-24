@@ -662,31 +662,35 @@ print dol_print_date(dol_now('gmt'), "%Y%m%d-%H%M%S", 'gmt').' SFTP connect stri
 
 
 // First we get the files of the source to move
-$command="rsync";
-$param=array();
+$command = "rsync";
+$param = array();
 //if (! in_array($mode, array('confirm', 'confirmredirect', 'confirmmaintenance'))) $param[]="-n";
 //$param[]="-a";
 if (! in_array($mode, array('diff','diffadd','diffchange'))) {
-	$param[]="-rlt";
+	$param[] = "-rlt";
 } else {
-	$param[]="-rlD";
-	$param[]="--modify-window=1000000000";
-	$param[]="--delete -n";
+	$param[] = "-rlD";
+	$param[] = "--modify-window=1000000000";
+	$param[] = "-n";
 }
+
 //$param[]="-v";
 if (empty($createthirdandinstance)) {
-	$param[]="-u";
+	$param[] = "-u";
 }		// If we have just created instance, we overwrite file during rsync
-$param[]="--exclude .buildpath";
-$param[]="--exclude .git";
-$param[]="--exclude .gitignore";
-$param[]="--exclude .settings";
-$param[]="--exclude .project";
-$param[]="--exclude *.pdf_preview.png";
-$param[]="--exclude htdocs/conf/conf.php";
-$param[]="--exclude glpi_config/config_db.php";
-$param[]="--exclude htdocs/inc/downstream.php";
-$param[]="-e 'ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no'";
+$param[] = "--exclude .buildpath";
+$param[] = "--exclude .git";
+$param[] = "--exclude .gitignore";
+$param[] = "--exclude .settings";
+$param[] = "--exclude .project";
+$param[] = "--exclude *.pdf_preview.png";
+$param[] = "--exclude htdocs/conf/conf.php";
+$param[] = "--exclude glpi_config/config_db.php";
+$param[] = "--exclude htdocs/inc/downstream.php";
+
+$param[] = "--delete";
+
+$param[] = "-e 'ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no'";
 
 $param[]=$oldosuser.'@'.$oldoshost.":".$sourcedir.'/*';
 $param[]=$tmptargetdir;
@@ -729,35 +733,41 @@ print '--- Synchro of files '.$sourcedir.' to '.$newsftpconnectstring."\n";
 print dol_print_date(dol_now('gmt'), "%Y%m%d-%H%M%S", 'gmt').' SFTP connect string : '.$newsftpconnectstring."\n";
 //print 'SFTP new password '.$newpassword."\n";
 
-$command="rsync";
-$param=array();
+$command = "rsync";
+$param = array();
 if (! in_array($mode, array('confirm', 'confirmredirect', 'confirmmaintenance'))) {
-	$param[]="-n";
+	$param[] = "-n";
 }
 //$param[]="-a";
 if (! in_array($mode, array('diff','diffadd','diffchange'))) {
-	$param[]="-rlt";
+	$param[] = "-rlt";
 } else {
-	$param[]="-rlD";
-	$param[]="--modify-window=1000000000";
-	$param[]="--delete -n";
+	$param[] = "-rlD";
+	$param[] = "--modify-window=1000000000";
+	$param[] = "-n";
 }
-//$param[]="-v";
+//$param[] = "-v";
 if (empty($createthirdandinstance)) {
-	$param[]="-u";
+	$param[] = "-u";
 }		// If we have just created instance, we overwrite file during rsync
-$param[]="--exclude .buildpath";
-$param[]="--exclude .git";
-$param[]="--exclude .gitignore";
-$param[]="--exclude .settings";
-$param[]="--exclude .project";
-$param[]="--exclude htdocs/conf/conf.php";
-$param[]="--exclude glpi_config/config_db.php";
-$param[]="--exclude htdocs/inc/downstream.php";
-$param[]="-e 'ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no'";
+$param[] = "--exclude .buildpath";
+$param[] = "--exclude .git";
+$param[] = "--exclude .gitignore";
+$param[] = "--exclude .settings";
+$param[] = "--exclude .project";
+$param[] = "--exclude htdocs/conf/conf.php";
+$param[] = "--exclude glpi_config/config_db.php";
+$param[] = "--exclude htdocs/inc/downstream.php";
 
-$param[]=$sourcedir.'/';
-$param[]=$newlogin.'@'.$newserver.":".$targetdir;
+if (!$overwriteexistinginstance) {
+	// There is no existing instance so no risk to delete data we want to keep. So we can use --delete.
+	$param[] = "--delete";	// Delete existing files not into source and not into the --exclude parameters
+}
+
+$param[] = "-e 'ssh -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no'";
+
+$param[] = $sourcedir.'/';
+$param[] = $newlogin.'@'.$newserver.":".$targetdir;
 
 //var_dump($param);
 $fullcommand=$command." ".join(" ", $param);
