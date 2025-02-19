@@ -16,9 +16,9 @@
  */
 
 /**
- * \file        class/whitelistip.class.php
+ * \file        class/whitelistemail.class.php
  * \ingroup     sellyoursaas
- * \brief       This file is a CRUD class file for Whitelistip (Create/Read/Update/Delete)
+ * \brief       This file is a CRUD class file for Whitelistemail (Create/Read/Update/Delete)
  */
 
 // Put here all includes required by your class file
@@ -27,9 +27,9 @@ require_once DOL_DOCUMENT_ROOT.'/core/class/commonobject.class.php';
 //require_once DOL_DOCUMENT_ROOT . '/product/class/product.class.php';
 
 /**
- * Class for Whitelistip
+ * Class for Whitelistemail
  */
-class Whitelistip extends CommonObject
+class Whitelistemail extends CommonObject
 {
 	/**
 	 * @var string ID of module.
@@ -39,12 +39,12 @@ class Whitelistip extends CommonObject
 	/**
 	 * @var string ID to identify managed object.
 	 */
-	public $element = 'whitelistip';
+	public $element = 'whitelistemail';
 
 	/**
 	 * @var string Name of table without prefix where object is stored. This is also the key used for extrafields management.
 	 */
-	public $table_element = 'sellyoursaas_whitelistip';
+	public $table_element = 'sellyoursaas_whitelistemail';
 
 	/**
 	 * @var int  Does this object support multicompany module ?
@@ -58,7 +58,7 @@ class Whitelistip extends CommonObject
 	public $isextrafieldmanaged = 0;
 
 	/**
-	 * @var string String with name of icon for whitelistip. Must be the part after the 'object_' into object_whitelistip.png
+	 * @var string String with name of icon for whitelistemail. Must be the part after the 'object_' into object_whitelistemail.png
 	 */
 	public $picto = 'fa-ban';
 
@@ -102,7 +102,7 @@ class Whitelistip extends CommonObject
 	public $fields=array(
 		'rowid' => array('type'=>'integer', 'label'=>'Ref', 'enabled'=>'1', 'position'=>1, 'notnull'=>1, 'visible'=>2, 'noteditable'=>'1', 'index'=>1, 'css'=>'left', 'comment'=>"Id"),
 		'entity' => array('type'=>'integer', 'label'=>'Entity', 'enabled'=>'1', 'position'=>10, 'notnull'=>1, 'visible'=>0, 'default'=>'1', 'index'=>1,),
-		'content' => array('type'=>'varchar(128)', 'label'=>'IP', 'enabled'=>'1', 'position'=>60, 'notnull'=>0, 'visible'=>1, 'csslist'=>'nowraponall', 'help'=>"Wild char * is allowed, for example: 1.2.3.*", 'helplist'=>"Wild char * is allowed, for example: 1.2.3.*"),
+		'content' => array('type'=>'varchar(128)', 'label'=>'Email', 'enabled'=>'1', 'position'=>60, 'notnull'=>0, 'visible'=>1, 'csslist'=>'nowraponall', 'help'=>"Wild char * is allowed, for example: 1.2.3.*", 'helplist'=>"Wild char * is allowed, for example: 1.2.3.*"),
 		'comment' => array('type'=>'varchar(255)', 'label'=>'Comment', 'enabled'=>'1', 'position'=>65, 'notnull'=>0, 'visible'=>1, 'csslist'=>'tdoverflowmax150'),
 		'date_creation' => array('type'=>'datetime', 'label'=>'DateCreation', 'enabled'=>'1', 'position'=>500, 'notnull'=>1, 'visible'=>-2,),
 		'tms' => array('type'=>'timestamp', 'label'=>'DateModification', 'enabled'=>'1', 'position'=>501, 'notnull'=>0, 'visible'=>-2,),
@@ -122,17 +122,17 @@ class Whitelistip extends CommonObject
 	// /**
 	//  * @var string    Name of subtable line
 	//  */
-	// public $table_element_line = 'sellyoursaas_whitelistipline';
+	// public $table_element_line = 'sellyoursaas_whitelistemailline';
 
 	// /**
 	//  * @var string    Field with ID of parent key if this object has a parent
 	//  */
-	// public $fk_element = 'fk_whitelistip';
+	// public $fk_element = 'fk_whitelistemail';
 
 	// /**
 	//  * @var string    Name of subtable class that manage subtable lines
 	//  */
-	// public $class_element_line = 'Whitelistipline';
+	// public $class_element_line = 'Whitelistemailline';
 
 	// /**
 	//  * @var array	List of child tables. To test if we can delete object.
@@ -144,10 +144,10 @@ class Whitelistip extends CommonObject
 	//  *               If name matches '@ClassNAme:FilePathClass;ParentFkFieldName' it will
 	//  *               call method deleteByParentField(parentId, ParentFkFieldName) to fetch and delete child object
 	//  */
-	// protected $childtablesoncascade = array('sellyoursaas_whitelistipdet');
+	// protected $childtablesoncascade = array('sellyoursaas_whitelistemaildet');
 
 	// /**
-	//  * @var WhitelistipLine[]     Array of subtable lines
+	//  * @var WhitelistemailLine[]     Array of subtable lines
 	//  */
 	// public $lines = array();
 
@@ -172,7 +172,7 @@ class Whitelistip extends CommonObject
 		}
 
 		// Example to show how to set values of fields definition dynamically
-		/*if ($user->rights->sellyoursaas->whitelistip->read) {
+		/*if ($user->rights->sellyoursaas->whitelistemail->read) {
 			$this->fields['myfield']['visible'] = 1;
 			$this->fields['myfield']['noteditable'] = 0;
 		}*/
@@ -524,14 +524,14 @@ class Whitelistip extends CommonObject
 
 		$result = '';
 
-		$label = img_picto('', $this->picto).' <u>'.$langs->trans("Whitelistip").'</u>';
+		$label = img_picto('', $this->picto).' <u>'.$langs->trans("Whitelistemail").'</u>';
 		if (isset($this->status)) {
 			$label .= ' '.$this->getLibStatut(5);
 		}
 		$label .= '<br>';
 		$label .= '<b>'.$langs->trans('Ref').':</b> '.$this->ref;
 
-		$url = dol_buildpath('/sellyoursaas/whitelistip_card.php', 1).'?id='.$this->id;
+		$url = dol_buildpath('/sellyoursaas/whitelistemail_card.php', 1).'?id='.$this->id;
 
 		if ($option != 'nolink') {
 			// Add param to save lastsearch_values or not
@@ -547,7 +547,7 @@ class Whitelistip extends CommonObject
 		$linkclose = '';
 		if (empty($notooltip)) {
 			if (getDolGlobalString('MAIN_OPTIMIZEFORTEXTBROWSER')) {
-				$label = $langs->trans("ShowWhitelistip");
+				$label = $langs->trans("ShowWhitelistemail");
 				$linkclose .= ' alt="'.dolPrintHTMLForAttribute($label).'"';
 			}
 			$linkclose .= ' title="'.dolPrintHTMLForAttribute($label).'"';
@@ -607,7 +607,7 @@ class Whitelistip extends CommonObject
 		//if ($withpicto != 2) $result.=(($addlabel && $this->label) ? $sep . dol_trunc($this->label, ($addlabel > 1 ? $addlabel : 0)) : '');
 
 		global $action, $hookmanager;
-		$hookmanager->initHooks(array('whitelistipdao'));
+		$hookmanager->initHooks(array('whitelistemaildao'));
 		$parameters = array('id'=>$this->id, 'getnomurl' => &$result);
 		$reshook = $hookmanager->executeHooks('getNomUrl', $parameters, $this, $action); // Note that $action and $object may have been modified by some hooks
 		if ($reshook > 0) {
@@ -734,7 +734,7 @@ class Whitelistip extends CommonObject
 		$langs->load("sellyoursaas@sellyoursaas");
 
 		if (!getDolGlobalString('SELLYOURSAAS_BLACKLISTMAIL_ADDON')) {
-			$conf->global->SELLYOURSAAS_BLACKLISTMAIL_ADDON = 'mod_whitelistip_standard';
+			$conf->global->SELLYOURSAAS_BLACKLISTMAIL_ADDON = 'mod_whitelistemail_standard';
 		}
 
 		if (getDolGlobalString('SELLYOURSAAS_BLACKLISTMAIL_ADDON')) {
@@ -776,74 +776,5 @@ class Whitelistip extends CommonObject
 			print $langs->trans("ErrorNumberingModuleNotSetup", $this->element);
 			return "";
 		}
-	}
-
-	/**
-	 *  Create a document onto disk according to template module.
-	 *
-	 *  @param	    string		$modele			Force template to use ('' to not force)
-	 *  @param		Translate	$outputlangs	objet lang a utiliser pour traduction
-	 *  @param      int			$hidedetails    Hide details of lines
-	 *  @param      int			$hidedesc       Hide description
-	 *  @param      int			$hideref        Hide ref
-	 *  @param      null|array  $moreparams     Array to provide more information
-	 *  @return     int         				0 if KO, 1 if OK
-	 */
-	public function generateDocument($modele, $outputlangs, $hidedetails = 0, $hidedesc = 0, $hideref = 0, $moreparams = null)
-	{
-		global $conf, $langs;
-
-		$result = 0;
-		$includedocgeneration = 0;
-
-		$langs->load("sellyoursaas@sellyoursaas");
-
-		if (!dol_strlen($modele)) {
-			$modele = 'standard_whitelistip';
-
-			if (!empty($this->model_pdf)) {
-				$modele = $this->model_pdf;
-			} elseif (getDolGlobalString('BLACKLISTMAIL_ADDON_PDF')) {
-				$modele = getDolGlobalString('BLACKLISTMAIL_ADDON_PDF');
-			}
-		}
-
-		$modelpath = "core/modules/sellyoursaas/doc/";
-
-		if ($includedocgeneration && !empty($modele)) {
-			$result = $this->commonGenerateDocument($modelpath, $modele, $outputlangs, $hidedetails, $hidedesc, $hideref, $moreparams);
-		}
-
-		return $result;
-	}
-
-	/**
-	 * Action executed by scheduler
-	 * CAN BE A CRON TASK. In such a case, parameters come from the schedule job setup field 'Parameters'
-	 * Use public function doScheduledJob($param1, $param2, ...) to get parameters
-	 *
-	 * @return	int			0 if OK, <>0 if KO (this function is used also by cron so only 0 is OK)
-	 */
-	public function doScheduledJob()
-	{
-		global $conf, $langs;
-
-		//$conf->global->SYSLOG_FILE = 'DOL_DATA_ROOT/dolibarr_mydedicatedlofile.log';
-
-		$error = 0;
-		$this->output = '';
-		$this->error = '';
-
-		dol_syslog(__METHOD__, LOG_DEBUG);
-
-		$now = dol_now();
-
-		$this->db->begin();
-
-		// ...
-
-		$this->db->commit();
-
-		return $error;
 	}
 }

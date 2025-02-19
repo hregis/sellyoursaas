@@ -475,14 +475,15 @@ function sellyoursaas_admin_prepare_head()
 
 
 /**
- * Function with remote API call to check registration data quality
+ * Function with remote API call to check registration data quality. Can check also captcha.
  *
  * @param	string		$remoteip		User remote IP
  * @param	boolean		$whitelisted	Is the IP or email white listed ?
  * @param	string		$email			User remote email
+ * @param	int			$checkcaptcha	Check also captcha (check will not be done when deploying from customer dashboard for exemple, where user is already logged)
  * @return 	string[]					Array with ipquality (string with different scores), emailquality (string with different scores), vpnproba, abusetest, fraudscoreip, fraudscoreemail
  */
-function getRemoteCheck($remoteip, $whitelisted, $email)
+function getRemoteCheck($remoteip, $whitelisted, $email, $checkcaptcha = 1)
 {
 	global $conf, $db;
 
@@ -500,7 +501,7 @@ function getRemoteCheck($remoteip, $whitelisted, $email)
 	dol_syslog("getRemoteCheck remoteip=".$remoteip." email=".$email." whitelisted=".$whitelisted, LOG_INFO);
 
 	// Check the captcha
-	if (getDolGlobalString('SELLYOURSAAS_GOOGLE_RECAPTCHA_ON')) {
+	if ($checkcaptcha && getDolGlobalString('SELLYOURSAAS_GOOGLE_RECAPTCHA_ON') && $remoteip != '127.0.0.1') {
 		dol_syslog("getRemoteCheck Check using Google Recaptcha", LOG_DEBUG);
 
 		$grecaptcharesponse = GETPOST('g-recaptcha-response', 'alphanohtml');
@@ -824,7 +825,7 @@ function getRemoteCheck($remoteip, $whitelisted, $email)
 
 
 	// SELLYOURSAAS_BLACKLIST_IP_MASKS and SELLYOURSAAS_BLACKLIST_IP_MASKS_FOR_VPN are hidden constants.
-	// Deprecated. Check instead into the lList of blacklist ips in database. This is done at begin of page.
+	// Deprecated. Check instead into the list of blacklist ips in database. This is done at begin of page.
 
 	// Block for some IPs
 	if (!$whitelisted && empty($abusetest) && getDolGlobalString('SELLYOURSAAS_BLACKLIST_IP_MASKS')) {
@@ -994,4 +995,23 @@ function sellyoursaasGetNbUsersContract($contractref, $contractline, $codeextraf
 	dol_syslog("sellyoursaasGetNbUsersContract ret=".$ret);
 
 	return $ret;
+}
+
+/**
+ * Function to know if we are in trial, free mode or paid mode
+ * @param	Contrat		$contract				Contract
+ * @param	Societe		$mythirdpartyaccount	Thirdparty
+ * @return 	int									0 if trial mode, 1 if paid mode, 2 free mode
+ */
+function sellyoursaasGetModeStatusInstance($contract, $mythirdpartyaccount){
+	$modeinstancestatus = 0;
+	$ispaid = sellyoursaasIsPaidInstance($contract);
+	if ($ispaid) {
+		if ((empty($mythirdpartyaccount->array_options['options_checkboxnonprofitorga']) || $mythirdpartyaccount->array_options['options_checkboxnonprofitorga'] == 'nonprofit') && getDolGlobalInt("SELLYOURSAAS_ENABLE_FREE_PAYMENT_MODE")) {
+			$modeinstancestatus = 2;
+		} else {
+			$modeinstancestatus = 1;
+		}
+	}
+	return $modeinstancestatus;
 }
