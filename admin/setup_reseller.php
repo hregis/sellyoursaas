@@ -55,7 +55,14 @@ if (! $res && file_exists("../../../main.inc.php")) {
 if (! $res) {
 	die("Include of main fails");
 }
-
+/**
+ * The main.inc.php has been included so the following variable are now defined:
+ * @var Conf $conf
+ * @var DoliDB $db
+ * @var HookManager $hookmanager
+ * @var Translate $langs
+ * @var User $user
+ */
 require_once DOL_DOCUMENT_ROOT."/core/lib/admin.lib.php";
 require_once DOL_DOCUMENT_ROOT."/core/lib/files.lib.php";
 require_once DOL_DOCUMENT_ROOT."/core/lib/images.lib.php";
@@ -178,11 +185,11 @@ print '<input type="hidden" name="action" value="set">';
 print '<div class="div-table-responsive">'; // You can use div-table-responsive-no-min if you dont need reserved height for your table
 print '<table class="noborder centpercent">';
 print '<tr class="liste_titre">';
-print '<td>'.$langs->trans("Parameters").'</td><td>'.$langs->trans("Value").'</td>';
+print '<td class="titlefieldmiddle">'.$langs->trans("Parameters").'</td><td></td>';
 print '<td><div class="float">'.$langs->trans("Examples").'</div><div class="floatright"><input type="submit" class="button buttongen" value="'.$langs->trans("Save").'"></div></td>';
 print "</tr>\n";
 
-print '<tr class="oddeven"><td>'.$langs->trans("SELLYOURSAAS_ALLOW_RESELLER_PROGRAM").'</td>';
+print '<tr class="oddeven"><td>'.$form->textwithpicto($langs->trans("SELLYOURSAAS_ALLOW_RESELLER_PROGRAM"), 'Set to yes if you want your customers being able to apply to become resellers').'</td>';
 print '<td>';
 if ($conf->use_javascript_ajax) {
 	print ajax_constantonoff('SELLYOURSAAS_ALLOW_RESELLER_PROGRAM', array(), null, 0, 0, 1);
@@ -195,7 +202,7 @@ if ($conf->use_javascript_ajax) {
 }
 //print $form->selectyesno('SELLYOURSAAS_ALLOW_RESELLER_PROGRAM', $allowresellerprogram, 1);
 print '</td>';
-print '<td><span class="opacitymedium small">Set to yes if you want your customers being able to apply to become resellers</span></td>';
+print '<td><span class="opacitymedium small"></span></td>';
 print '</tr>';
 
 $allowresellerprogram = getDolGlobalInt('SELLYOURSAAS_ALLOW_RESELLER_PROGRAM');
@@ -210,7 +217,7 @@ if ($allowresellerprogram) {
 
 	print '<tr class="oddeven"><td>'.$langs->trans("DefaultCategoryForSaaSResellers").'</td>';
 	print '<td>';
-	$defaultcustomercategid = getDolGlobalString('SELLYOURSAAS_DEFAULT_RESELLER_CATEG');
+	$defaultcustomercategid = getDolGlobalInt('SELLYOURSAAS_DEFAULT_RESELLER_CATEG');
 	print $formother->select_categories(Categorie::TYPE_SUPPLIER, $defaultcustomercategid, 'SELLYOURSAAS_DEFAULT_RESELLER_CATEG', 0, 1, 'miwidth300');
 	print '</td>';
 	print '<td><span class="opacitymedium small">SaaS Resellers</span></td>';
@@ -266,7 +273,7 @@ if ($allowresellerprogram) {
 
 	print '<tr class="oddeven"><td>'.$langs->trans("SELLYOURSAAS_MAX_NB_MONTH_FREE_PERIOD_RESELLERS").'</td>';
 	print '<td>';
-	print '<input class="minwidth300" type="text" name="SELLYOURSAAS_MAX_NB_MONTH_FREE_PERIOD_RESELLERS" value="'.getDolGlobalString('SELLYOURSAAS_MAX_NB_MONTH_FREE_PERIOD_RESELLERS', 4).'"> month(s)';
+	print '<input class="maxwidth50 right" type="text" name="SELLYOURSAAS_MAX_NB_MONTH_FREE_PERIOD_RESELLERS" value="'.getDolGlobalString('SELLYOURSAAS_MAX_NB_MONTH_FREE_PERIOD_RESELLERS', 4).'"> month(s)';
 	print '</td>';
 	print '<td><span class="opacitymedium small">4</span></td>';
 	print '</tr>';

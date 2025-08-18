@@ -98,7 +98,7 @@ function sellyoursaasThirdpartyHasPaymentMode($thirdpartyidtotest)
 	if (! empty($conf->stripe->enabled)) {
 		$service = 'StripeTest';
 		$servicestatusstripe = 0;
-		if (getDolGlobalString('STRIPE_LIVE') && ! GETPOST('forcesandbox', 'alpha') && !getDolGlobalString('SELLYOURSAAS_FORCE_STRIPE_TEST')) {
+		if (getDolGlobalString('STRIPE_LIVE') /* && !GETPOST('forcesandbox', 'alpha') */ && !getDolGlobalString('SELLYOURSAAS_FORCE_STRIPE_TEST')) {
 			$service = 'StripeLive';
 			$servicestatusstripe = 1;
 		}
@@ -106,7 +106,7 @@ function sellyoursaasThirdpartyHasPaymentMode($thirdpartyidtotest)
 	$servicestatuspaypal = 0;
 	if (! empty($conf->paypal->enabled)) {
 		$servicestatuspaypal = 0;
-		if (getDolGlobalString('PAYPAL_LIVE') && ! GETPOST('forcesandbox', 'alpha') && !getDolGlobalString('SELLYOURSAAS_FORCE_PAYPAL_TEST')) {
+		if (getDolGlobalString('PAYPAL_LIVE') /* && !GETPOST('forcesandbox', 'alpha') */ && !getDolGlobalString('SELLYOURSAAS_FORCE_PAYPAL_TEST')) {
 			$servicestatuspaypal = 1;
 		}
 	}
@@ -373,7 +373,7 @@ function sellyoursaasIsSuspended($contract)
  */
 function getRootUrlForAccount($object)
 {
-	global $db, $conf;
+	global $db;
 
 	$tmpret = explode(',', getDolGlobalString('SELLYOURSAAS_ACCOUNT_URL'));     // By default
 	$ret = $tmpret[0];
@@ -421,7 +421,7 @@ function getRootUrlForAccount($object)
  */
 function sellyoursaas_admin_prepare_head()
 {
-	global $langs, $conf, $user;
+	global $langs, $conf;
 
 	$langs->load("sellyoursaas");
 	$h = 0;
@@ -455,6 +455,16 @@ function sellyoursaas_admin_prepare_head()
 	$head[$h][0] = "setup_endpoints.php";
 	$head[$h][1] = $langs->trans("Endpoints");
 	$head[$h][2] = "setup_endpoints";
+	$h++;
+
+	$head[$h][0] = "setup_supervision.php";
+	$head[$h][1] = $langs->trans("Supervision");
+	$head[$h][2] = "setup_supervision";
+	$h++;
+
+	$head[$h][0] = "setup_deploy_dolibarr.php";
+	$head[$h][1] = $langs->trans("DolibarrDeployment");
+	$head[$h][2] = "setup_deploy_dolibarr";
 	$h++;
 
 	$head[$h][0] = "setup_other.php";
@@ -512,10 +522,11 @@ function getRemoteCheck($remoteip, $whitelisted, $email, $checkcaptcha = 1)
 		// Check validation of the captcha
 		$resurl = getURLContent($urltocall, 'POST', $message);
 
-		if (empty($resurl['curl_error_no']) && !empty($resurl['http_code']) && $resurl['http_code'] == '200') {
+		if (empty($resurl['curl_error_no']) && !empty($resurl['http_code']) && $resurl['http_code'] == 200) {
 			$jsonresult = json_decode($resurl['content']);
 			$keyforerrorcode = 'error-codes';
-			$errorcodes = $jsonresult->$keyforerrorcode;
+
+			$errorcodes = (isset($jsonresult->$keyforerrorcode) && is_array($jsonresult->$keyforerrorcode)) ? $jsonresult->$keyforerrorcode : array();
 
 			if (! $jsonresult->success) {
 				// Output the key "Instance creation blocked for"

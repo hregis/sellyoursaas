@@ -31,8 +31,8 @@ if (GETPOST('instanceselect', 'alpha')) {
 	$instanceselect = explode("_", $instanceselect);
 	$idcontract = $instanceselect[1];
 }
-
-$upload_dir = $conf->sellyoursaas->dir_temp."/automigration_".$idcontract.'.tmp';
+$uploaddirname = "automigration_".$idcontract.".tmp";
+$upload_dir = $conf->sellyoursaas->dir_temp.'/'.$uploaddirname;
 $filenames = array();
 $fileverification = array();
 $stepautomigration = 0;
@@ -73,11 +73,16 @@ if ($action == 'fileverification') {
 		$pathinfo = pathinfo($upload_dir.'/'.$filename);
 		if ($types[$key] == 'application/gzip') {
 			if (pathinfo($pathinfo['filename'])['extension'] == "sql") {
-				$contents=file_get_contents($upload_dir.'/'.$filename);
-				$uncompressed = gzuncompress($contents);
+				$buffer_size = 4096;
+				$gzfile = gzopen($upload_dir.'/'.$filename, 'rb');
 				$fileuncompressed = fopen($upload_dir.'/'.$pathinfo['filename'], 'wb');
-				fwrite($fileuncompressed, $uncompressed);
-				fclose($fp);
+				while (!gzeof($gzfile)) {
+					// Read buffer-size bytes
+					// Both fwrite and gzread and binary-safe
+					fwrite($fileuncompressed, gzread($gzfile, $buffer_size));
+				}
+				fclose($fileuncompressed);
+				gzclose($gzfile);
 				$filetoverify["sql"] = $pathinfo['filename'];
 			} else {
 				if (!file_exists($upload_dir.'/'.$pathinfo['filename'])) {
@@ -92,11 +97,17 @@ if ($action == 'fileverification') {
 		} elseif ($types[$key] == 'application/x-bzip') {
 			$extensionfile = pathinfo($pathinfo['filename'])['extension'];
 			if ($extensionfile == "sql") {
-				$contents = file_get_contents($upload_dir.'/'.$filename);
-				$uncompressed = bzdecompress($contents);
-				$fileuncompressed = fopen($upload_dir.'/'.$pathinfo['filename'], 'wb');
-				fwrite($fileuncompressed, $uncompressed);
-				fclose($fp);
+				$buffer_size = 4096;
+				//$contents = file_get_contents($upload_dir.'/'.$filename);
+				$bzfile = bzopen($upload_dir.'/'.$filename, 'r');
+				$fileuncompressed = fopen($upload_dir.'/'.$pathinfo['filename'], 'w');
+				while (!feof($bzfile)) {
+					// Read buffer-size bytes
+					// Both fwrite and bzread
+					fwrite($fileuncompressed, bzread($bzfile, $buffer_size));
+				}
+				fclose($fileuncompressed);
+				bzclose($bzfile);
 				$filetoverify["sql"] = $pathinfo['filename'];
 			} else {
 				if (!file_exists($upload_dir.'/'.$pathinfo['filename'])) {
@@ -127,7 +138,8 @@ if ($action == 'fileverification') {
 		}
 	}
 	if (empty($error)) {
-		$filecontent = file_get_contents($upload_dir.'/'.$filetoverify["sql"]);
+		$filename = $upload_dir.'/'.$filetoverify["sql"];
+		$filecontent = file_get_contents($filename);
 		if (empty(preg_match('/'.preg_quote('-- Dump completed').'/i', $filecontent))) {
 			$error = array("error"=>array("errorcode" =>"ErrorOnSqlDumpForge"));
 		}
@@ -149,7 +161,7 @@ if ($action == 'automigration') {
 	$utils = new Utils($db);
 
 	$sellyoursaasutils = new SellYourSaasUtils($db);
-	$instanceselect = GETPOST('instanceselect', 'alapha');
+	$instanceselect = GETPOST('instanceselect', 'alpha');
 	$instanceselect = explode("_", $instanceselect);
 	$idcontract = $instanceselect[1];
 
@@ -219,8 +231,17 @@ if ($action == 'automigration') {
 		//Backup old database
 		$mysqlbackupfilename=$upload_dir.'/mysqldump_'.$database_db.'_'.dol_print_date(dol_now(), 'dayhourlog').'.sql';
 		$param = array();
+
+		$commandtestmysqldumpversion = "mysqldump --version";
+		$resultversion = $utils->executeCLI($commandtestmysqldumpversion, "", 0);
+		$mysqldumpversionarr = array();
+		preg_match('/Ver (\d+)(?:\.\d+)*/',$resultversion["output"], $mysqldumpversionarr);
+		$mysqldumpversion = $mysqldumpversionarr[1];
+
 		$command = "mysqldump";
-		$param[] = "--column-statistics=0"; // Remove a new flag with mysqldump v8
+		if ($mysqldumpversion == "8") {
+			$param[] = "--column-statistics=0"; // Remove a new flag with mysqldump v8
+		}
 		$param[] = "--no-tablespaces";
 		$param[] = "-C";
 		$param[] = "-h";
@@ -672,8 +693,8 @@ if ($action == 'view') {
 	<script>
 	jQuery(document).ready(function() {
 		var flow = new Flow({
-			target:"source/core/ajax/flowjs-server.php",
-			query:{module:"sellyoursaas",upload_dir:"'.$upload_dir.'"},
+			target:"ajax/flowjs-server.php",
+			query:{module:"sellyoursaas",uploaddirname:"'.$uploaddirname.'",token:"'.currentToken().'", action:"upload"},
 			testChunks:false
 		});
 		if(flow.support){

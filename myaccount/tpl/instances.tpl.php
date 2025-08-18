@@ -667,8 +667,8 @@ if (count($listofcontractid) == 0) {				// If all contracts were removed
 					}
 				}
 
-				if ($line->price_ht) {
-					print '<span class="opacitymedium small">'.price($line->price_ht, 1, $langs, 0, -1, -1, $conf->currency);
+				if ($line->subprice) {
+					print '<span class="opacitymedium small">'.price($line->subprice, 1, $langs, 0, -1, -1, $conf->currency);
 					//if ($line->qty > 1 && $labelprodsing) print ' / '.$labelprodsing;
 					if ($tmpproduct->array_options['options_resource_label']) {
 						print ' / '.$langs->trans($tmpproduct->array_options['options_resource_label']);	// Label of units
@@ -680,7 +680,7 @@ if (count($listofcontractid) == 0) {				// If all contracts were removed
 					print '</span>';
 				} else {
 					if (!getDolGlobalString('SELLYOURSAAS_HIDE_PRODUCT_PRICE_IF_NULL')) {
-						print '<span class="opacitymedium small">'.price($line->price_ht, 1, $langs, 0, -1, -1, $conf->currency);
+						print '<span class="opacitymedium small">'.price($line->subprice, 1, $langs, 0, -1, -1, $conf->currency);
 						// TODO
 						print $tmpduration;
 						print '</span>';
@@ -715,14 +715,14 @@ if (count($listofcontractid) == 0) {				// If all contracts were removed
 				print '<span class="font-green-sharp counternumber">'.$line->qty.'</span>';
 				print '<br>';
 
-				if ($line->price_ht) {
-					$priceforline = $line->price_ht * $line->qty;
+				if ($line->subprice) {
+					$priceforline = $line->subprice * $line->qty;
 					print '<span class="opacitymedium small">'.price($priceforline, 1, $langs, 0, -1, -1, $conf->currency);
 					//if (preg_match('/users/i', $line->description)) print ' / '.$langs->trans("User");
 					print ' / '.$langs->trans("Month");
 					print '</span>';
 				} else {
-					print '<span class="opacitymedium small">'.price($line->price_ht, 1, $langs, 0, -1, -1, $conf->currency);
+					print '<span class="opacitymedium small">'.price($line->subprice, 1, $langs, 0, -1, -1, $conf->currency);
 					// TODO
 					print ' / '.$langs->trans("Month");
 					print '</span>';
@@ -985,7 +985,23 @@ if (count($listofcontractid) == 0) {				// If all contracts were removed
 				}
 				// Button to subscribe
 				if (!empty($tmpproduct->array_options['options_package'])) {
-					// If there is a package, sho wlink to subscribe
+					// If there is a package, test if module already depoyed on instance
+					$productalreadyininstance = 0;
+					foreach ($arrayoflines as $keyline => $line) {
+						if ($tmpproduct->id == $line->id) {
+							$productalreadyininstance = 1;
+							break;
+						}
+					}
+					print '<div class="divforbutton">';
+					if ($productalreadyininstance) {
+						// Show link to subscribe
+						print '<a class="btn btn-primary wordbreak" href="/index.php?mode=instances&action=install&instanceid='.$contract->id.'&productid='.$tmpproduct->id.'" target="_blank" rel="noopener">'.$langs->trans("Install").'...</a><br>';
+					} else {
+						// Show link to unsubscribe
+						print '<a class="btn btn-warning wordbreak" href="/index.php?mode=instances&action=uninstall&instanceid='.$contract->id.'&productid='.$tmpproduct->id.'#tab_domain_'.$contract->id.'" target="_blank" rel="noopener">'.$langs->trans("Uninstall").'...</a><br>';
+					}
+					print '</div>';
 				} else {
 					// If no package
 					if ($producturl) {
@@ -1075,7 +1091,7 @@ if (count($listofcontractid) == 0) {				// If all contracts were removed
 			if ($foundtemplate > 1) {
 				$sellyoursaasemail = getDolGlobalString('SELLYOURSAAS_MAIN_EMAIL');
 				if (! empty($mythirdpartyaccount->array_options['options_domain_registration_page'])
-					&& $mythirdpartyaccount->array_options['options_domain_registration_page'] != $conf->global->SELLYOURSAAS_MAIN_DOMAIN_NAME) {
+					&& $mythirdpartyaccount->array_options['options_domain_registration_page'] != getDolGlobalString('SELLYOURSAAS_MAIN_DOMAIN_NAME')) {
 					$newnamekey = 'SELLYOURSAAS_MAIN_EMAIL_FORDOMAIN-'.$mythirdpartyaccount->array_options['options_domain_registration_page'];
 					if (getDolGlobalString($newnamekey)) {
 						$sellyoursaasemail = getDolGlobalString($newnamekey);
@@ -1718,7 +1734,7 @@ if (GETPOSTISSET('forcesubdomain')) {
 	//var_dump($arrayofplans);
 	//natcasesort($arrayofplans);
 
-	$MAXINSTANCESPERACCOUNT = ((empty($mythirdpartyaccount->array_options['options_maxnbofinstances']) && $mythirdpartyaccount->array_options['options_maxnbofinstances'] != '0') ? (!getDolGlobalString('SELLYOURSAAS_MAX_INSTANCE_PER_ACCOUNT') ? 4 : $conf->global->SELLYOURSAAS_MAX_INSTANCE_PER_ACCOUNT) : $mythirdpartyaccount->array_options['options_maxnbofinstances']);
+	$MAXINSTANCESPERACCOUNT = ((empty($mythirdpartyaccount->array_options['options_maxnbofinstances']) && $mythirdpartyaccount->array_options['options_maxnbofinstances'] != '0') ? getDolGlobalInt('SELLYOURSAAS_MAX_INSTANCE_PER_ACCOUNT', 4) : $mythirdpartyaccount->array_options['options_maxnbofinstances']);
 
 if ($MAXINSTANCESPERACCOUNT && count($listofcontractidopen) < $MAXINSTANCESPERACCOUNT) {
 	if (getDolGlobalInt('SELLYOURSAAS_DISABLE_NEW_INSTANCES') && !in_array(getUserRemoteIP(), explode(',', getDolGlobalString('SELLYOURSAAS_DISABLE_NEW_INSTANCES_EXCEPT_IP')))) {
@@ -1944,7 +1960,7 @@ if ($MAXINSTANCESPERACCOUNT && count($listofcontractidopen) < $MAXINSTANCESPERAC
 
 	$sellyoursaasemail = getDolGlobalString('SELLYOURSAAS_MAIN_EMAIL');
 	if (! empty($mythirdpartyaccount->array_options['options_domain_registration_page'])
-		&& $mythirdpartyaccount->array_options['options_domain_registration_page'] != $conf->global->SELLYOURSAAS_MAIN_DOMAIN_NAME) {
+		&& $mythirdpartyaccount->array_options['options_domain_registration_page'] != getDolGlobalString('SELLYOURSAAS_MAIN_DOMAIN_NAME')) {
 		$newnamekey = 'SELLYOURSAAS_MAIN_EMAIL_FORDOMAIN-'.$mythirdpartyaccount->array_options['options_domain_registration_page'];
 		if (getDolGlobalString($newnamekey)) {
 			$sellyoursaasemail = getDolGlobalString($newnamekey);

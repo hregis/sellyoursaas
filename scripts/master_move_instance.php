@@ -205,24 +205,18 @@ if (empty($newinstance) || empty($mode)) {
 	print "Move an existing instance from an old server to a new server (with target instance not existing yet).\n";
 	print "Script must be ran from the master server with login admin.\n";
 	print "\n";
-	print "Usage: ".$script_file." oldinstance.withX.mysaasdomainname.com newinstance.withY.mysaasdomainname.com (test|confirm|confirmmaintenance|confirmredirect) [MYPRODUCTREF] [-y]\n";
+	print "Usage: ".$script_file." oldinstance.withX.mysaasdomainname.com newinstance.withY.mysaasdomainname.com (test|confirmmaintenance|confirmredirect) [MYPRODUCTREF] [-y]\n";
 	print "Mode is: test                test mode (nothing is done).\n";
-	print "         confirm             real move of the instance (deprecated, use confirmmaintenance or confirmredirect).\n";
+	//print "         confirm             real move of the instance (deprecated, use confirmmaintenance or confirmredirect).\n";
 	print "         confirmmaintenance  real move and replace old instance with a definitive message 'Suspended. Instance has been moved.'.\n";
-	print "         confirmredirect     real move with a mesage 'Move in progress' during transfer, and then, switch old instance into a redirect instance.\n";
-	print "MYPRODUCTREF can be set to force a new hosting application service.\n";
+	print "         confirmredirect     real move with a message 'Move in progress' during transfer, and then, switch old instance into a redirect instance.\n";
+	print "MYPRODUCTREF can be set to force a new main hosting application service.\n";
 	print "Option -y can be added to automatically answer yes to questions.\n";
 	print "Return code: 0 if success, <>0 if error\n";
 	print "\n";
 	exit(-1);
 }
 
-/*
-	if (0 != posix_getuid()) {
-		echo "Script must be ran with root.\n";
-		exit(-1);
-	}
-} else {*/
 if (0 == posix_getuid()) {
 	echo "Script must not be ran with root (but with the 'admin' sellyoursaas account).\n";
 	print "\n";
@@ -246,12 +240,12 @@ if ($dbmaster) {
 	$conf->setValues($dbmaster);
 }
 if (empty($db)) {
-	$db=$dbmaster;
+	$db = $dbmaster;
 }
 
 
 //$user = new User();
-//$user->fetch($conf->global->SELLYOURSAAS_ANONYMOUSUSER);
+//$user->fetch(getDolGlobalSting('SELLYOURSAAS_ANONYMOUSUSER');
 
 
 // Forge complete name of instance
@@ -339,7 +333,7 @@ dol_include_once("/sellyoursaas/class/sellyoursaascontract.class.php");
 
 $newobject = new SellYourSaasContract($dbmaster);
 $result = $newobject->fetch('', '', $newinstance);
-if ($mode == 'confirm' || $mode == 'confirmredirect' || $mode == 'confirmmaintenance') {	// In test mode, we accept to load into existing instance because new one will NOT be created.
+if ($mode == 'confirm' || $mode == 'confirmredirect' || $mode == 'confirmmaintenance') {	// In test mode, we do not check that target instance exists (we won't create it so we don't mind)
 	if ($overwriteexistinginstance) {
 		// We want to overwrite an exsiting instance
 		if ($result > 0) {
@@ -381,6 +375,26 @@ $tmparray = explode('.', $oldinstance);
 $oldshortname = $tmparray[0];
 unset($tmparray[0]);
 $oldwilddomain = join('.', $tmparray);
+
+
+if ($mode == 'moveonlycontractfiles') {
+	// Copy all files linked to instance to the new one
+	$srcdir = $conf->contract->dir_output.'/'.dol_sanitizeFileName($oldobject->ref).'/';
+	$destdir = $conf->contract->dir_output.'/'.dol_sanitizeFileName($newobject->ref).'/';
+	print "--- Copy files linked to contact in old instance (dir ".$srcdir.") into the new instance (into dir ".$destdir.")\n";
+	if (dol_is_dir($srcdir)) {
+		$tmpresult = dolCopyDir($srcdir, $destdir, '0', 0, null, 1);
+		print "dolCopyDir for ".$oldobject->ref." into ".$newobject->ref." result = ".$tmpresult."\n";
+	} else {
+		print "No src dir\n";
+	}
+
+	print "\n";
+	print "Finished.\n";
+	print "\n";
+
+	exit(0);
+}
 
 
 // Switch old instance in maintenance mode
@@ -580,7 +594,7 @@ if (! empty($oldobject->array_options['options_custom_url'])) {
 $dateendperiod = 0;
 $oldpricesperproduct = array();
 foreach ($oldobject->lines as $line) {
-	$oldpricesperproduct[$line->fk_product] = array('price_ht' => $line->price_ht, 'discount' => $line->remise_percent, 'qty' => $line->qty);
+	$oldpricesperproduct[$line->fk_product] = array('price_ht' => $line->subprice, 'discount' => $line->remise_percent, 'qty' => $line->qty);
 	if ($line->date_end && (empty($dateendperiod) || $line->date_end < $dateendperiod)) {
 		$dateendperiod = $line->date_end;
 	}
@@ -626,7 +640,6 @@ if (empty($forceproductref)) {
 			$contractline->qty = $pricesperproduct['qty'];
 			$contractline->remise_percent = $pricesperproduct['discount'];
 			$contractline->subprice = $pricesperproduct['price_ht'];
-			$contractline->price_ht = $pricesperproduct['price_ht'];	// deprecated
 
 			print "We update line ".$objselect->rowid." with price_ht = ".$pricesperproduct['price_ht']." discount = ".$pricesperproduct['discount']."\n";
 			if ($mode == 'confirm' || $mode == 'confirmredirect' || $mode == 'confirmmaintenance') {
@@ -636,12 +649,28 @@ if (empty($forceproductref)) {
 					exit(-1);
 				}
 			}
+		} else {
+			// Product was not found in new contract when it was in old one.
+			print "The product id ".$productid." was found into old instance but not into the new one, we must add it.\n";
+			// TODO
+
 		}
 	}
 } else {
 	print "A new product ref was forced, so we do not align prices on old contract.\n";
 }
 
+
+// Copy all files linked to instance to the new one
+$srcdir = $conf->contract->dir_output.'/'.dol_sanitizeFileName($oldobject->ref).'/';
+$destdir = $conf->contract->dir_output.'/'.dol_sanitizeFileName($newobject->ref).'/';
+print "--- Copy files linked to old instance (into dir ".$srcdir.") into the new instance (into dir ".$destdir.")\n";
+if (dol_is_dir($srcdir)) {
+	$tmpresult = dolCopyDir($srcdir, $destdir, '0', 0, null, 1);
+	print "dolCopyDir for ".$oldobject->ref." into ".$newobject->ref." result = ".$tmpresult."\n";
+} else {
+	print "No src dir\n";
+}
 
 $newsftpconnectstring=$newlogin.'@'.$newserver.':' . getDolGlobalString('DOLICLOUD_INSTANCES_PATH').'/'.$newlogin.'/'.preg_replace('/_([a-zA-Z0-9]+)$/', '', $newdatabasedb);
 
@@ -927,8 +956,8 @@ $sqlb.= ' WHERE fk_source = '.((int) $oldobject->id)." AND sourcetype = 'contrat
 $sqlc = 'UPDATE '.MAIN_DB_PREFIX.'element_element SET fk_target = '.((int) $newobject->id);
 $sqlc.= ' WHERE fk_target = '.((int) $oldobject->id)." AND targettype = 'contrat' AND (sourcetype = 'facturerec' OR sourcetype = 'facture');";
 
-$sqld = 'UPDATE '.MAIN_DB_PREFIX."contrat_extrafields SET suspendmaintenance_message = '".$dbmaster->escape('https://'.$newobject->ref_customer)."';";
-$sqld.= ' WHERE fk_object = '.((int) $oldobject->id);
+$sqld = 'UPDATE '.MAIN_DB_PREFIX."contrat_extrafields SET suspendmaintenance_message = '".$dbmaster->escape('https://'.$newobject->ref_customer)."'";
+$sqld.= ' WHERE fk_object = '.((int) $oldobject->id).";";
 
 if ($return_var) {
 	print "-> Error during mysql load of instance ".$newobject->ref_customer."\n";

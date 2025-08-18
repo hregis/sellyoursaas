@@ -749,10 +749,15 @@ if [[ "$mode" == "deploy" || "$mode" == "deployall" || "$mode" == "deployoption"
 					datecache=0
 				fi
 			fi
-			echo `date +'%Y-%m-%d %H:%M:%S'`" datesource=$datesource datecache=$datecache"
+			
+			datecachets=$(date -d "${datecache}" +%s)
+			now=$(date +%s)
+			datecacheage=$(( (now - datecachets) / 86400 ))
+			
+			echo `date +'%Y-%m-%d %H:%M:%S'`" datesource (archive on NFS dir)=$datesource - datecache (archive on local dir)=$datecache - age of datecache=$datecacheage"
 
-			if [ $datecache -eq 0 -o $datesource -gt $datecache ]; then
-				echo `date +'%Y-%m-%d %H:%M:%S'`" Local cache does not exists or is too old, we recreate local cache"
+			if [ $datecache -eq 0 -o $datesource -gt $datecache -o "$datecacheage" -gt 7 ]; then
+				echo `date +'%Y-%m-%d %H:%M:%S'`" Local cache does not exists or is too old, we recreate local cache from NFS dir"
 				mkdir -p "/tmp/cache$dirwithsources1"
 				#echo "cp -r $dirwithsources1/. /tmp/cache$dirwithsources1"
 
@@ -774,11 +779,11 @@ if [[ "$mode" == "deploy" || "$mode" == "deployall" || "$mode" == "deployoption"
 			fi 
 
 			if [[ -f /tmp/cache$dirwithsources1.tar.zst ]]; then
-				echo `date +'%Y-%m-%d %H:%M:%S'`" Local zst cache found. We use it with: tar -I zstd -xf /tmp/cache$dirwithsources1.tar.zst --directory $targetdirwithsources1/"
+				echo `date +'%Y-%m-%d %H:%M:%S'`" Local zst cache found for src 1. We use it with: tar -I zstd -xf /tmp/cache$dirwithsources1.tar.zst --directory $targetdirwithsources1/"
 				tar -I zstd -xf /tmp/cache$dirwithsources1.tar.zst --directory $targetdirwithsources1/
 			else
 				if [ -f /tmp/cache$dirwithsources1.tgz ]; then
-					echo `date +'%Y-%m-%d %H:%M:%S'`" Local tgz cache found. We use it with: tar -xzf /tmp/cache$dirwithsources1.tgz --directory $targetdirwithsources1/"
+					echo `date +'%Y-%m-%d %H:%M:%S'`" Local tgz cache found for src 1. We use it with: tar -xzf /tmp/cache$dirwithsources1.tgz --directory $targetdirwithsources1/"
 					tar -xzf /tmp/cache$dirwithsources1.tgz --directory $targetdirwithsources1/
 				else
 					# If both remote and local cache does not exists. Should not happen
@@ -811,10 +816,15 @@ if [[ "$mode" == "deploy" || "$mode" == "deployall" || "$mode" == "deployoption"
 					datecache=0
 				fi
 			fi
-			echo `date +'%Y-%m-%d %H:%M:%S'`" datesource=$datesource datecache=$datecache"
+			
+			datecachets=$(date -d "${datecache}" +%s)
+			now=$(date +%s)
+			datecacheage=$(( (now - datecachets) / 86400 ))
+			
+			echo `date +'%Y-%m-%d %H:%M:%S'`" datesource (archive on NFS dir)=$datesource - datecache (archive on local dir)=$datecache - age of datecache=$datecacheage"
 
-			if [ $datecache -eq 0 -o $datesource -gt $datecache ]; then
-				echo `date +'%Y-%m-%d %H:%M:%S'`" Local cache does not exists or is too old, we recreate local cache"
+			if [ $datecache -eq 0 -o $datesource -gt $datecache -o "$datecacheage" -gt 7 ]; then
+				echo `date +'%Y-%m-%d %H:%M:%S'`" Local cache does not exists or is too old, we recreate local cache from NFS dir"
 				mkdir -p "/tmp/cache$dirwithsources2"
 				#echo "cp -r $dirwithsources2/. /tmp/cache$dirwithsources2"
 
@@ -836,11 +846,11 @@ if [[ "$mode" == "deploy" || "$mode" == "deployall" || "$mode" == "deployoption"
 			fi 
 
 			if [[ -f /tmp/cache$dirwithsources2.tar.zst ]]; then
-				echo `date +'%Y-%m-%d %H:%M:%S'`" Local zst cache found. We use it with: tar -I zstd -xf /tmp/cache$dirwithsources2.tar.zst --directory $targetdirwithsources2/"
+				echo `date +'%Y-%m-%d %H:%M:%S'`" Local zst cache found for src 2. We use it with: tar -I zstd -xf /tmp/cache$dirwithsources2.tar.zst --directory $targetdirwithsources2/"
 				tar -I zstd -xf /tmp/cache$dirwithsources2.tar.zst --directory $targetdirwithsources2/
 			else
 				if [ -f /tmp/cache$dirwithsources2.tgz ]; then
-					echo `date +'%Y-%m-%d %H:%M:%S'`" Local tgz cache found. We use it with: tar -xzf /tmp/cache$dirwithsources2.tgz --directory $targetdirwithsources2/"
+					echo `date +'%Y-%m-%d %H:%M:%S'`" Local tgz cache found for src 2. We use it with: tar -xzf /tmp/cache$dirwithsources2.tgz --directory $targetdirwithsources2/"
 					tar -xzf /tmp/cache$dirwithsources2.tgz --directory $targetdirwithsources2/
 				else
 					# If both remote and local cache does not exists. Should not happen
@@ -873,10 +883,15 @@ if [[ "$mode" == "deploy" || "$mode" == "deployall" || "$mode" == "deployoption"
 					datecache=0
 				fi
 			fi
-			echo `date +'%Y-%m-%d %H:%M:%S'`" datesource=$datesource datecache=$datecache"
+			
+			datecachets=$(date -d "${datecache}" +%s)
+			now=$(date +%s)
+			datecacheage=$(( (now - datecachets) / 86400 ))
+			
+			echo `date +'%Y-%m-%d %H:%M:%S'`" datesource (archive on NFS dir)=$datesource - datecache (archive on local dir)=$datecache - age of datecache=$datecacheage"
 
-			if [ $datecache -eq 0 -o $datesource -gt $datecache ]; then
-				echo `date +'%Y-%m-%d %H:%M:%S'`" Local cache does not exists or is too old, we recreate local cache"
+			if [ $datecache -eq 0 -o $datesource -gt $datecache -o "$datecacheage" -gt 7 ]; then
+				echo `date +'%Y-%m-%d %H:%M:%S'`" Local cache does not exists or is too old, we recreate local cache from NFS dir"
 				mkdir -p "/tmp/cache$dirwithsources3"
 				#echo "cp -r $dirwithsources3/. /tmp/cache$dirwithsources3"
 
@@ -898,11 +913,11 @@ if [[ "$mode" == "deploy" || "$mode" == "deployall" || "$mode" == "deployoption"
 			fi 
 
 			if [[ -f /tmp/cache$dirwithsources3.tar.zst ]]; then
-				echo `date +'%Y-%m-%d %H:%M:%S'`" Local zst cache found. We use it with: tar -I zstd -xf /tmp/cache$dirwithsources3.tar.zst --directory $targetdirwithsources3/"
+				echo `date +'%Y-%m-%d %H:%M:%S'`" Local zst cache found for src 3. We use it with: tar -I zstd -xf /tmp/cache$dirwithsources3.tar.zst --directory $targetdirwithsources3/"
 				tar -I zstd -xf /tmp/cache$dirwithsources3.tar.zst --directory $targetdirwithsources3/
 			else
 				if [ -f /tmp/cache$dirwithsources3.tgz ]; then
-					echo `date +'%Y-%m-%d %H:%M:%S'`" Local tgz cache found. We use it with: tar -xzf /tmp/cache$dirwithsources3.tgz --directory $targetdirwithsources3/"
+					echo `date +'%Y-%m-%d %H:%M:%S'`" Local tgz cache found for src 3. We use it with: tar -xzf /tmp/cache$dirwithsources3.tgz --directory $targetdirwithsources3/"
 					tar -xzf /tmp/cache$dirwithsources3.tgz --directory $targetdirwithsources3/
 				else
 					# If both remote and local cache does not exists. Should not happen
@@ -1209,6 +1224,7 @@ if [[ "$mode" == "deploy" || "$mode" == "deployall" ]]; then
 		else 
 			# No $CERTIFFORCUSTOMDOMAIN forced (no cert file was created initially), so we will generate one
 			export domainnameorcustomurl=`echo $customurl | cut -d "." -f 1`
+			
 			# We must create it using letsencrypt if not yet created
 			#if [[ ! -e /home/admin/wwwroot/dolibarr_documents/sellyoursaas_local/crt/$fqn.crt ]]; then
 					# Generate the letsencrypt certificate
@@ -1220,10 +1236,20 @@ if [[ "$mode" == "deploy" || "$mode" == "deployall" ]]; then
 					#SSLON="Off"
 			#fi
 			
-			export webCustomSSLCertificateCRT=$webSSLCertificateCRT
-			export webCustomSSLCertificateKEY=$webSSLCertificateKEY
-			export webCustomSSLCertificateIntermediate=$webSSLCertificateIntermediate
-			export CERTIFFORCUSTOMDOMAIN="with.sellyoursaas.com"
+			if [[ ! -e /home/admin/wwwroot/dolibarr_documents/sellyoursaas_local/crt/$fqn-custom.crt ]]; then
+				# If custom cert not found, we fallback on the wildcard one for server (it will generate a warning, but it will works and not hangs !)
+				export webCustomSSLCertificateCRT="/etc/apache2/$webSSLCertificateCRT"
+				export webCustomSSLCertificateKEY="/etc/apache2/$webSSLCertificateKEY"
+				export webCustomSSLCertificateIntermediate="/etc/apache2/$webSSLCertificateIntermediate"
+				export CERTIFFORCUSTOMDOMAIN="with.sellyoursaas.com"
+			else
+				# We will use the custom cert file
+				export webCustomSSLCertificateCRT=/home/admin/wwwroot/dolibarr_documents/sellyoursaas_local/crt/$fqn-custom.crt
+				export webCustomSSLCertificateKEY=/home/admin/wwwroot/dolibarr_documents/sellyoursaas_local/crt/$fqn-custom.key
+				export webCustomSSLCertificateIntermediate=/home/admin/wwwroot/dolibarr_documents/sellyoursaas_local/crt/$fqn-custom-intermediate.crt
+				export CERTIFFORCUSTOMDOMAIN="$fqn-custom"
+			fi
+			echo "We will use the certificate file webCustomSSLCertificateCRT=$webCustomSSLCertificateCRT (CERTIFFORCUSTOMDOMAIN=$CERTIFFORCUSTOMDOMAIN)"
 		fi
 
 		# If the certificate file is not found, we disable SSL

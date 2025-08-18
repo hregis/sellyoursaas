@@ -27,6 +27,7 @@
 //require_once(DOL_DOCUMENT_ROOT."/product/class/product.class.php");
 require_once DOL_DOCUMENT_ROOT.'/compta/facture/class/facture-rec.class.php';
 require_once DOL_DOCUMENT_ROOT.'/contrat/class/contrat.class.php';
+require_once DOL_DOCUMENT_ROOT.'/contrat/class/contratligne.class.php';
 require_once DOL_DOCUMENT_ROOT.'/comm/action/class/actioncomm.class.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/date.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/files.lib.php';
@@ -49,7 +50,7 @@ class SellYourSaasUtils
 	/**
 	 *  Constructor
 	 *
-	 *  @param	DoliDb		$db      Database handler
+	 *  @param	DoliDB		$db      Database handler
 	 */
 	public function __construct($db)
 	{
@@ -191,7 +192,7 @@ class SellYourSaasUtils
 										$publicnoteofcontract = str_replace('User Accounts', $outputlangs->trans("ListOfUsers"), $contract->array_options['options_commentonqty']);
 										$newpublicnote = dol_concatdesc($invoice->note_public, $publicnoteofcontract);
 
-										$invoice->context['actionmsg'] = 'Record modified to concat the non empty options_commentonqty into the public note by doValidateDraftInvoices()';
+										$invoice->context['actionmsgmore'] = 'Record modified to concat the non empty options_commentonqty into the public note by doValidateDraftInvoices()';
 
 										$invoice->update_note($newpublicnote, '_public');
 									}
@@ -211,34 +212,35 @@ class SellYourSaasUtils
 												$monthfactor *=  $tmpinvoicerec->frequency;
 											}
 										}
-										dol_syslog("doValidateDraftInvoices The invoice to validate has amount = ".$amountofinvoice." and come from recurring invoice with frequency ".$tmpinvoicerec->frequency."/".$tmpinvoicerec->unit_frequency." so a month factor of ".$monthfactor);
+										dol_syslog("doValidateDraftInvoices The invoice to validate has amount = ".price2num($amountofinvoice, 'MT')." and come from recurring invoice with frequency ".$tmpinvoicerec->frequency."/".$tmpinvoicerec->unit_frequency." so a month factor of ".$monthfactor);
 										// Check amount with monthfactor is lower than $conf->global->SELLYOURSAAS_MAX_MONTHLY_AMOUNT_OF_INVOICE
 										if ($amountofinvoice >= (getDolGlobalInt('SELLYOURSAAS_MAX_MONTHLY_AMOUNT_OF_INVOICE') * $monthfactor)) {
 											$draftinvoicecanceled[$invoice->id] = $invoice->ref;
 
 											$errorforinvoice++;
-											$this->error = 'The invoice '.$invoice->ref." can't be validated by doValidateDraftInvoices: Amount ".$amountofinvoice." > ".getDolGlobalInt('SELLYOURSAAS_MAX_MONTHLY_AMOUNT_OF_INVOICE')." * ".$monthfactor;
+											$this->error = 'The invoice '.$invoice->ref." can't be validated by doValidateDraftInvoices: Amount ".price2num($amountofinvoice, 'MT')." > ".getDolGlobalInt('SELLYOURSAAS_MAX_MONTHLY_AMOUNT_OF_INVOICE')." * ".$monthfactor;
 											$this->errors[] = $this->error;
 											break;
 										}
 									}
 
-									$invoice->context['actionmsg'] = 'Invoice id = '.$invoice->id.' validated by doValidateDraftInvoices()';
+									$invoice->context['actionmsgmore'] = 'Invoice id = '.$invoice->id.' validated by doValidateDraftInvoices()';
 
-									$result = $invoice->validate($user);
+									$result = $invoice->validate($user);	// Validate invoice (does not regenerate the PDF)
 
 									if ($result > 0) {
 										$draftinvoiceprocessed[$invoice->id] = $invoice->ref;
 
-										// Now we build the PDF invoice
+										// Now we build/regenerate the PDF invoice
 										$hidedetails = (GETPOST('hidedetails', 'int') ? GETPOST('hidedetails', 'int') : (getDolGlobalString('MAIN_GENERATE_DOCUMENTS_HIDE_DETAILS') ? 1 : 0));
 										$hidedesc = (GETPOST('hidedesc', 'int') ? GETPOST('hidedesc', 'int') : (getDolGlobalString('MAIN_GENERATE_DOCUMENTS_HIDE_DESC') ? 1 : 0));
 										$hideref = (GETPOST('hideref', 'int') ? GETPOST('hideref', 'int') : (getDolGlobalString('MAIN_GENERATE_DOCUMENTS_HIDE_REF') ? 1 : 0));
 
 										$model_pdf = $invoice->model_pdf;
+
 										$ret = $invoice->fetch($invoice->id); // Reload to get new records
 
-										dol_syslog("GETPOST('lang_id','aZ09')=".GETPOST('lang_id', 'aZ09')." invoice->thirdparty->default_lang=".(is_object($invoice->thirdparty) ? $invoice->thirdparty->default_lang : 'invoice->thirdparty not defined')." newlang=".$newlang." outputlangs->defaultlang=".$outputlangs->defaultlang);
+										dol_syslog("We regenerate the document (should also update ecm index + last_main_doc) : id=".$invoice->id." GETPOST('lang_id','aZ09')=".GETPOST('lang_id', 'aZ09')." invoice->thirdparty->default_lang=".(is_object($invoice->thirdparty) ? $invoice->thirdparty->default_lang : 'invoice->thirdparty not defined')." newlang=".$newlang." outputlangs->defaultlang=".$outputlangs->defaultlang);
 
 										$result = $invoice->generateDocument($model_pdf, $outputlangs, $hidedetails, $hidedesc, $hideref);
 									} else {
@@ -259,7 +261,7 @@ class SellYourSaasUtils
 
 									$codepaiementdirectdebit = 'PRE';
 									$codepaiementtransfer = 'VIR';
-									
+
 									if ($invoice->mode_reglement_code == $codepaiementdirectdebit || $invoice->mode_reglement_code == $codepaiementtransfer) {
 										// If customer invoice is an invoice to pay with a direct debit or is waiting a credit transfer
 										$enddatetoscan = dol_time_plus_duree($now, 20, 'd');
@@ -282,10 +284,10 @@ class SellYourSaasUtils
 
 											if ($protecti < 1000) {	// If not, there is a pb
 												// We will update the end of date of contrat
-												dol_syslog("We will update the end of date of contract with newdate = ".dol_print_date($newdate, 'dayhourrfc'));
+												dol_syslog("We will update the end of date of contract lines that are not yet suspended with newdate = ".dol_print_date($newdate, 'dayhourrfc'));
 
-												$label = 'Increase end date of services for contract '.$contract->ref.' (payment mode '.$invoice->mode_reglement_code.')';
-												$comment = 'Increase end date of services for contract '.$contract->ref.' to '.dol_print_date($newdate, 'dayhourrfc').' by doValidateDraftInvoices() to give more time to make payment.';
+												$label = 'Increase end date of open services for contract '.$contract->ref.' (payment mode '.$invoice->mode_reglement_code.')';
+												$comment = 'Increase end date of open services for contract '.$contract->ref.' to '.dol_print_date($newdate, 'dayhourrfc').' by doValidateDraftInvoices() to give more time to make payment.';
 
 												// First launch update of resources if it is not a redirect contract:
 												// We should not have to do that because the batch SellYourSaasRefreshContracts is called 2 days before
@@ -298,7 +300,9 @@ class SellYourSaasUtils
 												*/
 
 												$sqlupdate = 'UPDATE '.MAIN_DB_PREFIX."contratdet SET date_fin_validite = '".$this->db->idate($newdate)."'";
-												$sqlupdate.= ' WHERE fk_contrat = '.((int) $contract->id);
+												$sqlupdate .= ' WHERE fk_contrat = '.((int) $contract->id);
+												$sqlupdate .= ' AND statut <> '.ContratLigne::STATUS_CLOSED;
+
 												$resqlupdate = $this->db->query($sqlupdate);
 												if ($resqlupdate) {
 													$actioncode = 'RENEW_CONTRACT';
@@ -350,20 +354,20 @@ class SellYourSaasUtils
 											$sendemailtocustomer = 1;
 											$labeltouse = 'InvoicePaymentWaitingCreditTransfer';
 										}
-										
+
 										$object = $invoice;
 
 										if (!$errorforinvoice && $sendemailtocustomer && $labeltouse) {
 											dol_syslog("* Send email to inform about the invoice availability - ".$labeltouse);
-					
+
 											// Set output language
 											$outputlangs = new Translate('', $conf);
 											$outputlangs->setDefaultLang(empty($object->thirdparty->default_lang) ? $mysoc->default_lang : $object->thirdparty->default_lang);
 											$outputlangs->loadLangs(array("main", "members", "bills"));
-					
+
 											// Get email content from template
 											$arraydefaultmessage = null;
-					
+
 											include_once DOL_DOCUMENT_ROOT.'/core/class/html.formmail.class.php';
 											$formmail=new FormMail($this->db);
 
@@ -379,7 +383,7 @@ class SellYourSaasUtils
 											$substitutionarray = getCommonSubstitutionArray($outputlangs, 0, null, $object);
 
 											complete_substitutions_array($substitutionarray, $outputlangs, $object);
-					
+
 											// Set the property ->ref_customer with ref_customer of contract so __REF_CLIENT__ will be replaced in email content
 											// Search contract linked to invoice
 											$foundcontract = null;
@@ -398,7 +402,7 @@ class SellYourSaasUtils
 											}
 
 											dol_syslog('__DIRECTDOWNLOAD_URL_INVOICE__='.$substitutionarray['__DIRECTDOWNLOAD_URL_INVOICE__']);
-					
+
 											$urlforsellyoursaasaccount = getRootUrlForAccount($foundcontract);
 											if ($urlforsellyoursaasaccount) {
 												$tmpforurl=preg_replace('/.*document.php/', '', $substitutionarray['__DIRECTDOWNLOAD_URL_INVOICE__']);
@@ -408,10 +412,10 @@ class SellYourSaasUtils
 													$substitutionarray['__DIRECTDOWNLOAD_URL_INVOICE__']=$urlforsellyoursaasaccount;
 												}
 											}
-					
+
 											$subjecttosend = make_substitutions($subject, $substitutionarray, $outputlangs);
 											$texttosend = make_substitutions($msg, $substitutionarray, $outputlangs);
-					
+
 											// Attach a file ?
 											$file='';
 											$listofpaths=array();
@@ -422,7 +426,7 @@ class SellYourSaasUtils
 												$fileparams = dol_most_recent_file($invoicediroutput . '/' . $invoice->ref, preg_quote($invoice->ref, '/').'[^\-]+');
 												$file = $fileparams['fullname'];
 												$file = '';		// Disable attachment of invoice in emails
-					
+
 												if ($file) {
 													$listofpaths=array($file);
 													$listofnames=array(basename($file));
@@ -430,14 +434,15 @@ class SellYourSaasUtils
 												}
 											}
 											$from = getDolGlobalString('SELLYOURSAAS_NOREPLY_EMAIL');
-					
+
 											$trackid = 'inv'.$invoice->id;
 											$moreinheader = 'X-Dolibarr-Info: doValidateInvoice'."\r\n";
 											$addr_cc = '';
 											if (!empty($invoice->thirdparty->array_options['options_emailccinvoice'])) {
+												dol_syslog("We add the recipient ".$invoice->thirdparty->array_options['options_emailccinvoice']." as CC to warn about invoice availability (direct debit or credit transfer case)", LOG_DEBUG);
 												$addr_cc = $invoice->thirdparty->array_options['options_emailccinvoice'];
 											}
-					
+
 											// Send email (substitutionarray must be done just before this)
 											include_once DOL_DOCUMENT_ROOT.'/core/class/CMailFile.class.php';
 											$mailfile = new CMailFile($subjecttosend, $invoice->thirdparty->email, $from, $texttosend, $listofpaths, $listofmimes, $listofnames, $addr_cc, '', 0, -1, '', '', $trackid, $moreinheader);
@@ -445,18 +450,18 @@ class SellYourSaasUtils
 												$result = 1;
 											} else {
 												$errmsg = $langs->trans("ErrorFailedToSendMail", $from, $invoice->thirdparty->email).'. '.$mailfile->error;
-												
+
 												dol_syslog($errmsg, LOG_WARNING);
-												
+
 												$this->errors[] = $errmsg;
 												$result = -1;
 											}
-					
+
 											if ($result > 0) {
 												// TODO Add an event to say email was sent or the event invoice validate is enough ?
 											}
 										}
-															
+
 									}
 								}
 							}
@@ -622,11 +627,14 @@ class SellYourSaasUtils
 						$outputlangs->loadLangs(array('main'));
 
 						// @TODO Save in cache $arraydefaultmessage for each $object->thirdparty->default_lang and reuse it to avoid getEMailTemplate called each time
-						dol_syslog("We will call getEMailTemplate for type 'contract', label 'GentleTrialExpiringReminder', outputlangs->defaultlang=".$outputlangs->defaultlang);
 						if ($object->thirdparty->array_options['options_checkboxnonprofitorga'] == 'nonprofit' && getDolGlobalInt("SELLYOURSAAS_ENABLE_FREE_PAYMENT_MODE")) {
-							$arraydefaultmessage=$formmail->getEMailTemplate($this->db, 'contract', $user, $outputlangs, 0, 1, 'GentleTrialExpiringReminderFreeInstance');
+							dol_syslog("We will call getEMailTemplate for type 'contract', label 'GentleTrialExpiringReminderFreeInstance', outputlangs->defaultlang=".$outputlangs->defaultlang);
+							$arraydefaultmessage = $formmail->getEMailTemplate($this->db, 'contract', $user, $outputlangs, 0, 1, 'GentleTrialExpiringReminderFreeInstance');
+							dol_syslog("Topic found is ".$arraydefaultmessage->topic);
 						} else {
-							$arraydefaultmessage=$formmail->getEMailTemplate($this->db, 'contract', $user, $outputlangs, 0, 1, 'GentleTrialExpiringReminder');
+							dol_syslog("We will call getEMailTemplate for type 'contract', label 'GentleTrialExpiringReminder', outputlangs->defaultlang=".$outputlangs->defaultlang);
+							$arraydefaultmessage = $formmail->getEMailTemplate($this->db, 'contract', $user, $outputlangs, 0, 1, 'GentleTrialExpiringReminder');
+							dol_syslog("Topic found is ".$arraydefaultmessage->topic);
 						}
 
 						$substitutionarray=getCommonSubstitutionArray($outputlangs, 0, null, $object);
@@ -661,6 +669,9 @@ class SellYourSaasUtils
 						}
 
 						// TODO Add an event in agenda for contract/thirdparty
+
+						// Delay for email
+						sleep(1);
 
 						$contractprocessed[$object->id]=$object->ref;
 					} else {
@@ -855,6 +866,10 @@ class SellYourSaasUtils
 
 						// TODO Add an event in agenda for contract/thirdparty
 
+
+						// Delay for email
+						sleep(1);
+
 						$contractprocessed[$object->id]=$object->ref;
 					} else {
 					}
@@ -926,7 +941,7 @@ class SellYourSaasUtils
 		if (! empty($conf->stripe->enabled)) {
 			$service = 'StripeTest';
 			$servicestatus = 0;
-			if (getDolGlobalString('STRIPE_LIVE') && ! GETPOST('forcesandbox', 'alpha') && !getDolGlobalString('SELLYOURSAAS_FORCE_STRIPE_TEST')) {
+			if (getDolGlobalString('STRIPE_LIVE') /* && !GETPOST('forcesandbox', 'alpha') */ && !getDolGlobalString('SELLYOURSAAS_FORCE_STRIPE_TEST')) {
 				$service = 'StripeLive';
 				$servicestatus = 1;
 			}
@@ -1077,7 +1092,7 @@ class SellYourSaasUtils
 		if (! empty($conf->paypal->enabled)) {
 			//$service = 'PaypalTest';
 			$servicestatus = 0;
-			if (getDolGlobalString('PAYPAL_LIVE') && ! GETPOST('forcesandbox', 'alpha') && !getDolGlobalString('SELLYOURSAAS_FORCE_PAYPAL_TEST')) {
+			if (getDolGlobalString('PAYPAL_LIVE') /* && !GETPOST('forcesandbox', 'alpha') */ && !getDolGlobalString('SELLYOURSAAS_FORCE_PAYPAL_TEST')) {
 				//$service = 'PaypalLive';
 				$servicestatus = 1;
 			}
@@ -1227,7 +1242,7 @@ class SellYourSaasUtils
 
 		$service = 'StripeTest';
 		$servicestatus = 0;
-		if (getDolGlobalString('STRIPE_LIVE') && ! GETPOST('forcesandbox', 'alpha') && !getDolGlobalString('SELLYOURSAAS_FORCE_STRIPE_TEST')) {
+		if (getDolGlobalString('STRIPE_LIVE') /* && !GETPOST('forcesandbox', 'alpha') */ && !getDolGlobalString('SELLYOURSAAS_FORCE_STRIPE_TEST')) {
 			$service = 'StripeLive';
 			$servicestatus = 1;
 		}
@@ -1941,13 +1956,13 @@ class SellYourSaasUtils
 
 								// Add an action event into database
 								if (empty($charge) || $charge->status == 'failed') {
-									$actioncode='PAYMENT_STRIPE_KO';
-									$extraparams=$stripefailurecode;
-									$extraparams.=(($extraparams && $stripefailuremessage) ? ' - ' : '').$stripefailuremessage;
-									$extraparams.=(($extraparams && $stripefailuredeclinecode) ? ' - ' : '').$stripefailuredeclinecode;
+									$actioncode = 'PAYMENT_STRIPE_KO';
+									$extraparams = $stripefailurecode;
+									$extraparams .= (($extraparams && $stripefailuremessage) ? ' - ' : '').$stripefailuremessage;
+									$extraparams .= (($extraparams && $stripefailuredeclinecode) ? ' - ' : '').$stripefailuredeclinecode;
 								} else {
-									$actioncode='PAYMENT_STRIPE_OK';
-									$extraparams='';
+									$actioncode = 'PAYMENT_STRIPE_OK';
+									$extraparams = array();
 								}
 							} else {
 								$error++;
@@ -1970,8 +1985,8 @@ class SellYourSaasUtils
 
 								$object = $invoice;
 
-								$actioncode='PAYMENT_STRIPE_KO';
-								$extraparams='';
+								$actioncode = 'PAYMENT_STRIPE_KO';
+								$extraparams = array();
 							}
 						} else {
 							// If error because payment was canceled for a logical reason, we do nothing (no email and no event added)
@@ -1984,8 +1999,8 @@ class SellYourSaasUtils
 
 							$object = $invoice;
 
-							$actioncode='';
-							$extraparams='';
+							$actioncode = '';
+							$extraparams = array();
 						}
 					} else {	// Else of the   if ($resultthirdparty > 0 && ! empty($customer)) {
 						if ($resultthirdparty <= 0) {
@@ -2011,12 +2026,12 @@ class SellYourSaasUtils
 
 						$object = $invoice;
 
-						$actioncode='PAYMENT_STRIPE_KO';
-						$extraparams='';
+						$actioncode = 'PAYMENT_STRIPE_KO';
+						$extraparams = array();
 					}
 
 
-					// Send email to customer (Note: we are in batch to take payment by credit card. For payment mode that waits credit transfer, email sis sent by batch that validate invoice)
+					// Send email to customer (Note: we are in batch to take payment by credit card. For payment mode that waits credit transfer, email is sent by batch that validate invoice)
 					if ($sendemailtocustomer && $labeltouse) {
 						dol_syslog("* Send email with result of payment - ".$labeltouse);
 
@@ -2101,6 +2116,7 @@ class SellYourSaasUtils
 						$moreinheader = 'X-Dolibarr-Info: doTakeStripePaymentForThirdParty'."\r\n";
 						$addr_cc = '';
 						if (!empty($invoice->thirdparty->array_options['options_emailccinvoice'])) {
+							dol_syslog("We add the recipient ".$invoice->thirdparty->array_options['options_emailccinvoice']." as CC to warn about invoice payment (credit card)", LOG_DEBUG);
 							$addr_cc = $invoice->thirdparty->array_options['options_emailccinvoice'];
 						}
 
@@ -2111,7 +2127,7 @@ class SellYourSaasUtils
 							$result = 1;
 						} else {
 							$errmsg = $langs->trans("ErrorFailedToSendMail", $from, $invoice->thirdparty->email).'. '.$mailfile->error;
-							
+
 							$this->error = $errmsg;
 							$result = -1;
 						}
@@ -2158,7 +2174,7 @@ class SellYourSaasUtils
 						 $actioncomm->errors_to   = $object->errors_to;*/
 						$actioncomm->fk_element   = $invoice->id;
 						$actioncomm->elementtype  = $invoice->element;
-						$actioncomm->extraparams  = dol_trunc($extraparams, 250);
+						$actioncomm->extraparams  = $extraparams;
 
 						$actioncomm->create($user);
 					}
@@ -2225,7 +2241,7 @@ class SellYourSaasUtils
 		// Define $service to use for Stripe
 		$service = 'StripeTest';
 		$servicestatus = 0;
-		if (getDolGlobalString('STRIPE_LIVE') && ! GETPOST('forcesandbox', 'alpha') && !getDolGlobalString('SELLYOURSAAS_FORCE_STRIPE_TEST')) {
+		if (getDolGlobalString('STRIPE_LIVE') /* && !GETPOST('forcesandbox', 'alpha') */ && !getDolGlobalString('SELLYOURSAAS_FORCE_STRIPE_TEST')) {
 			$service = 'StripeLive';
 			$servicestatus = 1;
 		}
@@ -3443,6 +3459,7 @@ class SellYourSaasUtils
 									}
 								}
 
+								// Add a delay because the closeAll may have triggered a suspend remote action and we want to be sure the apache reload is complete
 								sleep(1);
 							}
 						}
@@ -3963,7 +3980,7 @@ class SellYourSaasUtils
 								}
 
 								if ($doupdate) {
-									$object->context['actionmsg'] = 'Update contract by '.getUserRemoteIP().' to modify the date of files lock, install and authorized keys during a refresh';
+									$object->context['actionmsgmore'] = 'Update contract by '.getUserRemoteIP().' to modify the date of files lock, install and authorized keys during a refresh';
 
 									$object->update($user);
 								}
@@ -4360,10 +4377,10 @@ class SellYourSaasUtils
 				$savsalt = getDolGlobalString('MAIN_SECURITY_SALT');
 				$savhashalgo = getDolGlobalString('MAIN_SECURITY_HASH_ALGO');
 
-				$conf->global->MAIN_SECURITY_HASH_ALGO = !getDolGlobalString('SELLYOURSAAS_HASHALGOFORPASSWORD') ? '' : $conf->global->SELLYOURSAAS_HASHALGOFORPASSWORD;
+				$conf->global->MAIN_SECURITY_HASH_ALGO = getDolGlobalString('SELLYOURSAAS_HASHALGOFORPASSWORD');
 				dol_syslog("Using this MAIN_SECURITY_HASH_ALGO for __APPPASSWORDxxx__ variables : " . getDolGlobalString('MAIN_SECURITY_HASH_ALGO'));
 
-				$conf->global->MAIN_SECURITY_SALT = !getDolGlobalString('SELLYOURSAAS_SALTFORPASSWORDENCRYPTION') ? '' : $conf->global->SELLYOURSAAS_SALTFORPASSWORDENCRYPTION;
+				$conf->global->MAIN_SECURITY_SALT = getDolGlobalString('SELLYOURSAAS_SALTFORPASSWORDENCRYPTION');
 				dol_syslog("Using this salt for __APPPASSWORDxxxSALTED__ variables : " . getDolGlobalString('MAIN_SECURITY_SALT'));
 				$password0salted = dol_hash($password);
 				$passwordmd5salted = dol_hash($password, 'md5');
@@ -4384,7 +4401,7 @@ class SellYourSaasUtils
 				$substitarray=array(
 					'__INSTANCEDIR__'=>$targetdir.'/'.$generatedunixlogin.'/'.$generateddbname,
 					'__INSTANCEDBPREFIX__'=>$generateddbprefix,
-					'__DOL_DATA_ROOT__'=>(!getDolGlobalString('SELLYOURSAAS_FORCE_DOL_DATA_ROOT') ? DOL_DATA_ROOT : $conf->global->SELLYOURSAAS_FORCE_DOL_DATA_ROOT),
+					'__DOL_DATA_ROOT__'=> getDolGlobalString('SELLYOURSAAS_FORCE_DOL_DATA_ROOT', DOL_DATA_ROOT),
 					'__INSTALLHOURS__'=>dol_print_date($now, '%H'),
 					'__INSTALLMINUTES__'=>dol_print_date($now, '%M'),
 					'__OSHOSTNAME__'=>$generatedunixhostname,
@@ -4568,9 +4585,9 @@ class SellYourSaasUtils
 					include_once DOL_DOCUMENT_ROOT.'/core/lib/geturl.lib.php';
 					$retarray = getURLContent($urltoget, 'GET', '', 0, array(), array('http', 'https'), 2);   // Timeout is defined before into $conf->global->MAIN_USE_RESPONSE_TIMEOUT
 
-					if ($retarray['curl_error_no'] != '' || $retarray['http_code'] != 200) {
+					if (!empty($retarray['curl_error_no']) || $retarray['http_code'] != 200) {
 						$error++;
-						if ($retarray['curl_error_no'] != '') {
+						if (!empty($retarray['curl_error_no'])) {
 							$this->errors[] = $retarray['curl_error_msg'];
 						} else {
 							$this->errors[] = $retarray['content'];
@@ -5066,7 +5083,7 @@ class SellYourSaasUtils
 				$contract->array_options['options_commentonqty'] = $newcommentonqty;
 			}
 
-			$contract->context['actionmsg'] = 'sellyoursaasRemoteAction '.$remoteaction.': Update contract by '.(getUserRemoteIP() ? getUserRemoteIP() : 'localhost').' to set options_latestresupdate_date'.($newcommentonqty ? ' and options_commentonqty' : '');
+			$contract->context['actionmsgmore'] = 'sellyoursaasRemoteAction '.$remoteaction.': Update contract by '.(getUserRemoteIP() ? getUserRemoteIP() : 'localhost').' to set options_latestresupdate_date'.($newcommentonqty ? ' and options_commentonqty' : '');
 
 			$result = $contract->update($user);
 			if ($result <= 0) {
