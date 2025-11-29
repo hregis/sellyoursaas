@@ -15,13 +15,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-// Protection to avoid direct call of template
-if (empty($conf) || ! is_object($conf)) {
-	print "Error, template page can't be called as URL";
-	exit(1);
-}
-
 /**
+ * @var Conf $conf
  * @var DoliDB $db
  * @var HookManager $hookmanager
  * @var Translate $langs
@@ -30,6 +25,14 @@ if (empty($conf) || ! is_object($conf)) {
  * @var int $nowmonth
  * @var int $nowyear
  */
+
+
+// Protection to avoid direct call of template
+if (empty($conf) || ! is_object($conf)) {
+	print "Error, template page can't be called as URL";
+	exit(1);
+}
+
 ?>
 <!-- BEGIN PHP TEMPLATE billing.tpl.php -->
 <?php
@@ -202,7 +205,7 @@ if (count($listofcontractid) > 0) {
 					$statusstring .= $s;
 
 					// If invoice is in dispute, we show it here
-					if (!empty($invoice->array_options['options_invoicepaymentdisputed'])) {
+					if (!empty($invoice->dispute_status)) {
 						$statusstring .= ' <span class="badge badge-warning badge-status" title="'.$langs->trans("InvoicePaymentDisputedMessage", $invoice->ref, dol_print_date($invoice->date, 'day')).'">';
 						$statusstring .= $langs->trans("Canceled").'</span>';
 					}
@@ -243,9 +246,9 @@ if (count($listofcontractid) > 0) {
 								<!-- Price -->
 					            <div class="col-6 col-md-2">
 									';
-				print (empty($invoice->array_options['options_invoicepaymentdisputed']) ? '' : '<strike>');
+				print (empty($invoice->dispute_status) ? '' : '<strike>');
 				print price(price2num($invoice->total_ttc), 1, $langs, 0, 0, getDolGlobalString('MAIN_MAX_DECIMALS_TOT'), $conf->currency);
-				print (empty($invoice->array_options['options_invoicepaymentdisputed']) ? '' : '</strike>');
+				print (empty($invoice->dispute_status) ? '' : '</strike>');
 
 				print '
 					            </div>

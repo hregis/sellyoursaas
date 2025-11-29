@@ -279,6 +279,14 @@ class Packages extends CommonObject
 	 */
 	public function update(User $user, $notrigger = false)
 	{
+		// Clean parameters to remove ending / on directories
+		$this->srcfile1 = preg_replace('/\/+$/', '', $this->srcfile1);
+		$this->srcfile2 = preg_replace('/\/+$/', '', $this->srcfile2);
+		$this->srcfile3 = preg_replace('/\/+$/', '', $this->srcfile3);
+		$this->targetsrcfile1 = preg_replace('/\/+$/', '', $this->targetsrcfile1);
+		$this->targetsrcfile2 = preg_replace('/\/+$/', '', $this->targetsrcfile2);
+		$this->targetsrcfile3 = preg_replace('/\/+$/', '', $this->targetsrcfile3);
+
 		return $this->updateCommon($user, $notrigger);
 	}
 
@@ -473,15 +481,11 @@ class Packages extends CommonObject
 				$obj = $this->db->fetch_object($result);
 				$this->id = $obj->rowid;
 				if ($obj->fk_user_creat) {
-					$cuser = new User($this->db);
-					$cuser->fetch($obj->fk_user_creat);
-					$this->user_creation = $cuser;
+					$this->user_creation_id = $obj->fk_user_creat;
 				}
 
 				if ($obj->fk_user_modif) {
-					$vuser = new User($this->db);
-					$vuser->fetch($obj->fk_user_modif);
-					$this->user_modification = $vuser;
+					$this->user_modification_id = $obj->fk_user_modif;
 				}
 
 				$this->date_creation     = $this->db->jdate($obj->datec);
