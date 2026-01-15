@@ -54,6 +54,7 @@ echo "Set owner and permission on logs and backup directory"
 [ -d /home/admin/backup/conf ] || mkdir /home/admin/backup/conf;
 [ -d /home/admin/backup/mysql ] || mkdir /home/admin/backup/mysql;
 [ -d /home/admin/wwwroot ] || mkdir /home/admin/wwwroot;
+chmod a+rx /home/admin;
 chown root:admin /home/admin/logs; chmod 770 /home/admin/logs; 
 chown admin:admin /mnt/diskbackup; 
 chown admin:admin /home/admin/backup; chown admin:admin /home/admin/backup/conf; chown admin:admin /home/admin/backup/mysql; 
@@ -153,6 +154,28 @@ echo "Clean old files in /tmp"
 echo find /tmp -mtime +30 -name 'phpsendmail*.*' -delete
 find /tmp -mtime +30 -name 'phpsendmail*.*' -delete
 
+
+echo "Recreate link to php prepend files"
+TARGETLINK="/usr/local/bin/phpsendmailprepend.php"
+SOURCELINK="/home/admin/wwwroot/dolibarr/htdocs/custom/sellyoursaas/scripts/phpsendmailprepend.php"
+if [ ! -e "$TARGETLINK" ] || [ "$(stat -c %i "$SOURCELINK")" != "$(stat -c %i "$TARGETLINK")" ]; then
+    ln "$SOURCELINK" "$TARGETLINK"
+    echo "Link $TARGETLINK has been recreated."
+else
+    echo "Link $TARGETLINK already exists and point to same inode than source."
+fi
+TARGETLINK="/usr/local/bin/phpsendmail.php"
+SOURCELINK="/home/admin/wwwroot/dolibarr/htdocs/custom/sellyoursaas/scripts/phpsendmail.php"
+if [ ! -e "$TARGETLINK" ] || [ "$(stat -c %i "$SOURCELINK")" != "$(stat -c %i "$TARGETLINK")" ]; then
+	rm "$TARGETLINK" >/dev/null 2>&1
+    ln "$SOURCELINK" "$TARGETLINK"
+    echo "Link $TARGETLINK has been recreated."
+else
+    echo "Link $TARGETLINK already exists and point to same inode than source."
+fi
+
+
+
 echo "Check files for antispam system and create them if not found"
 # Note: just after we redo it using $pathtospamdir variable
 [ -d /home/admin/wwwroot/dolibarr_documents/sellyoursaas_local/spam ] || mkdir -p /home/admin/wwwroot/dolibarr_documents/sellyoursaas_local/spam;
@@ -171,7 +194,11 @@ chown admin:www-data /home/admin/wwwroot/dolibarr_documents/sellyoursaas_local/*
 chmod a+rwx $pathtospamdir; chmod a+rw $pathtospamdir/* >/dev/null 2>&1
 chown admin:www-data $pathtospamdir/* >/dev/null 2>&1
 
+
+echo "Set permission on sellyoursaas_local dir"
+chmod o+x /home/admin/wwwroot/dolibarr_documents
 chown -R admin:www-data /home/admin/wwwroot/dolibarr_documents/sellyoursaas_local;
+
 
 # Special actions...
 

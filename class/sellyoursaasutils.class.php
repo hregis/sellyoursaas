@@ -139,6 +139,7 @@ class SellYourSaasUtils
 
 							$this->db->begin();
 
+							// Loop on all contracts linked to the invoices
 							foreach ($invoice->linkedObjects['contrat'] as $idcontract => $contract) {
 								if (!empty($draftinvoiceprocessed[$invoice->id]) || !empty($draftinvoicecanceled[$invoice->id])) {
 									continue;	// If already processed because of a previous contract line, do nothing more
@@ -146,17 +147,32 @@ class SellYourSaasUtils
 
 								dol_syslog("-- Process validation of invoices for the contract ".$contract->ref, LOG_DEBUG);
 
-								if (!empty($tmparray['refsopened'])) {	// If there is other invoices
-									// Try to avoid validation of the current $invoice if another invoice is open on the same contract !!!
-									$sqltocheckcontratnotlinkedtoanopeninvoice = "SELECT COUNT(rowid) FROM ".MAIN_DB_PREFIX."element_element";
-									$sqltocheckcontratnotlinkedtoanopeninvoice .= " WHERE sourcetype = 'contrat' AND fk_source = ".((int) $idcontract);
-									$sqltocheckcontratnotlinkedtoanopeninvoice .= " AND target_type = 'facture' AND fk_target IN (".$this->db->sanitize(join(',', array_keys($tmparray['refsopened']))).")";
-									dol_syslog("We check sql = ".$sqltocheckcontratnotlinkedtoanopeninvoice);
-									// If we found some record, we discard validation of this invoice
-									$nbfound = 0;
-									// TODO
+								if (!empty($tmparray['refsopened'])) {	// If there is other invoices for the same customer
+									dol_syslog("We check if an older open invoice exists");
 
-									if ($nbfound > 0) {
+									// Try to avoid validation of the current $invoice if another invoice, older, is open on the same contract !!!
+									$sqltocheckcontratnotlinkedtoanopeninvoice = "SELECT rowid FROM ".MAIN_DB_PREFIX."facture as f";
+									$sqltocheckcontratnotlinkedtoanopeninvoice .= " WHERE f.rowid IN (".$this->db->sanitize(join(',', array_keys($tmparray['refsopened']))).")";
+									$sqltocheckcontratnotlinkedtoanopeninvoice .= " AND f.rowid <> ".((int) $invoice->id);
+									$sqltocheckcontratnotlinkedtoanopeninvoice .= " AND f.datef < '".$this->db->idate($invoice->date)."'";
+									// This condition should be a duplicate of the one defined into f.rowid IN..., but we keep it to be sure.
+									$sqltocheckcontratnotlinkedtoanopeninvoice .= " AND EXISTS (SELECT rowid FROM ".MAIN_DB_PREFIX."element_element";
+									$sqltocheckcontratnotlinkedtoanopeninvoice .= " WHERE sourcetype = 'contrat' AND fk_source = ".((int) $idcontract);
+									$sqltocheckcontratnotlinkedtoanopeninvoice .= " AND targettype = 'facture' AND fk_target = f.rowid)";
+									$sqltocheckcontratnotlinkedtoanopeninvoice .= " LIMIT 1";
+
+									$rowidfound = 0;
+
+									$resqlcheckolderinvoices = $this->db->query($sqltocheckcontratnotlinkedtoanopeninvoice);
+									if ($resqlcheckolderinvoices) {
+										$objcheckolderinvoices = $this->db->fetch_object($resqlcheckolderinvoices);
+										if ($objcheckolderinvoices) {
+											$rowidfound = $objcheckolderinvoices->rowid;
+										}
+									}
+									// If we found some record, we discard validation of this invoice
+									if ($rowidfound > 0) {
+										dol_syslog("We found an older invoice with id ".$rowidfound." on same contract, so we discard the validation of this invoice id ".$invoice->id);
 										continue;
 									}
 								}
@@ -227,6 +243,7 @@ class SellYourSaasUtils
 										}
 									}
 
+									// Validate invoice
 									$invoice->context['actionmsgmore'] = 'Invoice id = '.$invoice->id.' validated by doValidateDraftInvoices()';
 									if ($invoice->mode_reglement_code == $codepaiementtransfer) {
 										$invoice->context['actionmsgmore'] .= '. Payment mode is a credit transfer ('.$invoice->mode_reglement_code.') so we will send an email to the customer after validation to inform it about invoice availability.';
@@ -2240,6 +2257,8 @@ class SellYourSaasUtils
 		include_once DOL_DOCUMENT_ROOT.'/compta/facture/class/facture.class.php';
 		include_once DOL_DOCUMENT_ROOT.'/societe/class/companypaymentmode.class.php';
 
+		$now = dol_now();
+
 		$error = 0;
 		$this->output = '';
 		$this->error = '';
@@ -2248,7 +2267,7 @@ class SellYourSaasUtils
 		$invoiceprocessedok = array();
 		$invoiceprocessedko = array();
 
-		if (empty($conf->stripe->enabled)) {
+		if (!isModEnabled("stripe")) {
 			$this->error = 'Error, stripe module not enabled';
 
 			$conf->global->SYSLOG_FILE = $savlog;
@@ -2272,7 +2291,7 @@ class SellYourSaasUtils
 		$sql .= ' FROM '.MAIN_DB_PREFIX.'facture as f, '.MAIN_DB_PREFIX.'societe_extrafields as se, '.MAIN_DB_PREFIX.'societe_rib as sr';
 		$sql .= ' WHERE sr.fk_soc = f.fk_soc';
 		$sql .= " AND f.fk_mode_reglement = ".((int) $idpaiementdebit);
-		$sql .= " AND f.paye = 0 AND f.type = 0 AND f.fk_statut = ".Facture::STATUS_VALIDATED;
+		$sql .= " AND f.paye = 0 AND f.type = ".((int) Facture::TYPE_STANDARD)." AND f.fk_statut = ".((int) Facture::STATUS_VALIDATED);
 		$sql .= " AND f.fk_soc = se.fk_object AND se.dolicloud = 'yesv2'";
 		$sql .= " AND sr.status = ".((int) $servicestatus);	// Test or production
 		$sql .= " AND sr.type = 'ban'";						// This exclude payment mode of other types
@@ -2320,8 +2339,14 @@ class SellYourSaasUtils
 
 						if (!empty($invoice->dispute_status)) {
 							$errorforinvoice++;
+							//$error++;		// This case should not generate a global error
 							dol_syslog("The invoice is flagged as dispute_status so we discard it for any other payment");
 							$this->errors[] = "The invoice is flagged as dispute_status so we discard it for any other payment";
+						} elseif (!empty($invoice->array_options['options_delayautopayment']) && $invoice->array_options['options_delayautopayment'] > $now) {
+							$errorforinvoice++;
+							//$error++;		// This case should not generate a global error
+							dol_syslog("The invoice has a date 'delay automatic payment' higher than the current date so we discard it for payment");
+							$this->errors[] = "The invoice has a date 'delay automatic payment' higher than the current date so we discard it for payment";
 						} else {
 							// Create a direct debit payment request (if none already exists)
 							$result = $invoice->demande_prelevement($user, 0, 'direct-debit', 'facture', 1);
@@ -2333,8 +2358,8 @@ class SellYourSaasUtils
 							} elseif ($result < 0) {
 								$errorforinvoice++;
 								$error++;
-								dol_syslog('Failed to create withdrawal request for a direct debit order for the invoice id='.$obj->rowid, LOG_ERR);
-								$this->errors[] = 'Failed to create withdrawal request for a direct debit order for the invoice '.$obj->ref;
+								dol_syslog('Failed to create request for a direct debit order for the invoice id='.$obj->rowid, LOG_ERR);
+								$this->errors[] = 'Failed to create request for a direct debit order for the invoice '.$obj->ref;
 							}
 						}
 					}
@@ -4302,6 +4327,12 @@ class SellYourSaasUtils
 				$doremoteaction = 2;
 				$listoflinesqualified[] = array('tmpobject' => $tmpobject, 'position' => 10, 'doremoteaction' => $doremoteaction, 'remoteaction' => $remoteaction, 'producttmp' => $producttmp, 'tmppackage' => $tmppackage);
 			}
+			if (in_array($remoteaction, array('undeployoption')) &&
+				($producttmp->array_options['options_app_or_option'] == 'option') && $tmppackage->id > 0) {
+				$doremoteaction = 1;
+				$newremoteaction = 'undeployoption';		// force on deployoption for options services
+				$listoflinesqualified[] = array('tmpobject' => $tmpobject, 'position' => 20, 'doremoteaction' => $doremoteaction, 'remoteaction' => $newremoteaction, 'producttmp' => $producttmp, 'tmppackage' => $tmppackage);
+			}
 		}
 
 		$listoflinesqualified = dol_sort_array($listoflinesqualified, 'position', 'asc');
@@ -4589,11 +4620,12 @@ class SellYourSaasUtils
 					}
 				}
 				// Parameters for remote action
+				// TODO add a function to encode parameters to avoid & and space issuesinstead of the str_replace done below
 				$commandurl = $generatedunixlogin.'&'.$generatedunixpassword.'&'.$sldAndSubdomain.'&'.$domainname;
 				$commandurl.= '&'.$generateddbname.'&'.$generateddbport.'&'.$generateddbusername.'&'.$generateddbpassword;
-				$commandurl.= '&'.str_replace(' ', '£', $tmppackage->srcconffile1);
-				$commandurl.= '&'.str_replace(' ', '£', $tmppackage->targetconffile1);
-				$commandurl.= '&'.str_replace(' ', '£', $tmppackage->datafile1);
+				$commandurl.= '&'.str_replace(array(' ', '&'), '£', $tmppackage->srcconffile1);
+				$commandurl.= '&'.str_replace(array(' ', '&'), '£', $tmppackage->targetconffile1);
+				$commandurl.= '&'.str_replace(array(' ', '&'), '£', $tmppackage->datafile1);
 				$commandurl.= '&'.$tmppackage->srcfile1.'&'.$tmppackage->targetsrcfile1.'&'.$tmppackage->srcfile2.'&'.$tmppackage->targetsrcfile2.'&'.$tmppackage->srcfile3.'&'.$tmppackage->targetsrcfile3;
 				$commandurl.= '&'.$tmppackage->srccronfile.'&'.$tmppackage->srccliafter.'&'.$targetdir;
 				$commandurl.= '&'.getDolGlobalString('SELLYOURSAAS_SUPERVISION_EMAIL');	// Param 22 in .sh
@@ -4601,32 +4633,33 @@ class SellYourSaasUtils
 				$commandurl.= '&'.$urlforsellyoursaasaccount;			            	// Param 24 in .sh
 				$commandurl.= '&'.$sldAndSubdomainold;
 				$commandurl.= '&'.$domainnameold;
-				$commandurl.= '&'.str_replace(' ', '£', $customurl);
+				$commandurl.= '&'.str_replace(array(' ', '&'), '£', $customurl);
 				$commandurl.= '&'.$tmpobject->id;		// ID of line of contract
-				$commandurl.= '&'.str_replace(' ', '£', $conf->global->SELLYOURSAAS_NOREPLY_EMAIL);
+				$commandurl.= '&'.str_replace(array(' ', '&'), '£', getDolGlobalString('SELLYOURSAAS_NOREPLY_EMAIL'));
 				$commandurl.= '&'.$CERTIFFORCUSTOMDOMAIN;
 				$commandurl.= '&'.$archivedir;
 				$commandurl.= '&'.$SSLON;
 				$commandurl.= '&'.(!getDolGlobalString('noapachereload') ? 'apachereload' : 'noapachereload');
-				$commandurl.= '&'.str_replace(' ', '£', $tmppackage->allowoverride);	// Param 34 in .sh: Will replace __AllowOverride__ in virtual host
-				$commandurl.= '&'.str_replace(' ', '£', $customvirtualhostline);		// Param 35 in .sh: Will replace __VirtualHostHead__ in virtual host
+				$commandurl.= '&'.str_replace(array(' ', '&'), '£', $tmppackage->allowoverride);	// Param 34 in .sh: Will replace __AllowOverride__ in virtual host
+				$commandurl.= '&'.str_replace(array(' ', '&'), '£', $customvirtualhostline);		// Param 35 in .sh: Will replace __VirtualHostHead__ in virtual host
 				$commandurl.= '&'.($ispaidinstance ? 1 : 0);
 				$commandurl.= '&'.getDolGlobalString('SELLYOURSAAS_LOGIN_FOR_SUPPORT');
 				$commandurl.= '&'.$directaccess;        // Param 38 in .sh
 				$commandurl.= '&'.$sshaccesstype;       // Param 39 in .sh
-				$commandurl.= '&'.str_replace(' ', '£', $customvirtualhostdir);       	// Param 40 in .sh: Will replace __IncludeFromContract__ in virtual host
-				$commandurl.= '&'.str_replace(' ', '£', $automigrationtmpdir);			// Param 41 in .sh
-				$commandurl.= '&'.str_replace(' ', '£', $automigrationdocumentarchivename); // Param 42 in .sh
-				$commandurl.= '&'.str_replace(' ', '£', $dirforexampleforsources); 		// Param 43 in .sh
-				$commandurl.= '&'.str_replace(' ', '£', $laststableupgradeversion); 	// Param 44 in .sh
-				$commandurl.= '&'.str_replace(' ', '£', $lastversiondolibarrinstance); 	// Param 45 in .sh
-				$commandurl.= '&'.str_replace(' ', '£', $domainnamewebsite); 			// Param 46 in .sh
-				$commandurl.= '&'.str_replace(' ', '£', $websitenamedeploy); 			// Param 47 in .sh
-				$commandurl.= '&'.str_replace(' ', '£', $tmppackage->srccliafterpaid); 	// Param 48 in .sh src for cli after paid
+				$commandurl.= '&'.str_replace(array(' ', '&'), '£', $customvirtualhostdir);       	// Param 40 in .sh: Will replace __IncludeFromContract__ in virtual host
+				$commandurl.= '&'.str_replace(array(' ', '&'), '£', $automigrationtmpdir);			// Param 41 in .sh
+				$commandurl.= '&'.str_replace(array(' ', '&'), '£', $automigrationdocumentarchivename); // Param 42 in .sh
+				$commandurl.= '&'.str_replace(array(' ', '&'), '£', $dirforexampleforsources); 		// Param 43 in .sh
+				$commandurl.= '&'.str_replace(array(' ', '&'), '£', $laststableupgradeversion); 	// Param 44 in .sh
+				$commandurl.= '&'.str_replace(array(' ', '&'), '£', $lastversiondolibarrinstance); 	// Param 45 in .sh
+				$commandurl.= '&'.str_replace(array(' ', '&'), '£', $domainnamewebsite); 			// Param 46 in .sh
+				$commandurl.= '&'.str_replace(array(' ', '&'), '£', $websitenamedeploy); 			// Param 47 in .sh
+				$commandurl.= '&'.str_replace(array(' ', '&'), '£', $tmppackage->srccliafterpaid); 	// Param 48 in .sh src for cli after paid
 				//$outputfile = $conf->sellyoursaas->dir_temp.'/action-'.$remoteaction.'-'.dol_getmypid().'.out';
 
 				// Add a signature of message at end of message
 				$signaturekey = $this->getRemoteServerSignatureKey($domainname);
+
 				// TODO Replace with $commandurl.= '&'.hash('sha256', $commandurl.getDolGlobalString('SELLYOURSAAS_REMOTE_ACTION_SIGNATURE_KEY')); or use asymetric signature.
 				$commandurl.= '&'.md5($commandurl.$signaturekey);
 
@@ -4649,7 +4682,7 @@ class SellYourSaasUtils
 				}
 
 				// Execute personalized SQL requests (sqlafter), (sqlafterpaid)
-				if (! $error && in_array($remoteaction, array('deploy', 'deployall', 'deployoption', 'actionafterpaid'))) {
+				if (! $error && in_array($remoteaction, array('deploy', 'deployall', 'deployoption', 'actionafterpaid', 'undeployoption'))) {
 					if (! $error) {
 						dol_syslog("Try to connect to customer instance database to execute personalized requests");
 
@@ -4678,6 +4711,9 @@ class SellYourSaasUtils
 
 							if ($remoteaction == 'actionafterpaid') {
 								$sqltoexecute = make_substitutions($tmppackage->sqlafterpaid, $substitarrayforsql);
+							}
+							if ($remoteaction == 'undeployoption') {
+								$sqltoexecute = make_substitutions($tmppackage->sqlafterundeployoption, $substitarrayforsql);
 							}
 
 							$arrayofsql=explode(';', $sqltoexecute);

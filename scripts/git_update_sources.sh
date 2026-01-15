@@ -67,27 +67,41 @@ do
 		has_install_lock=''
 		if [[ -f documents/install.lock ]]; then has_install_lock='1'; fi
 		rm -fr documents/*
-		rm -fr dev/ test/ doc/ htdocs/includes/ckeditor/ckeditor/adapters htdocs/includes/ckeditor/ckeditor/samples
+		rm -fr test/ doc/ htdocs/includes/ckeditor/ckeditor/adapters htdocs/includes/ckeditor/ckeditor/samples	# Do not include /build or /dev, done later
 		rm -fr htdocs/public/test
 		rm -fr htdocs/includes/sabre/sabre/*/tests htdocs/includes/stripe/tests htdocs/includes/stripe/stripe-php/tests
 		rm -fr htdocs/includes/tecnickcom/tcpdf/fonts/dejavu-fonts-ttf-* htdocs/includes/tecnickcom/tcpdf/fonts/freefont-* htdocs/includes/tecnickcom/tcpdf/fonts/ae_fonts_*
 		rm -fr htdocs/install/doctemplates/websites/website_template-restaurant*
 		#rm -fr vendor/tecnickcom/tcpdf/fonts/dejavu-fonts-ttf-* vendor/tecnickcom/tcpdf/fonts/freefont-* vendor/tecnickcom/tcpdf/fonts/ae_fonts_*
 		rm -fr files/_cache/*
-		# We remove subdir of build. We need files into build root only.
-		#find build/* -type d -delete
-		find build/* -depth -type d -exec rm -fr {} \;
+
+		# We remove subdir of /dev and /build. We need files into build root only.
+		find build/* -depth -type d -exec rm -fr {} +
+		find dev/* -depth -type d ! -name build -exec rm -fr {} +
+		find dev/build/* -depth -type d -exec rm -fr {} +
+
 		echo "Clean some files to save disk spaces"
 		find . -type f -name index.html ! -path ./htdocs/includes/restler/framework/Luracast/Restler/explorer/index.html -delete
 		
-	    if [ -s build/generate_filelist_xml.php ]; then
+	    if [ -s dev/build/generate_filelist_xml.php ]; then
 	        echo "Found generate_filelist_xml.php from ".`pwd`
-	        php build/generate_filelist_xml.php release=auto-sellyoursaas buildzip=1
+	        php dev/build/generate_filelist_xml.php release=auto-sellyoursaas buildzip=1
 	        if [ $? -ne 0 ]; then
 	        	echo "!!!!! ERROR Failed to generate the signature file"
 	        	error=1
 	        	#exit 1;		# We disable exit so we continue with next dir, so only dir in error is not built
 	        fi
+	    else
+	    	# Use old location
+		    if [ -s build/generate_filelist_xml.php ]; then
+		        echo "Found generate_filelist_xml.php from ".`pwd`
+		        php build/generate_filelist_xml.php release=auto-sellyoursaas buildzip=1
+		        if [ $? -ne 0 ]; then
+		        	echo "!!!!! ERROR Failed to generate the signature file"
+		        	error=1
+		        	#exit 1;		# We disable exit so we continue with next dir, so only dir in error is not built
+		        fi
+		    fi
 	    fi
 	
 		# Create a deployment tar file

@@ -204,6 +204,10 @@ textarea {
   overflow: auto;
 }
 
+.justify {
+	text-align: justify;	
+}
+
 [type="checkbox"],
 [type="radio"] {
   -webkit-box-sizing: border-box;
@@ -401,7 +405,7 @@ blockquote {
 }
 
 a {
-  color: #0275d8;
+  color: #004488;
   text-decoration: none;
 }
 

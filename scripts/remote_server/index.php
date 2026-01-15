@@ -67,20 +67,24 @@ $param = preg_replace('/^\//', '', $_SERVER['REQUEST_URI']);
 $tmparray = explode('?', $param, 2);
 
 $contentsigned = '';
-$paramspace='';
-$paramarray=array();
+$paramspace = '';			// The string to use as parameter for CLI scripts
+$paramspacenoquotes = '';
+$paramarray = array();
 if (! empty($tmparray[1])) {
-	// Remove last param that is the signature to get the message signed
+	// Remove the last param that is the signature to get the message signed
 	$contentsigned = preg_replace('/&[a-z0-9]+$/i', '', urldecode($tmparray[1]));
 	// Generate array of parameters
 	$paramarray = explode('&', urldecode($tmparray[1]));
 	foreach ($paramarray as $val) {
-		$paramspace.=($val != '' ? $val : '-').' ';
+		$paramspace .= escapeshellarg($val != '' ? $val : '-');	// Use ' to avoid problems with spaces in parameters, and replace '' by '-'
+		$paramspace .= " ";
+		$paramspacenoquotes .= ($val != '' ? $val : '-');	// Replace '' by '-'
+		$paramspacenoquotes .= " ";
 	}
 }
 
 // Set variables
-$tmpparam = preg_split('/\s/', $paramspace);
+$tmpparam = preg_split('/\s/', $paramspacenoquotes);		// $tmpparam is now array of parameters, like $paramarray but with '' replaced by '-'
 $osusername = $tmpparam[0];
 $dbname = $tmpparam[4];
 $dbusername = $tmpparam[6];
@@ -89,7 +93,7 @@ $cliafterpaid = $tmpparam[46];
 
 // Recalculate the signature with message received
 // TODO Replace with hash('sha256', $contentsigned.$signature_key); or use asymetric signature.
-$recalculatedsignature = md5($contentsigned.$signature_key);
+$recalculatedsignature = hash('md5', $contentsigned.$signature_key);
 // Extract the signature received
 $signature = empty($tmpparam[47]) ? '' : $tmpparam[47];
 
@@ -122,7 +126,7 @@ if ($signature != $recalculatedsignature) {
 	exit();
 }
 
-if (in_array($tmparray[0], array('deploy', 'undeploy', 'deployoption', 'deployall', 'undeployall'))) {
+if (in_array($tmparray[0], array('deploy', 'undeploy', 'deployoption', 'deployall', 'undeployall', 'undeployoption'))) {
 	if ($DEBUG) {
 		fwrite($fh, date('Y-m-d H:i:s').' ./action_deploy_undeploy.sh '.$tmparray[0].' '.$paramspace."\n");
 	} else {
