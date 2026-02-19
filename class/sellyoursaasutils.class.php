@@ -450,7 +450,9 @@ class SellYourSaasUtils
 													$invoicediroutput = $conf->facture->dir_output;
 													$fileparams = dol_most_recent_file($invoicediroutput . '/' . $invoice->ref, preg_quote($invoice->ref, '/').'[^\-]+');
 													$file = $fileparams['fullname'];
-													$file = '';		// Disable attachment of invoice in emails
+													if (empty($arraydefaultmessage->joinfiles)) {
+														$file = '';               // Disable attachment of invoice in emails if template joinfiles = 0
+													}
 
 													if ($file) {
 														$listofpaths=array($file);
@@ -1735,7 +1737,7 @@ class SellYourSaasUtils
 											'customer' => $customer->id,
 											//'customer' => 'bidon_to_force_error',		// To use to force a stripe error
 											'source' => $stripecard,
-											'statement_descriptor' => dol_trunc('INV='.$invoice->id, 10, 'right', 'UTF-8', 1),     // 22 chars that appears on bank receipt (company + description)
+											'statement_descriptor' => dol_trunc('INV='.$invoice->id, 12, 'right', 'UTF-8', 1),     // 22 chars that appears on bank receipt (company + description)
 										));
 									} catch (\Stripe\Error\Card $e) {
 										// Since it's a decline, Stripe_CardError will be caught
@@ -2137,7 +2139,9 @@ class SellYourSaasUtils
 							$invoicediroutput = $conf->facture->dir_output;
 							$fileparams = dol_most_recent_file($invoicediroutput . '/' . $invoice->ref, preg_quote($invoice->ref, '/').'[^\-]+');
 							$file = $fileparams['fullname'];
-							$file = '';		// Disable attachment of invoice in emails
+							if (empty($arraydefaultmessage->joinfiles)) {
+								$file = '';               // Disable attachment of invoice in emails if template joinfiles = 0
+							}
 
 							if ($file) {
 								$listofpaths=array($file);
@@ -2353,7 +2357,7 @@ class SellYourSaasUtils
 							if ($result == 0) {
 								$errorforinvoice++;
 								//$error++;		// This case should not generate a global error
-								dol_syslog('A direct-debit request already exists for invoice id='.$obj->rowid.', so we cancel payment try', LOG_ERR);
+								dol_syslog('A direct-debit request already exists for invoice id='.$obj->rowid.', so we cancel payment try', LOG_WARNING);
 								$this->errors[] = 'A direct-debit request already exists for the invoice '.$invoice->ref.', so we cancel payment try';
 							} elseif ($result < 0) {
 								$errorforinvoice++;

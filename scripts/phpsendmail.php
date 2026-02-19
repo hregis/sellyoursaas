@@ -80,28 +80,19 @@ if (empty($MAXPERDAYPAID)) {
 	$MAXPERDAYPAID=1000;
 }
 
+
 // Main
 
 file_put_contents($logfile, date('Y-m-d H:i:s') . " php.ini file loaded is ".php_ini_loaded_file()."\n", FILE_APPEND);
 
-if (function_exists('shell_exec')) {
-	file_put_contents($logfile, date('Y-m-d H:i:s') . " shell_exec is available. ok\n", FILE_APPEND);
+$EXEC ='exec';
+
+if (function_exists($EXEC)) {
+	file_put_contents($logfile, date('Y-m-d H:i:s') . " ".$EXEC." is available. ok\n", FILE_APPEND);
 } else {
-	file_put_contents($logfile, date('Y-m-d H:i:s') . " The function shell_exec is not available in shell context - exit 1\n", FILE_APPEND);
+	file_put_contents($logfile, date('Y-m-d H:i:s') . " The function shell_exec is not available in shell context (check PHP parameter disable_functions) - exit 1\n", FILE_APPEND);
 	exit(1);
 }
-/*$disabledfunction = ini_get('disable_functions');
-if ($disabledfunction) {
-	if (strpos($disabledfunction, 'shell_exec') === false) {
-		file_put_contents($logfile, date('Y-m-d H:i:s') . " shell_exec is not disabled. ok\n", FILE_APPEND);
-	} else {
-		file_put_contents($logfile, date('Y-m-d H:i:s') . " The function shell_exec is disabled by disable_functions - exit 1\n", FILE_APPEND);
-		exit(1);
-	}
-} else {
-	file_put_contents($logfile, date('Y-m-d H:i:s') . " failed to get disable_functions.\n", FILE_APPEND);
-}
-*/
 
 
 // Load $instanceofuser
@@ -166,7 +157,8 @@ while ($line = fgets($pointer)) {
 	$mail .= $line;
 }
 
-$tmpfile='/tmp/phpsendmail-'.posix_getuid().'-'.getmypid().'.tmp';
+$tmpfile = '/tmp/phpsendmail-'.posix_getuid().'-'.getmypid().'.tmp';
+file_put_contents($logfile, date('Y-m-d H:i:s') . ' write content of email into file '.$tmpfile."\n", FILE_APPEND);
 @unlink($tmpfile);
 file_put_contents($tmpfile, $mail);
 chmod($tmpfile, 0660);
@@ -186,6 +178,7 @@ if (! $optionffound) {
 	file_put_contents($logfile, date('Y-m-d H:i:s') . ' option -f not found. Args are '.join(' ', $_SERVER['argv']).'. We get it from the header'."\n", FILE_APPEND);
 	$command .= "'-f".$emailfrom."'";
 }
+$command .= ' 2>&1';
 
 $ip = empty($_SERVER["REMOTE_ADDR"]) ? '' : $_SERVER["REMOTE_ADDR"];
 if (empty($ip)) {
@@ -195,17 +188,34 @@ if (empty($ip)) {
 }
 
 //file_put_contents($logfile, date('Y-m-d H:i:s')." Nb of entry into instanceofuser = ".count($instanceofuser), FILE_APPEND);
+$countnbprocess = 0;
 
-// Count other existing file starting with '/tmp/phpsendmail-'.posix_getuid()
-// and return error if nb is higher than 500
-$commandcheck = 'find /tmp/phpsendmail-'.posix_getuid().'-* -mtime -1 | wc -l';
+/* Replace old method to count with system calls by a native PHP count
+if ($EXEC == 'shell_exec') {
+	// Count other existing file starting with '/tmp/phpsendmail-'.posix_getuid()
+	// and return error if nb is higher than 500
+	$commandcheck = 'find /tmp/phpsendmail-'.posix_getuid().'-* -mtime -1 | wc -l';
 
-// Execute the command
-// We need 'shell_exec' here that return all the result as string and not only first line like 'exec'
-//$resexec = shell_exec("id");
-//file_put_contents($logfile, date('Y-m-d H:i:s')." id = ".$resexec."\n", FILE_APPEND);
-$resexec = shell_exec($commandcheck);
-$resexec = (int) (empty($resexec) ? 0 : trim($resexec));
+	// Execute the command
+	// We use 'shell_exec' here that return all the result as string and not only first line like 'exec' even ifexec can return all result too by using the second parameter output.
+	//$resexec = shell_exec("id");
+	//file_put_contents($logfile, date('Y-m-d H:i:s')." id = ".$resexec."\n", FILE_APPEND);
+	$resexec = shell_exec($commandcheck);
+	$countnbprocess = (int) (empty($resexec) ? 0 : trim($resexec));
+}
+*/
+// Count tmp files using full native PHP
+$pattern = '/tmp/phpsendmail-'.posix_getuid().'-*';
+
+$files = glob($pattern);
+if ($files !== false) {
+	$limitTime = time() - 24 * 60 * 60; 	// 24 hours
+	foreach ($files as $file) {
+		if (is_file($file) && filemtime($file) >= $limitTime) {
+			$countnbprocess++;
+		}
+	}
+}
 
 $MAXALLOWED = $MAXPERDAYPAID;
 if ($usernamestring) {
@@ -220,9 +230,9 @@ if ($usernamestring) {
 	}
 }
 
-file_put_contents($logfile, date('Y-m-d H:i:s')." Nb of processes found with ".$commandcheck." = ".$resexec." (we accept ".$MAXALLOWED.")\n", FILE_APPEND);
+file_put_contents($logfile, date('Y-m-d H:i:s')." Nb of processes found by counting files ".$pattern." = ".$countnbprocess." (we accept ".$MAXALLOWED.")\n", FILE_APPEND);
 
-if ($resexec > $MAXALLOWED) {
+if ($countnbprocess > $MAXALLOWED) {
 	file_put_contents($logfile, date('Y-m-d H:i:s') . ' ' . $ip . ' sellyoursaas rules ko quota reached - exit 6. User has reached its quota of '.$MAXALLOWED.".\n", FILE_APPEND);
 	exit(6);
 }
@@ -322,9 +332,18 @@ if (empty($fromline) && empty($emailfrom)) {
 
 file_put_contents($logfile, date('Y-m-d H:i:s') . ' ' .$command."\n", FILE_APPEND);
 
+$resexecstring = '';
+
 // Execute the command to send email
-// We need 'shell_exec' here that return all the result as string and not only first line like 'exec'
-$resexec =  shell_exec($command);
+if ($EXEC == 'shell_exec') {
+	// We use 'shell_exec' here that return all the result as string and not only first line like 'exec' even ifexec can return all result too by using the second parameter output.
+	$resexecstring =  shell_exec($command);
+}
+if ($EXEC == 'exec') {
+	$tmpresult = array();
+	$resexec = exec($command, $tmpresult);
+	$resexecstring = implode("\n", $tmpresult);
+}
 
 if (empty($ip) || $ip == 'unknown') {
 	file_put_contents($logfile, "--- no ip detected ---\n", FILE_APPEND);
@@ -332,9 +351,11 @@ if (empty($ip) || $ip == 'unknown') {
 	file_put_contents($logfile, var_export($_ENV, true)."\n", FILE_APPEND);
 }
 
+file_put_contents($logfile, var_export($resexecstring, true)."\n", FILE_APPEND);
+
 time_nanosleep(0, 200000000);	// Add a delay to reduce effect of successfull spamming
 
-return $resexec;
+return $resexecstring;
 
 
 

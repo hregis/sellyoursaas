@@ -38,6 +38,7 @@
 ALTER TABLE llx_packages ADD COLUMN cliafterpaid text;
 ALTER TABLE llx_packages ADD COLUMN sqlafterpaid text;
 ALTER TABLE llx_packages ADD COLUMN sqlpasswordreset text;
+ALTER TABLE llx_packages ADD COLUMN sqlafterundeployoption text;
 
 
 
@@ -192,7 +193,7 @@ ALTER TABLE llx_sellyoursaas_deploymentserver ADD COLUMN hostname varchar(64);
 UPDATE llx_actioncomm SET code = 'AC_PAYMENT_STRIPE_IPN_SEPA_KO' where code = 'AC_IPN' and label like 'Payment error (SEPA%';
 
 
-UPDATE llx_facture SET dispute_status = 1 WHERE rowid IN (SELECT fe.fk_object FROM llx_facture_extrafields as fe WHERE fe.invoicepaymentdisputed = 1);
+--UPDATE llx_facture SET dispute_status = 1 WHERE rowid IN (SELECT fe.fk_object FROM llx_facture_extrafields as fe WHERE fe.invoicepaymentdisputed = 1) AND dispute_status = 0;
 --UPDATE llx_facture_extrafields SET invoicepaymentdisputed = NULL WHERE invoicepaymentdisputed = 1;
 
 
@@ -202,3 +203,6 @@ update llx_societe_rib set ext_payment_site = 'StripeTest' where stripe_account 
 update llx_societe_rib set ext_payment_site = 'StripeLive' where type = 'card' AND card_type IN ('visa', 'mastercard', 'amex') AND ext_payment_site IS NULL AND (stripe_card_ref like 'card_%' OR stripe_card_ref LIKE 'pm%');
 
 ALTER TABLE llx_packages ADD COLUMN sqlafterundeployoption text;
+
+UPDATE llx_extrafields SET enabled = 'isModEnabled("sellyoursaas")' WHERE enabled = '$conf->sellyoursaas->enabled';
+
