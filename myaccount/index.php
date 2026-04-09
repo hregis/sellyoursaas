@@ -469,7 +469,6 @@ if (!empty($mythirdpartyaccount->context['isamoduleprovider']) && in_array($mode
 	} else {
 		dol_print_error($db);
 	}
-
 }
 
 // Define environment of payment modes
@@ -916,7 +915,7 @@ if ($action == 'updateurl') {	// update URL from the tab "Domain"
 			$tickettocreate->origin_replyto = $replyto;
 			$tickettocreate->origin_email = $replyto;
 			$tickettocreate->ip = $ipaddress;
-			$tickettocreate->severity_code = strtoupper($priority); //To match code format in database 
+			$tickettocreate->severity_code = strtoupper($priority); //To match code format in database
 			$tickettocreate->category_code = $groupticket;
 			$tickettocreate->type_code = "OTHER"; //TODO: Add type in Form support to add it to ticket
 			if (is_object($tmpcontract)) {
@@ -1100,8 +1099,8 @@ if ($action == 'updateurl') {	// update URL from the tab "Domain"
 	$oldemail = trim(GETPOST('oldemail', 'alphanohtml'));
 	$emailccinvoice = trim(GETPOST('emailccinvoice', 'alphanohtml'));
 	$oldemailccinvoice = trim(GETPOST('oldemailccinvoice', 'alphanohtml'));
-	$firstname = trim(GETPOST('firstName', 'alphanohtml'));
-	$lastname = trim(GETPOST('lastName', 'alphanohtml'));
+	$firstname = trim(dol_string_nospecial(GETPOST('firstName', 'alphanohtml'), '_', '', array('.'), 1));
+	$lastname = trim(dol_string_nospecial(GETPOST('lastName', 'alphanohtml'), '_', '', array('.'), 1));
 	$phone = trim(GETPOST('phone', 'alphanohtml'));
 	$oldphone = trim(GETPOST('oldphone', 'alphanohtml'));
 
@@ -1161,8 +1160,8 @@ if ($action == 'updateurl') {	// update URL from the tab "Domain"
 		}
 	}
 } elseif ($action == 'updatepassword') {
-	$password = GETPOST('password', 'password');
-	$password2 = GETPOST('password2', 'password');
+	$password = dol_trunc(trim(GETPOST('password', 'password')), 128, 'right', 'UTF-8', 1);
+	$password2 = dol_trunc(trim(GETPOST('password2', 'password')), 128, 'right', 'UTF-8', 1);
 
 	if (empty($password) || empty($password2)) {
 		setEventMessages($langs->trans("ErrorFieldRequired", $langs->transnoentitiesnoconv("Password")), null, 'errors');
@@ -1314,7 +1313,7 @@ if ($action == 'updateurl') {	// update URL from the tab "Domain"
 				if (!$error) {
 					// Creation of Stripe SEPA + update of societe_rib
 					$card = $stripe->sepaStripe($cu, $companypaymentmode, $stripeacc, $servicestatus, 1);
-					if (!$card) {
+					if (!$card || $stripe->error) {
 						$error++;
 						setEventMessages($stripe->error, $stripe->errors, 'errors');
 					} else {
@@ -1330,7 +1329,7 @@ if ($action == 'updateurl') {	// update URL from the tab "Domain"
 			$id_payment_mode_ban = dol_getIdFromCode($db, 'PRE', 'c_paiement', 'code', 'id', 1);
 
 			// Update all pending recurring invoices of the thirdparty to the payment mode direct debit. Update also the open invoices.
-			// Note that it may have no pending invoice yet when contract is in trial mode (running or suspended). For such case, recuring invoice is created at end of this action.
+			// Note that it may have no pending invoice yet when contract is in trial mode (running or suspended). For such case, recurring invoice is created at end of this action.
 			if ($id_payment_mode_ban > 0) {
 				// First update recurring invoices
 				$sql = "UPDATE ".MAIN_DB_PREFIX."facture_rec";
@@ -1359,7 +1358,7 @@ if ($action == 'updateurl') {	// update URL from the tab "Domain"
 				setEventMessages("Failed to get payment mode ID for Direct Debit (code PRE). We can't continue.", null, 'errors');
 			}
 
-			dol_syslog("--- A sepa bank was recorded. Now we reset the custom stripeaccount (to force use of the default setup)", LOG_DEBUG, 0);
+			dol_syslog("--- A sepa bank was recorded. Now we reset the forced custom stripeaccount (to force use of the default setup)", LOG_DEBUG, 0);
 
 			$sql = 'UPDATE '.MAIN_DB_PREFIX.'societe_extrafields set stripeaccount = NULL WHERE fk_object = '.$mythirdpartyaccount->id;
 			$db->query($sql);
@@ -1417,7 +1416,7 @@ if ($action == 'updateurl') {	// update URL from the tab "Domain"
 
 		$paymentmode = 'ban';
 		include dol_buildpath('/sellyoursaas/myaccount/tpl/action_create_recinvoice_after_payment_creation.tpl.php');
-		// This include the $db->commit() or $db->rollback() and the redirect if everything is ok
+		// This include the $db->commit() or $db->rollback() according to $error and the redirect if everything is ok
 
 		$action='';
 		$mode='registerpaymentmode';
@@ -2003,7 +2002,7 @@ if ($action == 'updateurl') {	// update URL from the tab "Domain"
 				';
 
 				// TODO
-				// Make a redirect on cancelation survey
+				// Make a redirect on cancellation survey
 
 				llxFooter();
 
@@ -2410,7 +2409,7 @@ if ($action == 'updateurl') {	// update URL from the tab "Domain"
 						}
 					}
 				}
-			}  else {
+			} else {
 				if (!getDolGlobalInt("SELLYOURSAAS_ENABLE_OPTION_FOR_TRIAL")) {
 					// TODO: Send mail auto to inform admins of missing recinvoice
 				}
@@ -2602,6 +2601,68 @@ if ($action == 'updateurl') {	// update URL from the tab "Domain"
 
 	header('Location: '.$_SERVER["PHP_SELF"].'?mode=instances&tab=resources_'.$object->id);
 	exit();
+} elseif ($action == 'confirmcloseticket'){
+	require_once DOL_DOCUMENT_ROOT.'/ticket/class/actions_ticket.class.php';
+	$object = new ActionsTicket($db);
+	$error = 0;
+	$track_id = GETPOST("track_id", "alpha");
+
+	if (empty($track_id)) {
+		setEventMessages($langs->trans("ErrorFieldRequired", $langs->transnoentitiesnoconv("TrackId")), null, 'errors');
+		header("Location: ".$backtourl);
+		exit;
+	}
+	$object->fetch(0, '', $track_id);
+	if ($object->dao->fk_soc != $mythirdpartyaccount->id) {
+		setEventMessages($langs->trans("ErrorForbidden"), null, 'errors');
+		header("Location: ".$backtourl);
+		exit;
+	}
+	if ($object->dao->close($user)) {
+		setEventMessages($langs->trans('TicketMarkedAsClosed'), null, 'mesgs');
+
+		$url = $_SERVER["PHP_SELF"].'?mode=ticket&action=view&track_id='.$track_id;
+		header("Location: ".$url);
+		exit;
+	} else {
+		$action = '';
+		setEventMessages($object->error, $object->errors, 'errors');
+	}
+} elseif ($action == 'confirm_ticketaddmessage' && !GETPOST('ticket_addfile') && !GETPOST('ticket_removedfile')){
+	$error = 0;
+	require_once DOL_DOCUMENT_ROOT.'/ticket/class/actions_ticket.class.php';
+	$object = new ActionsTicket($db);
+	$track_id = GETPOST("track_id");
+	$message = GETPOST("message", 'alpha');
+
+	if (empty($track_id)) {
+		setEventMessages($langs->trans("ErrorFieldRequired", $langs->transnoentitiesnoconv("TrackId")), null, 'errors');
+		header("Location: ".$backtourl);
+		exit;
+	}
+
+	$object->fetch(0, '', $track_id);
+	if ($object->dao->fk_soc != $mythirdpartyaccount->id) {
+		setEventMessages($langs->trans("ErrorForbidden"), null, 'errors');
+		header("Location: ".$backtourl);
+		exit;
+	}
+
+	if (empty($message)) {
+		setEventMessages($langs->trans("ErrorFieldRequired", $langs->transnoentitiesnoconv("Message")), null, 'errors');
+		header("Location: ".$backtourl);
+		exit;
+	}
+
+	$result = $object->dao->newMessage($user, $action, 0, 1);
+	if ($result < 0) {
+		$action = '';
+		setEventMessages($object->error, $object->errors, 'errors');
+	} else {
+		$url = $_SERVER["PHP_SELF"].'?mode=ticket&action=view&track_id='.$track_id;
+		header("Location: ".$url);
+		exit;
+	}
 }
 
 
@@ -3469,7 +3530,7 @@ if (empty($welcomecid)
 	&& !in_array($mode, array('myresellertools', 'mycustomerinstances', 'mycustomerbilling', 'mymoduleprovidertools', 'mymodulecustomerinstances', 'mymodulecustomerbilling'))
 	&& !in_array($action, array('instanceverification', 'autoupgrade'))) {
 	// Show warnings on invoice dispute
-	$sql = 'SELECT f.rowid, f.ref, f.datef, f.datec, f.date_lim_reglement as date_due, f.dispute_status, fe.invoicepaymentdisputed';
+	$sql = 'SELECT f.rowid, f.ref, f.datef, f.datec, f.date_lim_reglement as date_due, f.dispute_status';
 	$sql .= ' FROM '.MAIN_DB_PREFIX.'facture as f, '.MAIN_DB_PREFIX.'facture_extrafields as fe';
 	$sql .= ' WHERE fe.fk_object = f.rowid AND f.fk_soc = '.((int) $mythirdpartyaccount->id);
 	$sql .= ' AND dispute_status = 1';	// dispute open
@@ -3548,7 +3609,7 @@ if (empty($welcomecid)
 						if ($mode != 'registerpaymentmode') {
 							print '<p class="pforbutton">';
 							if ($contract->total_ht > 0) {
-								// Link to add payment and to swith to instance
+								// Links to add a payment and to switch to the instance
 								print '<a href="'.$_SERVER["PHP_SELF"].'?mode=registerpaymentmode&backtourl='.urlencode($_SERVER["PHP_SELF"].'?mode='.$mode).'" class="btn btn-warning wordbreak marginrightonly">';
 								print $langs->trans("AddAPaymentMode");
 								print '</a>';

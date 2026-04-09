@@ -61,14 +61,14 @@ Whether the disk has just been formatted or whether it is an added disk already 
 blkid
 ---------------
 
-* Declare the assembly for an automatic assembly at each reboot by adding a line in */etc/fstab*
+* Declare the mount for an automatic mount at each reboot by adding a line in */etc/fstab*
 
 [source, bash]
 ---------------
 UUID=94817f83-a2ad-46c4-81e0-06e6dd0e95f1 /mnt/diskX btrfs noatime,nofail 0 0 (does not block the server from starting)
 ---------------
 
-* Mount disk
+* Mount disk manually the first time
 
 [source, bash]
 ---------------
@@ -80,15 +80,14 @@ blkid
 
 Note: A reboot may be required if disk or mount is not visible.
 
-* Optimize the filesystem by removing the update of the "atime" read access
+* Optimize filesystem it by removing the update of the "atime" read access
 
 To see options for optimizing filesystems:
 
 [source, bash]
 ---------------
-tune2fs -l /dev/vdxY | grep features
+cat /proc/mounts | grep time
 ---------------
-return
 
 Filesystem features: has_journal ext_attr resize_inode dir_index filetype needs_recovery extent flex_bg sparse_super large_file huge_file uninit_bg dir_nlink extra_isize
 
@@ -375,7 +374,7 @@ To take this into account, try this, otherwise, reboot.
 
 === Creation of working directories
 
-Only */mnt/diskbackup* is required, so no creation of directory has to be done.
+Only */mnt/diskbackup*, already created previously, is required, so no creation of directory has to be done.
 
 
   
@@ -386,17 +385,6 @@ Only */mnt/diskbackup* is required, so no creation of directory has to be done.
 === Installation of packages
 
 There are two scenario depending on your version of Ubuntu. Follow the instruction *18.04-* OR the *20.04+* one
-
-* Installation of the 18.04- Ubuntu packages
-
-[source,bash]
----------------
-sudo apt update
-sudo apt install ntp git gzip zip zstd ncdu duc
-sudo apt install rkhunter chkrootkit
-sudo apt install spamc spamassassin clamav clamav-daemon
-sudo apt install fail2ban
----------------
 
 * Installation of the 20.04+ Ubuntu packages
 
@@ -643,7 +631,7 @@ su root syslog
 ---------------
 
 
-=== Setup of journalctl
+=== Setup of journalctl (optional)
 
 Journals are stored into */var/log/journal/* (or into memory */run/log/journal/*)
 

@@ -64,11 +64,12 @@ class SellYourSaasUtils
 	 * Search draft invoices on sellyoursaas customers and check they are linked to a not closed contract. Validate it if not closed, do nothing if closed.
 	 * CAN BE A CRON TASK
 	 *
-	 * @param	int		$restrictonthirdpartyid		0=All qualified draft invoices, >0 = Restrict on qualified draft invoice of thirdparty.
+	 * @param	int		$restrictonthirdpartyid		0=All qualified draft invoices, >0 = Restrict on qualified draft invoice of a given thirdparty.
 	 * @param	int		$maxtoprocess				0=All, >0 = Nb max of invoices to process
+	 * @param	int		$restrictoninvoiceid		Restrict on invoice ID
 	 * @return	int									0 if OK, <>0 if KO (this function is used also by cron so only 0 is OK)
 	 */
-	public function doValidateDraftInvoices($restrictonthirdpartyid = 0, $maxtoprocess = 0)
+	public function doValidateDraftInvoices($restrictonthirdpartyid = 0, $maxtoprocess = 0, $restrictoninvoiceid = 0)
 	{
 		global $conf, $langs, $user, $mysoc;
 
@@ -101,6 +102,9 @@ class SellYourSaasUtils
 		if ($restrictonthirdpartyid > 0) {
 			$sql.=" AND f.fk_soc = ".((int) $restrictonthirdpartyid);
 		}
+		if ($restrictoninvoiceid > 0) {
+			$sql.=" AND f.rowid = ".((int) $restrictoninvoiceid);
+		}
 		$sql.= " ORDER BY f.datef, f.rowid";
 		if ($maxtoprocess > 0) {
 			$sql.= $this->db->plimit($maxtoprocess);
@@ -113,7 +117,7 @@ class SellYourSaasUtils
 			while ($i < $num_rows) {
 				$obj = $this->db->fetch_object($resql);
 				if ($obj && $invoice->fetch($obj->rowid) > 0) {
-					dol_syslog("--- Process invoice id=".$invoice->id." ref=".$invoice->ref." restrictonthirdpartyid=".$restrictonthirdpartyid);
+					dol_syslog("--- Process invoice id=".$invoice->id." ref=".$invoice->ref." restrictonthirdpartyid=".$restrictonthirdpartyid." restrictoninvoiceid=".$restrictoninvoiceid);
 
 					$invoice->fetch_thirdparty();
 
@@ -140,15 +144,15 @@ class SellYourSaasUtils
 							$this->db->begin();
 
 							// Loop on all contracts linked to the invoices
-							foreach ($invoice->linkedObjects['contrat'] as $idcontract => $contract) {
+							foreach ($invoice->linkedObjects['contrat'] as $idline => $contract) {
 								if (!empty($draftinvoiceprocessed[$invoice->id]) || !empty($draftinvoicecanceled[$invoice->id])) {
 									continue;	// If already processed because of a previous contract line, do nothing more
 								}
 
-								dol_syslog("-- Process validation of invoices for the contract ".$contract->ref, LOG_DEBUG);
+								dol_syslog("-- Process validation of invoices for the contract ".$contract->ref.", id ".$contract->id, LOG_DEBUG);
 
 								if (!empty($tmparray['refsopened'])) {	// If there is other invoices for the same customer
-									dol_syslog("We check if an older open invoice exists");
+									dol_syslog("We check among open invoices if an older open invoice exists");
 
 									// Try to avoid validation of the current $invoice if another invoice, older, is open on the same contract !!!
 									$sqltocheckcontratnotlinkedtoanopeninvoice = "SELECT rowid FROM ".MAIN_DB_PREFIX."facture as f";
@@ -157,7 +161,7 @@ class SellYourSaasUtils
 									$sqltocheckcontratnotlinkedtoanopeninvoice .= " AND f.datef < '".$this->db->idate($invoice->date)."'";
 									// This condition should be a duplicate of the one defined into f.rowid IN..., but we keep it to be sure.
 									$sqltocheckcontratnotlinkedtoanopeninvoice .= " AND EXISTS (SELECT rowid FROM ".MAIN_DB_PREFIX."element_element";
-									$sqltocheckcontratnotlinkedtoanopeninvoice .= " WHERE sourcetype = 'contrat' AND fk_source = ".((int) $idcontract);
+									$sqltocheckcontratnotlinkedtoanopeninvoice .= " WHERE sourcetype = 'contrat' AND fk_source = ".((int) $contract->id);
 									$sqltocheckcontratnotlinkedtoanopeninvoice .= " AND targettype = 'facture' AND fk_target = f.rowid)";
 									$sqltocheckcontratnotlinkedtoanopeninvoice .= " LIMIT 1";
 
@@ -416,7 +420,7 @@ class SellYourSaasUtils
 
 												if (is_array($invoice->linkedObjects['contrat']) && count($invoice->linkedObjects['contrat']) > 0) {
 													//dol_sort_array($object->linkedObjects['facture'], 'date');
-													foreach ($invoice->linkedObjects['contrat'] as $idcontract => $contract) {
+													foreach ($invoice->linkedObjects['contrat'] as $idline => $contract) {
 														$substitutionarray['__CONTRACT_REF__'] = $contract->ref_customer;
 														$substitutionarray['__REFCLIENT__'] = $contract->ref_customer;	// For backward compatibility
 														$substitutionarray['__REF_CLIENT__'] = $contract->ref_customer;
@@ -2105,7 +2109,7 @@ class SellYourSaasUtils
 
 						if (is_array($invoice->linkedObjects['contrat']) && count($invoice->linkedObjects['contrat']) > 0) {
 							//dol_sort_array($object->linkedObjects['facture'], 'date');
-							foreach ($invoice->linkedObjects['contrat'] as $idcontract => $contract) {
+							foreach ($invoice->linkedObjects['contrat'] as $idline => $contract) {
 								$substitutionarray['__CONTRACT_REF__']=$contract->ref_customer;
 								$substitutionarray['__REFCLIENT__']=$contract->ref_customer;	// For backward compatibility
 								$substitutionarray['__REF_CLIENT__']=$contract->ref_customer;
@@ -2592,7 +2596,7 @@ class SellYourSaasUtils
 
 						//dol_sort_array($contract->linkedObjects['facture'], 'date');
 						$someinvoicenotpaid=0;
-						foreach ($object->linkedObjects['facture'] as $idinvoice => $invoice) {
+						foreach ($object->linkedObjects['facture'] as $idline => $invoice) {
 							if ($invoice->statut == Facture::STATUS_DRAFT) {
 								continue;	// Draft invoice are not unpaid invoices
 							}
@@ -2799,7 +2803,7 @@ class SellYourSaasUtils
 						usort($object->linkedObjects['facture'], "sellyoursaasCmpDate");	// function "cmp" to sort on ->date is inside sellyoursaas.lib.php
 
 						//dol_sort_array($contract->linkedObjects['facture'], 'date');
-						foreach ($object->linkedObjects['facture'] as $idinvoice => $invoice) {
+						foreach ($object->linkedObjects['facture'] as $idline => $invoice) {
 							if ($invoice->statut == Facture::STATUS_DRAFT) {
 								continue;	// Draft invoice are not invoice not paid
 							}
@@ -3780,7 +3784,7 @@ class SellYourSaasUtils
 								$object->fetchObjectLinked(null, '', null, '', 'OR', 1, 'sourcetype', 1);
 
 								if (!empty($object->linkedObjects['facturerec']) && is_array($object->linkedObjects['facturerec'])) {
-									foreach ($object->linkedObjects['facturerec'] as $idtemplateinvoice => $templateinvoice) {
+									foreach ($object->linkedObjects['facturerec'] as $idline => $templateinvoice) {
 										// Disabled this template invoice
 										$res = $templateinvoice->setValueFrom('suspended', 1);
 										if ($res) {
@@ -3791,7 +3795,7 @@ class SellYourSaasUtils
 
 								// Delete draft invoices linked to this thirdparty, after a successfull undeploy
 								if (!empty($object->linkedObjects['facture']) && is_array($object->linkedObjects['facture'])) {
-									foreach ($object->linkedObjects['facture'] as $idinvoice => $invoicetodelete) {
+									foreach ($object->linkedObjects['facture'] as $idline => $invoicetodelete) {
 										if ($invoicetodelete->statut == Facture::STATUS_DRAFT) {
 											if (preg_match('/\(.*\)/', $invoicetodelete->ref)) {
 												//$sql = "DELETE FROM ".MAIN_DB_PREFIX."facture WHERE fk_statut = ".Facture::STATUS_DRAFT." AND fk_soc = ".$object->fk_soc;
@@ -4910,7 +4914,7 @@ class SellYourSaasUtils
 							$resql = $dbinstance->query($sqlformula);
 							if ($resql) {
 								if (preg_match('/^select count/i', $sqlformula)) {
-									// If request is a simple SELECT COUNT
+									// If request is a simple SELECT COUNT (very old method)
 									$objsql = $dbinstance->fetch_object($resql);
 									if ($objsql) {
 										$newqty = $objsql->nb;
@@ -4923,7 +4927,7 @@ class SellYourSaasUtils
 								} else {
 									// If request is a SELECT nb, fieldlogin as comment
 									$num = $dbinstance->num_rows($resql);
-									if ($num > 0) {
+									if ($num > 0 || (getDolGlobalInt('SELLYOURSAAS_ALLOW_EMPTY_RESOURCES') && $num == 0)) {
 										$itmp = 0;
 										$arrayofcomment = array();
 										while ($itmp < $num) {
