@@ -20,6 +20,18 @@
  * @var DoliDB $db
  * @var HookManager $hookmanager
  * @var Translate $langs
+ * @var User $user
+ *
+ * @var ?SellYourSaasUtils $sellyoursaasutils
+ * @var string $action
+ * @var string $backurl
+ * @var string $paymentmode
+ * @var int $thirdpartyhadalreadyapaymentmode
+ * @var int $error
+ * @var array $listofcontractid
+ * @var Societe $mythirdpartyaccount
+ * @var int $now
+ * @var Translate $langscompany
  */
 
 // Protection to avoid direct call of template
@@ -117,10 +129,11 @@ if (! $error) {
 			$originid = $contract->id;
 
 			$invoice_draft->origin = $origin;
+			$invoice_draft->origin_type = $origin;
 			$invoice_draft->origin_id = $originid;
 
 			// Possibility to add external linked objects with hooks
-			$invoice_draft->linked_objects[$invoice_draft->origin] = $invoice_draft->origin_id;
+			$invoice_draft->linked_objects[$invoice_draft->origin_type] = $invoice_draft->origin_id;
 
 			$idinvoice = $invoice_draft->create($user);      // This include class to add_object_linked() and add add_contact()
 			if (! ($idinvoice > 0)) {
@@ -131,7 +144,7 @@ if (! $error) {
 
 		$frequency=1;
 		$frequency_unit='m';
-		$discountcode = strtoupper(trim(GETPOST('discountcode', 'aZ09')));	// If a discount code was prodived on page
+		$discountcode = strtoupper(trim(GETPOST('discountcode', 'aZ09')));	// If a discount code was provided on page
 		$discountcode = preg_replace('/\-\d+$/', '', $discountcode);		// Remove the part "-123" into "MYCODE-123"
 		/* If a discount code exists on contract level, it was used to prefill the payment page, so it is received into the GETPOST('discountcode', 'aZ09').
 		if (empty($discountcode) && ! empty($contract->array_options['options_discountcode'])) {    // If no discount code provided, but we find one on contract, we use this one
@@ -283,7 +296,34 @@ if (! $error) {
 				}
 
 				// Insert the line
-				$result = $invoice_draft->addline($desc, $price_invoice_template_line, $lines[$i]->qty, $tva_tx, $localtax1_tx, $localtax2_tx, $lines[$i]->fk_product, $discount, $date_start, $date_end, 0, $lines[$i]->info_bits, $lines[$i]->fk_remise_except, 'HT', 0, $product_type, $lines[$i]->rang, $lines[$i]->special_code, $invoice_draft->origin, $lines[$i]->rowid, $fk_parent_line, $lines[$i]->fk_fournprice, $lines[$i]->pa_ht, $label, $array_options, $lines[$i]->situation_percent, $lines[$i]->fk_prev_id, $lines[$i]->fk_unit);
+				$result = $invoice_draft->addline(
+					$desc,
+					$price_invoice_template_line,
+					$lines[$i]->qty,
+					$tva_tx,
+					$localtax1_tx,
+					$localtax2_tx,
+					$lines[$i]->fk_product,
+					$discount,
+					$date_start,
+					$date_end,
+					0,
+					$lines[$i]->info_bits,
+					$lines[$i]->fk_remise_except,
+					'HT',
+					0,
+					$product_type,
+					$lines[$i]->rang,
+					$lines[$i]->special_code,
+					$invoice_draft->origin_type,
+					$lines[$i]->rowid,
+					$fk_parent_line,
+					$lines[$i]->fk_fournprice,
+					$lines[$i]->pa_ht,
+					$label,
+					$array_options, $lines[$i]->situation_percent,
+					$lines[$i]->fk_prev_id, $lines[$i]->fk_unit
+				);
 
 				if ($result > 0) {
 					$lineid = $result;
@@ -302,7 +342,7 @@ if (! $error) {
 
 		// Now we convert invoice into a template
 		if (! $error) {
-			dol_syslog("--- Now we convert invoice into recuring invoice");
+			dol_syslog("--- Now we convert invoice into recurring invoice");
 
 			//var_dump($invoice_draft->lines);
 			//var_dump(dol_print_date($date_start,'dayhour'));
@@ -342,6 +382,8 @@ if (! $error) {
 			$invoice_rec->unit_frequency = $frequency_unit;
 			$invoice_rec->nb_gen_max = $nb_gen_max;
 			$invoice_rec->auto_validate = 0;
+			//$invoice_rec->generate_pdf = ($isfreemodeenabled ? 0 : 1);
+			$invoice_rec->generate_pdf = 0;		// By default we do not generate the PDF, we will do it when calling createRecurringInvoices().
 
 			$invoice_rec->fk_project = 0;
 
@@ -363,8 +405,9 @@ if (! $error) {
 					$contractidid = reset($srcObject->linkedObjectsIds['contrat']);
 
 					$invoice_rec->origin = 'contrat';
+					$invoice_rec->origin_type = 'contrat';
 					$invoice_rec->origin_id = $contractidid;
-					$invoice_rec->linked_objects[$invoice_draft->origin] = $invoice_draft->origin_id;
+					$invoice_rec->linked_objects[$invoice_draft->origin_type] = $invoice_draft->origin_id;
 				}
 			}
 
@@ -380,7 +423,7 @@ if (! $error) {
 					setEventMessages($db->lasterror(), null, 'errors');
 				}
 
-				$result=$oldinvoice->delete($user, 1);
+				$result = $oldinvoice->delete($user, 1);
 				if (! $error && $result < 0) {
 					$error++;
 					setEventMessages($oldinvoice->error, $oldinvoice->errors, 'errors');
@@ -407,7 +450,10 @@ if (! $error) {
 				}
 				$user->rights->facture->invoice_advance->validate = 1;
 
-				$result = $facturerec->createRecurringInvoices($invoicerecid, 1);		// Generate real invoice from pending recurring invoices
+				// Generate real invoice from the newly created pending recurring invoices
+				// This also validate it and this can generate the PDF if ->generate_pdf of the invoice with id $invoicerecid was set to 1 previously.
+				// It does not send email because ->auto_validate of the invoice with id $invoicerecid was not set to 2 previously.
+				$result = $facturerec->createRecurringInvoices($invoicerecid, 1, 0, 1);
 				if ($result != 0) {
 					$error++;
 					setEventMessages($facturerec->error, $facturerec->errors, 'errors');
@@ -434,7 +480,7 @@ if (! $error) {
 					setEventMessages($sellyoursaasutils->error, $sellyoursaasutils->errors, 'errors');
 					dol_syslog("--- Error when taking payment (paymentmode=".$paymentmode.", STRIPE_USE_INTENT_WITH_AUTOMATIC_CONFIRMATION on) ".$sellyoursaasutils->error, LOG_DEBUG, 0);
 				} else {
-					dol_syslog("--- Success to take payment (paymenmode=".$paymentmonde.", STRIPE_USE_INTENT_WITH_AUTOMATIC_CONFIRMATION on)", LOG_DEBUG, 0);
+					dol_syslog("--- Success to take payment (paymenmode=".$paymentmode.", STRIPE_USE_INTENT_WITH_AUTOMATIC_CONFIRMATION on)", LOG_DEBUG, 0);
 				}
 
 				// If some payment was really done, we force commit to be sure to validate invoices payment done by stripe, whatever is global result of doTakePaymentStripeForThirdparty
