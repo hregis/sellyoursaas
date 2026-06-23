@@ -20,6 +20,19 @@
  * @var DoliDB $db
  * @var HookManager $hookmanager
  * @var Translate $langs
+ * @var User $user
+ *
+ * @var Form $form
+ * @var Societe $mythirdpartyaccount
+ * @var string $search_instance_name
+ * @var string $search_customer_name
+ * @var string $mode
+ * @var int $firstrecord
+ * @var int $lastrecord
+ * @var array $listofcontractidreseller
+ * @var string $initialaction
+ * @var array $arrayofplans
+ * @var array $arrayofplansfull
  */
 
 // Protection to avoid direct call of template
@@ -425,6 +438,7 @@ if (count($listofcontractidreseller) == 0) {
 					} elseif ($tmpproduct->duration == '1y') {
 						$tmpduration.=' / '.$langs->trans("DurationYear");
 					} else {
+						$regs = array();
 						preg_match('/^([0-9]+)([a-z]{1})$/', $tmpproduct->duration, $regs);
 						if (! empty($regs[1]) && ! empty($regs[2])) {
 							$tmpduration.=' / '.$regs[1].' '.($regs[2] == 'm' ? $langs->trans("Month") : ($regs[2] == 'y' ? $langs->trans("DurationYear") : ''));
@@ -518,7 +532,7 @@ if (count($listofcontractidreseller) == 0) {
 			if ($statuslabel != 'undeployed') {
 				if ($priceinvoicedht == $contract->total_ht) {
 					// Disabled on "My customer invoices" view
-					//print ' - <a href="'.$_SERVER["PHP_SELF"].'?mode=mycustomerinstances&action=changeplan&id='.$contract->id.'#contractid'.$contract->id.'">'.$langs->trans("ChangePlan").'</a>';
+					//print ' - <a href="'.$_SERVER["PHP_SELF"].'?mode=mycustomerinstances&action=changeplan&token='.newToken().'&id='.$contract->id.'#contractid'.$contract->id.'">'.$langs->trans("ChangePlan").'</a>';
 				}
 			}
 		}
@@ -571,7 +585,7 @@ if (count($listofcontractidreseller) == 0) {
 							print "</form>";
 						} else {
 							print $langs->trans("TrialUntil", dol_print_date($contract->array_options['options_date_endfreeperiod'], 'day'));
-							print '<a href="'.$_SERVER["PHP_SELF"].'?mode=mycustomerinstances&action=editfreeperiod&idcontract='.$contract->id.'&token='.newToken().'#contractid'.$contract->id.'"> '.img_edit().'</a>';
+							print '<a href="'.$_SERVER["PHP_SELF"].'?mode=mycustomerinstances&action=editfreeperiod&token='.newToken().'&idcontract='.$contract->id.'#contractid'.$contract->id.'"> '.img_edit().'</a>';
 						}
 					} else {
 						print $langs->trans("Trial");
@@ -806,7 +820,7 @@ if (count($listofcontractidreseller) == 0) {
 	// Force flag to not be an external use to be able to see all thirdparties
 	$user->socid = 0;
 
-	$selectofthirdparties = $form->select_company('', 'reusesocid', 'parent = '.$mythirdpartyaccount->id, '1', 0, 1, array(), 0, 'centpercent');
+	$selectofthirdparties = $form->select_company('', 'reusesocid', '(parent:=:'.$mythirdpartyaccount->id.')', '1', 0, 1, array(), 0, 'centpercent');
 
 if ($form->result['nbofthirdparties'] == 0) {
 	print '<span class="opacitymedium">'.$langs->trans("YouDontHaveCustomersYet").'...</span><br>';

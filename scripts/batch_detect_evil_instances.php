@@ -54,7 +54,7 @@ define('EVEN_IF_ONLY_LOGIN_ALLOWED', 1);		// Set this define to 0 if you want to
 
 // Load Dolibarr environment
 $res=0;
-// Try master.inc.php into web root detected using web root caluclated from SCRIPT_FILENAME
+// Try master.inc.php into web root detected using web root calculated from SCRIPT_FILENAME
 $tmp=empty($_SERVER['SCRIPT_FILENAME']) ? '' : $_SERVER['SCRIPT_FILENAME'];$tmp2=realpath(__FILE__); $i=strlen($tmp)-1; $j=strlen($tmp2)-1;
 while ($i > 0 && $j > 0 && isset($tmp[$i]) && isset($tmp2[$j]) && $tmp[$i]==$tmp2[$j]) {
 	$i--;
@@ -88,7 +88,14 @@ if (! $res) {
 }
 // After this $db, $mysoc, $langs, $conf and $hookmanager are defined (Opened $db handler to database will be closed at end of file).
 // $user is created but empty.
-
+/**
+ * @var Conf $conf
+ * @var DoliDB $db
+ * @var Societe $mysoc
+ * @var Translate $langs
+ * @var HookManager $hookmanager
+ * @var User $user
+ */
 include_once DOL_DOCUMENT_ROOT.'/core/lib/geturl.lib.php';
 include_once DOL_DOCUMENT_ROOT.'/core/lib/files.lib.php';
 include_once DOL_DOCUMENT_ROOT.'/core/class/utils.class.php';
@@ -109,12 +116,16 @@ $databasepass='';
 $ipserverdeployment='';
 $emailfrom='';
 $emailsupervision='';
+$instanceserver = '';
 $fp = @fopen('/etc/sellyoursaas.conf', 'r');
 // Add each line to an array
 if ($fp) {
 	$array = explode("\n", fread($fp, filesize('/etc/sellyoursaas.conf')));
 	foreach ($array as $val) {
 		$tmpline=explode("=", $val);
+		if ($tmpline[0] == 'instanceserver') {
+			$instanceserver = $tmpline[1];
+		}
 		if ($tmpline[0] == 'domain') {
 			$domain = dol_string_nospecial($tmpline[1]);
 		}
@@ -236,6 +247,12 @@ if (! isset($argv[1])) {	// Check parameters
 	print "- remove        not yet available\n";
 	exit(-1);
 }
+
+if (empty($instanceserver)) {
+	echo "This server seems to not be a server for the deployment of instances (this should be defined in sellyoursaas.conf file).\n";
+	exit(-1);
+}
+
 print '--- Start script with mode '.$argv[1]."\n";
 //print 'Argument 1='.$argv[1]."\n";
 //print 'Argument 2='.$argv[2]."\n";
@@ -475,7 +492,7 @@ if (empty($instancefiltercomplete)) {
 print $sql;
 $dbtousetosearch = $dbmaster;
 
-print $sql."\n";                                    // To have this into the ouput of cron job
+print $sql."\n";                                    // To have this into the output of cron job
 
 dol_syslog($script_file, LOG_DEBUG);
 

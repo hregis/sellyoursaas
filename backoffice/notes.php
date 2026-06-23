@@ -27,7 +27,7 @@ $res=0;
 if (! $res && ! empty($_SERVER["CONTEXT_DOCUMENT_ROOT"])) {
 	$res=@include $_SERVER["CONTEXT_DOCUMENT_ROOT"]."/main.inc.php";
 }
-// Try main.inc.php into web root detected using web root caluclated from SCRIPT_FILENAME
+// Try main.inc.php into web root detected using web root calculated from SCRIPT_FILENAME
 $tmp=empty($_SERVER['SCRIPT_FILENAME']) ? '' : $_SERVER['SCRIPT_FILENAME'];$tmp2=realpath(__FILE__); $i=strlen($tmp)-1; $j=strlen($tmp2)-1;
 while ($i > 0 && $j > 0 && isset($tmp[$i]) && isset($tmp2[$j]) && $tmp[$i]==$tmp2[$j]) {
 	$i--;
@@ -146,7 +146,7 @@ if ($resql) {
 	$nbtotalofrecords = $objforcount->nbtotalofrecords;
 	$db->free($resql);
 } else {
-    dol_print_error($db);
+	dol_print_error($db);
 }
 
 $head = sellYourSaasBackofficePrepareHead($nbtotalofrecords);
@@ -175,7 +175,7 @@ if ($action != 'edit') {
 	print '<form action="'.$_SERVER["PHP_SELF"].'" method="POST">';
 	print '<input type="hidden" name="token" value="'.newToken().'">';
 	print '<input type="hidden" name="action" value="update">';
-	$doleditor=new DolEditor('NLTECHNO_NOTE', $conf->global->NLTECHNO_NOTE, '', 480, 'dolibarr_mailings');
+	$doleditor=new DolEditor('NLTECHNO_NOTE', getDolGlobalString('NLTECHNO_NOTE'), '', 480, 'dolibarr_mailings');
 	print $doleditor->Create(1);
 	print '<br>';
 	print '<input class="button" type="submit" name="'.$langs->trans("Save").'">';

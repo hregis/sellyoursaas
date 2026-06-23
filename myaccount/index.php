@@ -39,6 +39,12 @@ if (! defined('NOBROWSERNOTIF')) {
 	define('NOBROWSERNOTIF', '1');
 }
 
+// Special case for action=undeployconfirmed
+if (isset($_GET['action']) && $_GET['action'] == 'undeployconfirmed' && isset($_GET['hash'])) {
+	// We are in a case of deletion from a public link protected by a hash value. We can downgrade protection MAIN_SECURITY_CSRF_WITH_TOKEN to 2 instead of 3.
+	define('MAIN_SECURITY_CSRF_WITH_TOKEN', '2');	// If we keep 3 or unset (=3 by default with v24+), we have a CSRF error when we click on the link in the email to confirm undeploy. Security is guaranteed by the hash.
+}
+
 define('SYSLOG_FILE_ADDIP', 1);
 define('SYSLOG_FILE_ADDSUFFIX', 'myaccountindex');
 
@@ -173,7 +179,7 @@ $MAXMONTHFORTRIAL = 4;
 
 // Load variable for pagination
 $limit = GETPOST('limit', 'int') ? GETPOST('limit', 'int') : ($mode == 'instance' ? $MAXINSTANCEVIGNETTE : 20);
-$sortfield = GETPOST('sortfield', 'alphanohtml');
+$sortfield = GETPOST('sortfield', 'aZ09comma');
 $sortorder = GETPOST('sortorder', 'aZ09');
 $page = GETPOSTISSET('pageplusone') ? (GETPOST('pageplusone') - 1) : GETPOST("page", 'int');
 if (empty($page) || $page == -1) {
@@ -885,7 +891,7 @@ if ($action == 'updateurl') {	// update URL from the tab "Domain"
 						$content .= ' - Support type = '.$product->array_options['options_typesupport'];
 					}
 				} else {
-					$content .= '- Service '.$val->label;
+					$content .= '- Service '.dol_trunc($val->description, 32);
 				}
 				$content .= "<br>\n";
 				;
@@ -931,8 +937,13 @@ if ($action == 'updateurl') {	// update URL from the tab "Domain"
 				$tickettocreate->fk_contract = $tmpcontract->id;
 			}
 			$res = $tickettocreate->create($user);
-			if ($res > 0) {
+			if ($tickettocreate->id > 0) {
 				$trackid = 'tic'.$tickettocreate->id;
+			}
+
+			// Add ref of ticket into
+			if ($tickettocreate->id > 0) {
+				$topic = preg_replace('/^\[([^\]]+)\]/', '[\1] '.$tickettocreate->ref.' - ', $topic);
 			}
 		}
 
@@ -1735,7 +1746,7 @@ if ($action == 'updateurl') {	// update URL from the tab "Domain"
 	}
 
 	if (! $error) {
-		$stringtohash = getDolGlobalString('SELLYOURSAAS_KEYFORHASH') . $contract->thirdparty->email.dol_print_date($now, 'dayrfc');
+		$stringtohash = getDolGlobalString('SELLYOURSAAS_KEYFORHASH').$contract->thirdparty->email.dol_print_date($now, 'dayrfc');
 
 		$hash = dol_hash($stringtohash);
 		dol_syslog("Hash generated to allow immediate deletion: ".$hash);
@@ -2907,9 +2918,9 @@ print '<li class="nav-item'.(($mode == 'support' || $mode == 'faq') ? ' active' 
 // My account
 print '
           <li class="nav-item'.($mode == 'myaccount' ? ' active' : '').' dropdown">
-             <a class="nav-link dropdown-toggle" data-toggle="dropdown" href="#socid='.$mythirdpartyaccount->id.'"><i class="fa fa-user"></i> '.$langs->trans("MyAccount").' <span class="small">('.$mythirdpartyaccount->email.')</span></a>
+             <a class="nav-link dropdown-toggle" data-toggle="dropdown" href="#socid='.$mythirdpartyaccount->id.'"><i class="fa fa-user"></i> '.$langs->trans("MyAccount").'</a>
              <ul class="dropdown-menu">
-                 <li><a class="dropdown-item" href="'.$_SERVER["PHP_SELF"].'?mode=myaccount"><i class="fa fa-user pictofixedwidth"></i> '.$langs->trans("MyAccount").'</a></li>';
+                 <li><a class="dropdown-item" href="'.$_SERVER["PHP_SELF"].'?mode=myaccount"><i class="fa fa-user pictofixedwidth"></i> '.$langs->trans("MyAccount").' <span class="small">('.$mythirdpartyaccount->email.')</span></a></li>';
 		// Reseler request
 if (! $mythirdpartyaccount->isareseller) {
 	$allowresellerprogram = getDolGlobalString('SELLYOURSAAS_ALLOW_RESELLER_PROGRAM');
@@ -3352,8 +3363,8 @@ if ($mythirdpartyaccount->isareseller && in_array($mode, array('dashboard', 'myr
 						}
 					}*/
 					print '<td class="center">';
-					print '<a class="editfielda reposition marginleftonly marginrighttonly paddingright paddingleft" href="'.$_SERVER["PHP_SELF"].'?action=editproperty&mode='.$mode.'&token='.newToken().'&propertykey='.urlencode($key).'">'.img_edit().'</a>';
-					print '<a class="resetfielda reposition marginleftonly marginrighttonly paddingright paddingleft" href="'.$_SERVER["PHP_SELF"].'?action=resetproperty&mode='.$mode.'&token='.newToken().'&propertykey='.urlencode($key).'" title="'.dol_escape_htmltag($langs->trans("ResetToRecommendedValue")).'">'.img_picto('', 'eraser', 'class="paddingrightonly" style="color: #444;"').'</a>';
+					print '<a class="editfielda reposition marginleftonly marginrighttonly paddingright paddingleft" href="'.$_SERVER["PHP_SELF"].'?action=editproperty&token='.newToken().'&mode='.$mode.'&propertykey='.urlencode($key).'">'.img_edit().'</a>';
+					print '<a class="resetfielda reposition marginleftonly marginrighttonly paddingright paddingleft" href="'.$_SERVER["PHP_SELF"].'?action=resetproperty&token='.newToken().'&mode='.$mode.'&propertykey='.urlencode($key).'" title="'.dol_escape_htmltag($langs->trans("ResetToRecommendedValue")).'">'.img_picto('', 'eraser', 'class="paddingrightonly" style="color: #444;"').'</a>';
 					print '</td>';
 				}
 				print '</tr>';
@@ -3636,7 +3647,7 @@ if (empty($welcomecid)
 								$daybeforeendoftrial = getDolGlobalInt('SELLYOURSAAS_NBDAYS_BEFORE_TRIAL_END_FOR_SOFT_ALERT');
 								if ($delaybeforeendoftrial <= (($daybeforeendoftrial + 1) * 3600 * 24)) {	// We add 1 to be sure that link is visible before we send the soft email remind
 									// Link to validate definitely instance
-									print '<a href="'.$_SERVER["PHP_SELF"].'?mode=instances&action=validatefreemode&contractid='.$contract->id.'#contractid'.$contract->id.'" class="btn btn-warning wordbreak marginrightonly">';
+									print '<a href="'.$_SERVER["PHP_SELF"].'?mode=instances&action=validatefreemode&token='.newToken().'&contractid='.$contract->id.'#contractid'.$contract->id.'" class="btn btn-warning wordbreak marginrightonly">';
 									print $langs->trans("ConfirmInstanceValidationToAvoidSuspensionAfterTrial");
 									print '</a>';
 								} else {
@@ -3663,7 +3674,7 @@ if (empty($welcomecid)
 								$s .= '</a>';
 							} elseif (getDolGlobalInt('SELLYOURSAAS_ENABLE_FREE_PAYMENT_MODE') && $delaybeforeendoftrial < 7) {
 								// Link to validate definitely instance
-								$s .= '<a href="'.$_SERVER["PHP_SELF"].'?mode=instances&action=validatefreemode&contractid='.$contract->id.'#contractid'.$contract->id.'" class="btn btn-warning wordbreak marginrightonly">';
+								$s .= '<a href="'.$_SERVER["PHP_SELF"].'?mode=instances&action=validatefreemode&token='.newToken().'&contractid='.$contract->id.'#contractid'.$contract->id.'" class="btn btn-warning wordbreak marginrightonly">';
 								$s .= $langs->trans("ConfirmInstanceValidationToRestoreInstance");
 								$s .= '</a>';
 							}
@@ -3701,7 +3712,7 @@ if (empty($welcomecid)
 							$s .= '</a>';
 						} elseif (getDolGlobalInt('SELLYOURSAAS_ENABLE_FREE_PAYMENT_MODE') && $delaybeforeendoftrial < 7) {
 							// Link to validate definitely instance
-							$s .= '<a href="'.$_SERVER["PHP_SELF"].'?mode=instances&action=validatefreemode&contractid='.$contract->id.'#contractid'.$contract->id.'" class="btn btn-warning wordbreak marginrightonly">';
+							$s .= '<a href="'.$_SERVER["PHP_SELF"].'?mode=instances&action=validatefreemode&token='.newToken().'&contractid='.$contract->id.'#contractid'.$contract->id.'" class="btn btn-warning wordbreak marginrightonly">';
 							if (! $isASuspendedContract) {
 								$s .= $langs->trans("ConfirmInstanceValidationToAvoidSuspensionAfterTrial");
 							} else {

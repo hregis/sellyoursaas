@@ -127,15 +127,7 @@ if ($sellyoursaassupporturl) {
 	print '</div></div></div>';
 } else {
 	// Define if mandatory contact information are complete
-	if (!getDolGlobalInt('SELLYOURSAAS_ONLY_NON_PROFIT_ORGA')) {
-		$mandatoryInfoAreNotSet = ((!empty($mythirdpartyaccount->tva_assuj) && empty($mythirdpartyaccount->tva_intra) && !getDolGlobalString('SELLYOURSAAS_ENABLE_FREE_PAYMENT_MODE'))
-			|| empty($mythirdpartyaccount->array_options['options_firstname'])
-			|| empty($mythirdpartyaccount->array_options['options_lastname'])
-			|| ($mythirdpartyaccount->country_code == 'FR' && empty($mythirdpartyaccount->idprof1))
-		);
-	} else {
-		$mandatoryInfoAreNotSet = (empty($mythirdpartyaccount->array_options['options_firstname']) || empty($mythirdpartyaccount->array_options['options_lastname']));
-	}
+	$mandatoryInfoAreNotSet = !isMandatoryInfoSet($mythirdpartyaccount);
 
 	print '
 			    <div class="row" id="choosechannel">
@@ -612,7 +604,7 @@ if ($sellyoursaassupporturl) {
 		print '</form>';
 
 		if (getDolGlobalString('SELLYOURSAAS_AUTOMIGRATION_CODE') || getDolGlobalString('SELLYOURSAAS_AUTOUPGRADE_CODE')) {
-			print '<form action="'.$_SERVER["PHP_SELF"].'#Step1" method="get" id="changemodeForm">';
+			print '<form action="'.$_SERVER["PHP_SELF"].'#Step1" method="GET" id="changemodeForm">';
 			print '<input type="hidden" id="modeforchangemmode" name="mode" value="automigration">';
 			print '<input type="hidden" name="token" value="'.newToken().'">';
 			print '<input type="hidden" name="contractid" value="'.$tmpcontractid.'">';
@@ -706,7 +698,7 @@ if (isModEnabled("ticket") && getDolGlobalInt("SELLYOURSAAS_SUPPORT_TICKET_CREAT
 
 				// Ref
 				print '<td class="nowraponall">';
-				print '<a href="'.$_SERVER["PHP_SELF"].'?mode=ticket&action=view&track_id='.$staticticket->track_id.'">';
+				print '<a href="'.$_SERVER["PHP_SELF"].'?mode=ticket&action=view&token='.newToken().'&track_id='.$staticticket->track_id.'">';
 				print img_object("", $staticticket->picto, 'class="paddingright"'). $staticticket->ref;
 				print '</a>';
 				print "</td>\n";

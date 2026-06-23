@@ -27,7 +27,7 @@ $res=0;
 if (! $res && ! empty($_SERVER["CONTEXT_DOCUMENT_ROOT"])) {
 	$res=@include $_SERVER["CONTEXT_DOCUMENT_ROOT"]."/main.inc.php";
 }
-// Try main.inc.php into web root detected using web root caluclated from SCRIPT_FILENAME
+// Try main.inc.php into web root detected using web root calculated from SCRIPT_FILENAME
 $tmp=empty($_SERVER['SCRIPT_FILENAME']) ? '' : $_SERVER['SCRIPT_FILENAME'];$tmp2=realpath(__FILE__); $i=strlen($tmp)-1; $j=strlen($tmp2)-1;
 while ($i > 0 && $j > 0 && isset($tmp[$i]) && isset($tmp2[$j]) && $tmp[$i]==$tmp2[$j]) {
 	$i--;
@@ -141,7 +141,7 @@ if ($action == 'setSELLYOURSAAS_DISABLE_INSTANCE') {
 	}
 }
 
-// Enable the annouce for the server $keyforaction
+// Enable the announce for the server $keyforaction
 if ($action == 'setSELLYOURSAAS_ANNOUNCE_ON') {
 	$keyforparam = 'SELLYOURSAAS_ANNOUNCE_ON_'.$keyforaction;
 	if ($value) {
@@ -515,19 +515,19 @@ if (!getDolGlobalString('SELLYOURSAAS_SUB_DOMAIN_IP')) {
 			if (! empty($tmparraydomain[1])) {
 				if (in_array($tmparraydomain[1], array('bidon', 'hidden', 'closed'))) {
 					// Button off, click to enable
-					$enabledisablehtml='<a class="reposition" href="'.$_SERVER["PHP_SELF"].'?action=setSELLYOURSAAS_DISABLE_INSTANCE&value=1&key='.urlencode($key).'&token='.newToken().'">';
+					$enabledisablehtml='<a class="reposition" href="'.$_SERVER["PHP_SELF"].'?action=setSELLYOURSAAS_DISABLE_INSTANCE&token='.newToken().'&value=1&key='.urlencode($key).'">';
 					$enabledisablehtml.=img_picto($langs->trans("Disabled"), 'switch_off', '', false, 0, 0, '', 'valignmiddle paddingright');
 					$enabledisablehtml.='</a>';
 				} else {
 					// Button on, click to disable
-					$enabledisablehtml='<a class="reposition" href="'.$_SERVER["PHP_SELF"].'?action=setSELLYOURSAAS_DISABLE_INSTANCE&value=0&key='.urlencode($key).'&token='.newToken().'">';
+					$enabledisablehtml='<a class="reposition" href="'.$_SERVER["PHP_SELF"].'?action=setSELLYOURSAAS_DISABLE_INSTANCE&token='.newToken().'&value=0&key='.urlencode($key).'">';
 					$enabledisablehtml.=img_picto($langs->trans("Activated"), 'switch_on', '', false, 0, 0, '', 'valignmiddle paddingright');
 					$enabledisablehtml.='</a><br>';
 					$enabledisablehtml.='<span class="small opacitymedium">'.$langs->trans("OnDomainOnly", $tmparraydomain[1]).'</span>';
 				}
 			} else {
 				// Button on, click to disable
-				$enabledisablehtml='<a class="reposition" href="'.$_SERVER["PHP_SELF"].'?action=setSELLYOURSAAS_DISABLE_INSTANCE&value=0&key='.urlencode($key).'&token='.newToken().'">';
+				$enabledisablehtml='<a class="reposition" href="'.$_SERVER["PHP_SELF"].'?action=setSELLYOURSAAS_DISABLE_INSTANCE&token='.newToken().'&value=0&key='.urlencode($key).'">';
 				$enabledisablehtml.=img_picto($langs->trans("Activated"), 'switch_on', '', false, 0, 0, '', 'valignmiddle paddingright');
 				$enabledisablehtml.='</a>';
 			}
@@ -548,7 +548,7 @@ if (!getDolGlobalString('SELLYOURSAAS_SUB_DOMAIN_IP')) {
 			print $form->textwithpicto($langs->trans("StartStopAgent"), $langs->trans("CommandToManageRemoteDeploymentAgent").':<br><br>'.$commandstartstop, 1, 'help', '', 0, 3, 'startstop'.$key).'<br>';
 			print '</td>';
 			print '<td class="small">';
-			$commandstartstop = 'sudo ' . getDolGlobalString('DOLICLOUD_SCRIPTS_PATH').'/make_instances_offlineonline.sh ' . getDolGlobalString('SELLYOURSAAS_ACCOUNT_URL').'/offline.php test|offline|online';
+			$commandstartstop = 'sudo ' . getDolGlobalString('DOLICLOUD_SCRIPTS_PATH').'/deployment_make_instances_offlineonline.sh ' . getDolGlobalString('SELLYOURSAAS_ACCOUNT_URL').'/offline.php test|offline|online';
 			print $form->textwithpicto($langs->trans("OnlineOffline"), $langs->trans("CommandToPutInstancesOnOffline").':<br><br>'.$commandstartstop, 1, 'help', '', 0, 3, 'onoff'.$key).'<br>';
 			print '</td>';
 
@@ -557,12 +557,12 @@ if (!getDolGlobalString('SELLYOURSAAS_SUB_DOMAIN_IP')) {
 			$keyforparam = 'SELLYOURSAAS_ANNOUNCE_ON_'.$tmparraydomain[0];
 			if (!getDolGlobalString($keyforparam)) {
 				// Button off, click to enable
-				$enabledisablehtml='<a class="reposition" href="'.$_SERVER["PHP_SELF"].'?action=setSELLYOURSAAS_ANNOUNCE_ON&value=1&key='.urlencode($tmparraydomain[0]).'&token='.newToken().'">';
+				$enabledisablehtml='<a class="reposition" href="'.$_SERVER["PHP_SELF"].'?action=setSELLYOURSAAS_ANNOUNCE_ON&token='.newToken().'&value=1&key='.urlencode($tmparraydomain[0]).'">';
 				$enabledisablehtml.=img_picto($langs->trans("Disabled"), 'switch_off', '', false, 0, 0, '', 'valignmiddle paddingright');
 				$enabledisablehtml.='</a>';
 			} else {
 				// Button on, click to disable
-				$enabledisablehtml='<a class="reposition" href="'.$_SERVER["PHP_SELF"].'?action=setSELLYOURSAAS_ANNOUNCE_ON&value=0&key='.urlencode($tmparraydomain[0]).'&token='.newToken().'">';
+				$enabledisablehtml='<a class="reposition" href="'.$_SERVER["PHP_SELF"].'?action=setSELLYOURSAAS_ANNOUNCE_ON&token='.newToken().'&value=0&key='.urlencode($tmparraydomain[0]).'">';
 				$enabledisablehtml.=img_picto($langs->trans("Activated"), 'switch_on', '', false, 0, 0, '', 'warning valignmiddle paddingright');
 				$enabledisablehtml.='</a> ';
 			}
@@ -604,7 +604,7 @@ if (!getDolGlobalString('SELLYOURSAAS_SUB_DOMAIN_IP')) {
 		 print '<tr class="oddeven"><td>';
 		 print $langs->trans("CommandToPutInstancesOnOffline").'<br>';
 		 print '<textarea class="flat inputsearch centpercent" type="text" name="SELLYOURSAAS_ANNOUNCE">';
-		 print 'sudo '.$conf->global->DOLICLOUD_SCRIPTS_PATH.'/make_instances_offlineonline.sh offline.php test|offline|online';
+		 print 'sudo '.$conf->global->DOLICLOUD_SCRIPTS_PATH.'/deployment_make_instances_offlineonline.sh offline.php test|offline|online';
 		 print '</textarea>';
 		 print '<a class="button" href="'.$_SERVER["PHP_SELF"].'?action=makeoffline&token='.newToken().'">'.$langs->trans("PutAllInstancesOffLine").'</a>';
 		 print ' &nbsp; - &nbsp; ';

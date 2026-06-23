@@ -1,7 +1,7 @@
 #!/bin/bash
 #---------------------------------------------------------
 # Script to make all instances offline or back online.
-# When switching offline: the directory of virtual hosts will point to the direcotry with virtual hosts for offline answer.
+# When switching offline: the directory of virtual hosts will point to the directory with virtual hosts for offline answer.
 # When switching online: the directory of virtual hosts is restore to the directory with production virtual hosts.
 #---------------------------------------------------------
 
@@ -13,14 +13,14 @@ export BLUE='\033[0;34m'
 export YELLOW='\033[0;33m'
 
 
-echo "***** $0 *****"
+echo "***** $0 $1 $2 *****"
 
 if [ "x$2" == "x" ]; then
    echo "Script to make all instances offline or back online."
    echo "Usage:   $0  urlwhenoffline  test|offline|online"
    echo
-   echo "Example: $0  offline.php  test"
-   echo "Example: $0  maintenance.php  test"
+   echo "Example: $0  maintenance.php  offline"
+   echo "Example: $0  maintenance.php  online"
    echo "Example: $0  https://myaccount.mydomain.com/offline.php  test       (old syntax)"
    echo "Example: $0  https://myaccount.mydomain.com/maintenance.php  test   (old syntax)"
    echo
@@ -64,6 +64,7 @@ else
 fi
 
 if [ "x$2" != "xonline" ]; then
+	# Param is offline (or test), so we create a virtual host to make offline instances. Switch of virtual host is done at next step.
 	echo "Url to use for __webMyAccount__ is $urlwhenoffline"
 
 	echo "Loop on each enabled virtual host of customer instances, create a new one and switch it"
@@ -79,12 +80,12 @@ if [ "x$2" != "xonline" ]; then
 	        echo -- Process file $file to create its offline virtual host
 			export fileshort=`basename $file`
 			export domain=$(echo $fileshort | /bin/sed 's/\.conf$//g' | /bin/sed 's/\.custom$//g')
-			#echo fileshort=$fileshort domain=$domain 
-			
+			#echo fileshort=$fileshort domain=$domain
+
 			if [[ $fileshort == *".custom."* ]]; then
 		        rm -f /etc/apache2/sellyoursaas-offline/$domain.custom.conf 2>/dev/null
 				export domain=$(cat /etc/apache2/sellyoursaas-online/$domain.custom.conf | grep ServerName | sed -s 's/^ *//' | cut --delimiter=' '  -f2)
-	        
+
 				echo Create file /etc/apache2/sellyoursaas-offline/$fileshort for domain $domain
 				cat $vhostfileoffline | \
 					sed 's!__webAppDomain__!'${domain}'!g' | \
@@ -98,7 +99,7 @@ if [ "x$2" != "xonline" ]; then
 					> /etc/apache2/sellyoursaas-offline/$fileshort
 			else
 		        rm -f /etc/apache2/sellyoursaas-offline/$domain.conf 2>/dev/null
-				
+
 				echo Create file /etc/apache2/sellyoursaas-offline/$fileshort for domain $domain
 				cat $vhostfileoffline | \
 					sed 's!__webAppDomain__!'${domain}'!g' | \
@@ -116,21 +117,23 @@ if [ "x$2" != "xonline" ]; then
 fi
 
 if [ "x$2" = "xoffline" ]; then
+	# Make offline
 	rm /etc/apache2/sellyoursaas-enabled
 	echo Create link /etc/apache2/sellyoursaas-enabled pointing to /etc/apache2/sellyoursaas-offline
 	ln -fs /etc/apache2/sellyoursaas-offline /etc/apache2/sellyoursaas-enabled
-	
+
 	echo Reload Apache
-	/etc/init.d/apache2 reload 
+	/etc/init.d/apache2 reload
 fi
 
 if [ "x$2" = "xonline" ]; then
+	# Make online
 	rm /etc/apache2/sellyoursaas-enabled
 	echo Create link /etc/apache2/sellyoursaas-enabled pointing to /etc/apache2/sellyoursaas-online
 	ln -fs /etc/apache2/sellyoursaas-online /etc/apache2/sellyoursaas-enabled
-	
+
 	echo Reload Apache
-	/etc/init.d/apache2 reload 
+	/etc/init.d/apache2 reload
 fi
 
 if [ "x$2" != "xoffline" -a "x$2" != "xonline" ]; then
