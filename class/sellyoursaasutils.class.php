@@ -3074,6 +3074,8 @@ class SellYourSaasUtils
 
 				$obj = $this->db->fetch_object($resql);
 				if ($obj) {
+					$errorforinstance = 0;
+
 					if (! empty($contractprocessed[$obj->rowid])) {
 						continue;
 					}
@@ -3089,6 +3091,7 @@ class SellYourSaasUtils
 
 					if ($object->id <= 0) {
 						$error++;
+						$errorforinstance++;
 						$this->errors[] = 'Failed to load contract with id='.$obj->rowid;
 						continue;
 					}
@@ -3122,7 +3125,7 @@ class SellYourSaasUtils
 					$expirationdate = $tmparray['expirationdate'];
 
 					if ($expirationdate && $expirationdate < $now) {	// If contract expired (we already had a test into main select, this is a security)
-						$this->db->begin();
+						$this->db->begin('doSuspendInstances');
 
 						$somethingdoneoncontract++;
 
@@ -3194,7 +3197,7 @@ class SellYourSaasUtils
 								$tmpproduct = new Product($db);
 
 								// Create empty invoice
-								if (! $error) {
+								if (! $errorforinstance) {
 									$invoice_draft->socid				= $contract->socid;
 									$invoice_draft->type				= Facture::TYPE_STANDARD;
 									$invoice_draft->number				= '';
@@ -3225,10 +3228,12 @@ class SellYourSaasUtils
 											$this->errors[] = 'Error creating draft invoice';
 										}
 										$error++;
+										$errorforinstance++;
 									}
 								}
+
 								// Add lines on invoice
-								if (! $error) {
+								if (! $errorforinstance) {
 									dol_syslog("Now we will create the invoice lines from the contract ".$contract->ref, LOG_DEBUG, 0);
 
 									// Add lines of contract to template invoice
@@ -3359,6 +3364,7 @@ class SellYourSaasUtils
 										} else {
 											$lineid = 0;
 											$error++;
+											$errorforinstance++;
 											break;
 										}
 
@@ -3378,7 +3384,7 @@ class SellYourSaasUtils
 								}
 
 								// Now we convert invoice into a template
-								if (! $error) {
+								if (! $errorforinstance) {
 									dol_syslog("Now we convert invoice into a template", LOG_DEBUG, 0);
 									//var_dump($invoice_draft->lines);
 									//var_dump(dol_print_date($date_start, 'dayhour'));
@@ -3442,14 +3448,16 @@ class SellYourSaasUtils
 									if ($invoicerecid > 0) {
 										$sql = 'UPDATE '.MAIN_DB_PREFIX.'facturedet_rec SET date_start_fill = 1, date_end_fill = 1 WHERE fk_facture = '.$invoice_rec->id;
 										$result = $db->query($sql);
-										if (! $error && $result < 0) {
+										if (! $errorforinstance && $result < 0) {
 											$error++;
+											$errorforinstance++;
 											$this->errors[] = 'Error sql '.$db->lasterror();
 										}
 
 										$result=$oldinvoice->delete($user, 1);
-										if (! $error && $result < 0) {
+										if (! $errorforinstance && $result < 0) {
 											$error++;
+											$errorforinstance++;
 											if ($oldinvoice->error) {
 												$this->errors[] = $oldinvoice->error;
 											} else {
@@ -3457,11 +3465,12 @@ class SellYourSaasUtils
 											}
 										}
 
-										if (! $error) {
+										if (! $errorforinstance) {
 											$contractconvertedintemplateinvoice[$object->id]=$object->ref;
 										}
 									} else {
 										$error++;
+										$errorforinstance++;
 										if ($invoice_rec->error) {
 											$this->errors[] = $invoice_rec->error;
 										} else {
@@ -3478,10 +3487,19 @@ class SellYourSaasUtils
 						if ($wemustsuspendinstance) {
 							$conf->global->noapachereload = $noapachereload;	// Set a global variable that can be read later by trigger
 							$comment = "Closed by batch doSuspendInstances('".$mode.", ".$noapachereload.", ".$maxnbofinstances."') the ".dol_print_date($now, 'dayhourrfc').')';
+
 							$result = $object->closeAll($user, 0, $comment);			// This may execute trigger that make remote actions to suspend instance
+
+							// Add a delay because the closeAll may have triggered a suspend remote action and we want to be sure the apache reload is complete
+							sleep(1);
+
 							$conf->global->noapachereload = null;    // unset a global variable that can be read later by trigger
 							if ($result < 0) {
+								$contractprocessed[$object->id] = $object->ref;
+
 								$error++;
+								$errorforinstance++;
+
 								$this->error = $object->error.' ('.$object->ref.')';
 								if (is_array($object->errors) && count($object->errors)) {
 									if (is_array($this->errors)) {
@@ -3491,10 +3509,7 @@ class SellYourSaasUtils
 									}
 								}
 							} else {
-								// Add a delay because the closeAll may have triggered a suspend remote action and we want to be sure the apache reload is complete
-								sleep(1);
-
-								$contractprocessed[$object->id]=$object->ref;
+								$contractprocessed[$object->id] = $object->ref;
 
 								// Send an email to warn customer of suspension
 
@@ -3520,7 +3535,7 @@ class SellYourSaasUtils
 								// Send deployment email
 								include_once DOL_DOCUMENT_ROOT.'/core/class/html.formmail.class.php';
 								include_once DOL_DOCUMENT_ROOT.'/core/class/CMailFile.class.php';
-								$formmail=new FormMail($this->db);
+								$formmail = new FormMail($this->db);
 
 								// Define output language
 								$outputlangs = $langs;
@@ -3539,9 +3554,9 @@ class SellYourSaasUtils
 
 								dol_syslog("GETPOST('lang_id','aZ09')=".GETPOST('lang_id', 'aZ09')." object->thirdparty->default_lang=".(is_object($object->thirdparty) ? $object->thirdparty->default_lang : 'object->thirdparty not defined')." newlang=".$newlang." outputlangs->defaultlang=".$outputlangs->defaultlang);
 
-								$arraydefaultmessage=$formmail->getEMailTemplate($this->db, 'contract', $user, $outputlangs, 0, 1, $labeltemplate);
+								$arraydefaultmessage = $formmail->getEMailTemplate($this->db, 'contract', $user, $outputlangs, 0, 1, $labeltemplate);
 
-								$substitutionarray=getCommonSubstitutionArray($outputlangs, 0, null, $object);
+								$substitutionarray = getCommonSubstitutionArray($outputlangs, 0, null, $object);
 								complete_substitutions_array($substitutionarray, $outputlangs, $object);
 
 								$subject = make_substitutions($arraydefaultmessage->topic, $substitutionarray, $outputlangs);
@@ -3573,10 +3588,10 @@ class SellYourSaasUtils
 							}
 						}
 
-						if (! $error) {
-							$this->db->commit();
+						if (! $errorforinstance) {
+							$this->db->commit('doSuspendInstances');
 						} else {
-							$this->db->rollback();
+							$this->db->rollback('doSuspendInstances');
 						}
 					}
 				}

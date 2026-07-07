@@ -571,7 +571,7 @@ if ($sellyoursaassupporturl) {
 		print '<span class="supportemailfield inline-block bold">'.$langs->trans("MailFrom").'</span> <input type="text" class="minwidth300" id="from" name="from" value="'.(GETPOST('from', 'none') ? GETPOST('from', 'none') : $mythirdpartyaccount->email).'" placeholder="email@domain.com"><br><br>';
 
 		// Topic
-		print '<span class="supportemailfield inline-block bold">'.$langs->trans("MailTopic").'</span> <input type="text" class="minwidth500" id="formsubject" name="subject"'.(GETPOST('addfile') ? '' : ' autofocus').' value="'.$subject.'"><br><br>';
+		print '<span class="supportemailfield inline-block bold">'.$langs->trans("MailTopic").'</span> <input type="text" class="minwidth500" id="formsubject" name="subject"'.(GETPOST('addfile') ? '' : ' autofocus').' value="'.$subject.'" required><br><br>';
 
 		print '<input type="file" class="flat" id="addedfile" name="addedfile[]" multiple value="'.$langs->trans("Upload").'" />';
 		print ' ';
@@ -587,7 +587,7 @@ if ($sellyoursaassupporturl) {
 		print $doleditor->Create();
 		print '<br>';
 		*/
-		print '<textarea rows="6" placeholder="'.$langs->trans("YourText").'" style="border: 1px solid #888" name="content" class="centpercent">'.GETPOST('content', 'none').'</textarea><br><br>';
+		print '<textarea rows="6" placeholder="'.$langs->trans("YourText").'" style="border: 1px solid #888" name="content" class="centpercent" required>'.GETPOST('content', 'none').'</textarea><br><br>';
 
 		// Button to send ticket/email
 		print '<center><input type="submit" name="submit" value="'.$langs->trans("SendMail").'" class="btn green-haze btn-circle marginrightonly reposition"';
@@ -725,6 +725,14 @@ if (isModEnabled("ticket") && getDolGlobalInt("SELLYOURSAAS_SUPPORT_TICKET_CREAT
 			print "</table>";
 			print "<br>";
 			print '<div class="center divButAction"><a style="padding-right: 50px; vertical-align:middle" href="'.$_SERVER["PHP_SELF"].'?mode=ticket">'.$langs->trans('ViewMyTicketList').'</a></div>';
+
+
+			if (!getDolGlobalString('SELLYOURSAAS_SUPPORT_TICKET_SHOW_STATUS')) {
+				print '<br><br><center>';
+				print '<span class="small opacitymedium">';
+				print $langs->trans("NoteYouShouldReceiveTheAnswerByEmail");
+				print '</span></center>';
+			}
 		} else {
 			print '<span class="opacitymedium">'.$langs->trans("NoTickets").'</span>';
 		}
