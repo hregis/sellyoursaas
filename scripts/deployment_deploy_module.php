@@ -158,12 +158,17 @@ if (! $res) {
 	print("Include of master fails\n");
 	exit(-1);
 }
-
+/**
+ * @var Conf $conf
+ * @var DoliDB $db
+ * @var User $user
+ */
 $mode=isset($argv[1]) ? $argv[1] : 'test';
 $productref=isset($argv[2]) ? $argv[2] : '';
 $instancefilter = isset($argv[3]) ? $argv[3] : '';
 $allowdeployforfree = isset($argv[4]) ? $argv[4] : 'deny';
-$countrycode = isset($argv[5]) ? $argv[5] : '';
+$decryptkey = isset($argv[5]) ? $argv[5] : '';
+$countrycode = isset($argv[6]) ? $argv[6] : '';
 
 dol_include_once("sellyoursaas/core/lib/sellyoursaas.lib.php");
 dol_include_once("sellyoursaas/class/sellyoursaascontract.class.php");
@@ -187,8 +192,8 @@ if (empty($productref)) {
 	print "Script must be ran from each deployment server with login root.\n";
 	print "allow|deny param is used to deploy on free instances or not (default deny).\n";
 	print "\n";
-	print "Usage:   ".$script_file." test|confirm productref instancefilter allow|deny countrycode\n";
-	print "Example: ".$script_file." test TESTMODULE aa* deny FR\n";
+	print "Usage:   ".$script_file." test|confirm productref instancefilter allow|deny masteruniquekey [countrycode]\n";
+	print "Example: ".$script_file." test TESTMODULE 'aa*' deny abc123456789 FR\n";
 	print "Return code: 0 if success, <> 0 if error\n";
 	print "\n";
 	exit(-1);
@@ -198,6 +203,9 @@ $dbmaster = getDoliDBInstance('mysqli', $databasehost, $databaseuser, $databasep
 if ($dbmaster) {
 	$conf->setValues($dbmaster);
 }
+// To be able to decrypt encrypted value in master we set the symmetric key
+$conf->file->instance_unique_id = $decryptkey;
+
 $db = $dbmaster;
 $mysoc = new Societe($db);
 $mysoc->setMysoc($conf);
@@ -206,7 +214,7 @@ $mysoc->setMysoc($conf);
 $product = new Product($db);
 $res = $product->fetch('', $productref);
 if ($res <= 0) {
-	print "Bad value for productid with action ".$mode.".\n";
+	print "Can't find product ".$productref." for action ".$mode.".\n";
 	exit(-1);
 }
 if ($product->array_options["options_app_or_option"] != "option") {
@@ -235,6 +243,9 @@ if (!strpos($instancefiltercomplete, ".".$subdomain)) {
 include_once DOL_DOCUMENT_ROOT.'/contrat/class/contrat.class.php';
 $object=new Contrat($db);
 
+print "Search instances with status done and name matching ".$instancefiltercomplete;
+print ", country code = ".$countrycode;
+print "\n";
 $sql = "SELECT c.rowid as id, c.ref, c.ref_customer as instance,";
 $sql.= " ce.deployment_status as instance_status, ce.latestbackup_date_ok, ce.backup_frequency";
 $sql.= " FROM ".MAIN_DB_PREFIX."contrat as c LEFT JOIN ".MAIN_DB_PREFIX."contrat_extrafields as ce ON c.rowid = ce.fk_object";
@@ -268,7 +279,9 @@ if ($resql) {
 			$obj = $db->fetch_object($resql);
 			if ($obj) {
 				$instance = $obj->instance;
-				print("Deploying module for instance ".$instance."\n");
+
+				print("\n-- Deploying module ".$productref." for instance ".$instance."\n");
+
 				$contractid = $obj->id;
 
 				unset($object->linkedObjects);
@@ -305,50 +318,50 @@ if ($resql) {
 					$i++;
 					$nbdeploynothingdone++;
 					print("Warning: Module ".$product->ref." already deployed for instance ".$instance."\n");
-					continue;
-				}
-
-				// Create service line(s) in contract
-				$date_start = dol_now();
-				if ($date_end < $date_start) {
-					$date_end = $date_start;
-				}
-				$idlinecontract = $object->addline($product->description, $product->price, 1, $product->tva_tx, $product->localtax1_tx, $product->localtax2_tx, $product->id, 0, $date_start, $date_end);
-				if ($idlinecontract <= 0) {
-					dol_print_error($db, $object->error, $object->errors);
-					$error++;
-				}
-
-				// Activate service line(s) in contract
-				if (!$error) {
-					$object->fetch($contractid);
-					$result = $object->active_line($user, $idlinecontract, $date_start, '', 'Activation after option deployment');
-					if (!$result) {
-						dol_print_error($db, $object->error, $object->errors);
-						$error ++;
+				} else {
+					// Create service line(s) in contract
+					$date_start = dol_now();
+					if ($date_end < $date_start) {
+						$date_end = $date_start;
 					}
-				}
+					$idlinecontract = $object->addline($product->description, $product->price, 1, $product->tva_tx, $product->localtax1_tx, $product->localtax2_tx, $product->id, 0, $date_start, $date_end);
+					if ($idlinecontract <= 0) {
+						dol_print_error($db, $object->error, $object->errors);
+						$error++;
+					}
 
-				// create service line in recurring invoice
-				if (!$error) {
-					$object->fetchObjectLinked();
-					if (!empty($object->linkedObjects["facturerec"])) {
-						$arrayfacturerec = array_values($object->linkedObjects["facturerec"]);
-
-						if (count($arrayfacturerec) != 1) {
-							print("Error: Too many recurring invoices were found for instance ".$instance."\n");
+					// Activate service line(s) in contract
+					if (!$error) {
+						$object->fetch($contractid);
+						$result = $object->active_line($user, $idlinecontract, $date_start, '', 'Activation after option deployment');
+						if (!$result) {
+							dol_print_error($db, $object->error, $object->errors);
 							$error ++;
-						} else {
-							$facturerec = $arrayfacturerec[0];
-							$result = $facturerec->addLine($product->description, $product->price, 1, $product->tva_tx, $product->localtax1_tx, $product->localtax2_tx, $product->id, 0, 'HT', 0, '', 0, 0, -1, 0, '', null, 0, 1, 1);
-							if (!$result) {
-								dol_print_error($db, $facturerec->error, $facturerec->errors);
+						}
+					}
+
+					// create service line in recurring invoice
+					if (!$error) {
+						$object->fetchObjectLinked();
+						if (!empty($object->linkedObjects["facturerec"])) {
+							$arrayfacturerec = array_values($object->linkedObjects["facturerec"]);
+
+							if (count($arrayfacturerec) != 1) {
+								print("Error: Too many recurring invoices were found for instance ".$instance."\n");
 								$error ++;
+							} else {
+								$facturerec = $arrayfacturerec[0];
+								$result = $facturerec->addLine($product->description, $product->price, 1, $product->tva_tx, $product->localtax1_tx, $product->localtax2_tx, $product->id, 0, 'HT', 0, '', 0, 0, -1, 0, '', null, 0, 1, 1);
+								if (!$result) {
+									dol_print_error($db, $facturerec->error, $facturerec->errors);
+									$error ++;
+								}
 							}
 						}
 					}
 				}
 
+				// Deploy files and launch scripts
 				if (!$error) {
 					if (empty($object->thirdparty)) {
 						$object->fetch_thirdparty();
@@ -416,16 +429,21 @@ if ($resql) {
 					$cliafterdeployoption = make_substitutions($tmppackage->cliafterdeployoption, $substitarray);
 					$cliafterdeployoption = str_replace("\r", '', $cliafterdeployoption);
 
+					print "Deploy files\n";
+
 					$deployarray = array();
 					$deployarray[1] = array("src" => $srcfile1, "dest" => $targetsrcfile1);
 					$deployarray[2] = array("src" => $srcfile2, "dest" => $targetsrcfile2);
 					$deployarray[3] = array("src" => $srcfile3, "dest" => $targetsrcfile3);
 					foreach ($deployarray as $deploy) {
+						if (empty($deploy["src"])) {
+							continue;
+						}
 						if (dol_is_dir($deploy["src"])) {
 							print "Deploy with src = ".$deploy["src"]." dest = ".$deploy["dest"]."\n";
 							$res = dol_mkdir($deploy["dest"]);
 							if ($res < 0) {
-								print "Failed to create ".$deploy["dest"]." directory\n";
+								print "Error: Failed to create ".$deploy["dest"]." directory\n";
 								$error++;
 								break;
 							}
@@ -458,30 +476,36 @@ if ($resql) {
 								if (dol_is_file($deploy["src"].".tgz")) {
 									dol_copy($deploy["src"].".tgz", "/tmp/cache".$deploy["src"].".tgz");
 								} else {
-									$cmd = "cd ".$deploy["src"]."/\n";
-									$cmd .= "tar c -I gzip --exclude-vcs --exclude-from=".$path."git_update_sources.exclude -f /tmp/cache".$deploy['src'].".tgz .\n";
+									$cmd = "cd '".$deploy["src"]."'";
+									$cmd .= " && tar c -I gzip --exclude-vcs --exclude-from='".$path."git_update_sources.exclude' -f '/tmp/cache".$deploy['src'].".tgz' .";
 									print $cmd."\n";
-									$result = $utils->executeCli($cmd, "");
+									file_put_contents('/tmp/debug_cmd.txt', $cmd);
+									$result = $utils->executeCli(str_replace("\r", '', $cmd), "", 0, null, 1);
 									if ($result["result"] != 0) {
 										$error++;
 										print $result["error"];
 									}
+									print $result["output"];
 								}
 							}
 
-							if (dol_is_file($deploy["src"].".tar.zst")) {
-								$cmd = "tar -I zstd -xf /tmp/cache".$deploy["src"].".tar.zst --directory ".$deploy["dest"]."/";
-							} elseif (dol_is_file($deploy["src"].".tgz")) {
-								$cmd = "tar -xzf /tmp/cache".$deploy["src"].".tgz --directory ".$deploy["dest"]."/";
+							if (dol_is_file("/tmp/cache".$deploy["src"].".tar.zst")) {
+								$cmd = "tar -I zstd -xf '/tmp/cache".$deploy["src"].".tar.zst' --directory '".$deploy["dest"]."/'";
+							} elseif (dol_is_file("/tmp/cache".$deploy["src"].".tgz")) {
+								$cmd = "tar -xzf '/tmp/cache".$deploy["src"].".tgz' --directory '".$deploy["dest"]."/'";
 							} else {
-								$cmd = "cp -r ".$deploy["src"]."/. ".$deploy["dest"];
+								$cmd = "cp -r '".$deploy["src"]."/.' '".$deploy["dest"]."'";
 							}
 							// Execute cmd to deploy module files
 							print $cmd."\n";
-							$result = $utils->executeCli($cmd, "");
-							if ($result["result"] != 0) {
-								$error++;
-								print $result["error"];
+							if ($mode == "confirm") {
+								$result = $utils->executeCli($cmd, "");
+								if ($result["result"] != 0) {
+									$error++;
+									print $result["error"];
+								}
+							} else {
+								print "Disabled in test mode\n";
 							}
 
 							// Execute chown to change permissions
@@ -493,17 +517,74 @@ if ($resql) {
 								print $result["error"];
 							}
 
-							if ($mode != "confirm") {
+							/*if ($mode != "confirm") {
 								dol_delete_dir_recursive($deploy["dest"]);
-							}
+							}*/
+						} else {
+							print "Error: Deploy with src = ".$deploy["src"]." failed. Dir nor found.\n";
 						}
 					}
 
-					if ($mode == "confirm") {
-						$res = $utils->executeCli($cliafterdeployoption, "", 0, null, 1);
-						if ($res["result"] != 0) {
-							$error++;
-							print $result["error"];
+					// Split string on n lines of command to process. The loop on each command.
+					$arrayofcommand = explode("\n", $cliafterdeployoption);
+					foreach ($arrayofcommand as $command) {
+						print $command."\n";
+						if ($mode == "confirm") {
+							$res = $utils->executeCli($command, "", 0, null, 1);
+							if ($res["result"] != 0) {
+								$error++;
+								print $result["error"];
+							}
+						} else {
+							print "Disabled in test mode\n";
+						}
+					}
+
+					// Add a direct db connection to instance and add SQL to insert constant into llx_const
+					if (preg_match('/^dolcrypt/', $password_db)) {
+						// The password for user database could not be decrypted, so we can't connect to database
+						print "Could not decrypt the database user password, check that you provided the correct parameter masteruniquekey\n";
+						$error++;
+					}
+
+					$ADDEINVOICESETUP = 1;
+
+					if ($ADDEINVOICESETUP) {
+						$localhostnamedb = 'localhost';
+						$dbinstance = getDoliDBInstance($type_db, $localhostnamedb, $username_db, $password_db, $database_db, $port_db);
+						if ($dbinstance->connected) {
+							include_once DOL_DOCUMENT_ROOT.'/core/lib/admin.lib.php';
+							$arrayofoptiontoforce = array(
+								'EINVOICING_PDP' => 'SUPERPDPViaPartner',	// Set the AP provider
+								'EINVOICING_LIVE' => 1,
+								'EINVOICING_SUPERPDP_VIAPARTNER' => dolibarr_get_const($dbmaster, 'EINVOICING_SUPERPDP_VIAPARTNER_TEMPLATE'),						// Example: 'DoliCloud'
+								'EINVOICING_SUPERPDP_VIAPARTNER_OAUTH_URL' => dolibarr_get_const($dbmaster, 'EINVOICING_SUPERPDP_VIAPARTNER_OAUTH_URL_TEMPLATE'),	// Example: 'https://admin.nltechno.com/custom/einvoicing/public/proxy_oauth.php'
+								'EINVOICING_DISABLE_SYNC_DOLI_TO_AP' => '1'
+							);
+
+							$s = dolibarr_get_const($dbinstance, 'EINVOICING_PDP');
+							if (empty($s)) {
+								$dbinstance->begin();
+
+								foreach ($arrayofoptiontoforce as $key => $value) {
+									print "Set constant ".$key." to ".$value."\n";
+									dolibarr_set_const($dbinstance, $key, $value);
+								}
+
+								if ($mode != "confirm") {
+									print "Rollback\n";
+									$dbinstance->rollback();
+								} else {
+									print "Commit\n";
+									$dbinstance->commit();
+								}
+							} else {
+								print "A einvoicing provider seems already set for the instance (on entity 1), we do not change it.\n";
+							}
+
+							$dbinstance->close();
+						} else {
+							print "Failed to connect to database of instance ".$localhostnamedb.", ".$username_db.", ".$database_db.", ".$port_db."\n";
 						}
 					}
 				}
