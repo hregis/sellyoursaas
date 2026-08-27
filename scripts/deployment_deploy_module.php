@@ -104,6 +104,9 @@ if ($fp) {
 	}
 } else {
 	print "Failed to open /etc/sellyoursaas.conf file\n";
+	if (0 != posix_getuid()) {
+		echo "Script must be ran with root user. Try to switch user.\n";
+	}
 	print "\n";
 	exit(-1);
 }
@@ -317,7 +320,7 @@ if ($resql) {
 				if ($productlinefound) {
 					$i++;
 					$nbdeploynothingdone++;
-					print("Warning: Module ".$product->ref." already deployed for instance ".$instance."\n");
+					print("Warning: Module ".$product->ref." already present in contract for instance ".$instance."\n");
 				} else {
 					// Create service line(s) in contract
 					$date_start = dol_now();
@@ -462,8 +465,10 @@ if ($resql) {
 								}
 							}
 							$cacheage = ($now - $datecache) / 86400;
+							$MAXAGE = 2;
+							print "Cache age is ".$cacheage." / MAX is ".$MAXAGE."\n";
 
-							if ($datecache == 0 || $datesource > $datecache || $cacheage > 7) {
+							if ($datecache == 0 || $datesource > $datecache || $cacheage > $MAXAGE) {
 								print "Renew of the archive\n";
 								$res = dol_mkdir("/tmp/cache".$deploy["src"]);
 								if ($res < 0) {
@@ -547,8 +552,7 @@ if ($resql) {
 						$error++;
 					}
 
-					$ADDEINVOICESETUP = 1;
-
+					$ADDEINVOICESETUP = ($product->ref == 'DOLICLOUD-MOD-EInvoicing' ? 1 : 0);
 					if ($ADDEINVOICESETUP) {
 						$localhostnamedb = 'localhost';
 						$dbinstance = getDoliDBInstance($type_db, $localhostnamedb, $username_db, $password_db, $database_db, $port_db);
@@ -570,6 +574,23 @@ if ($resql) {
 									print "Set constant ".$key." to ".$value."\n";
 									dolibarr_set_const($dbinstance, $key, $value);
 								}
+
+								// Make SQL requests
+								$sql1 = 'CREATE TABLE llx_einvoicing_extrafields (rowid integer AUTO_INCREMENT PRIMARY KEY NOT NULL, element_id integer NOT NULL, element_type varchar(50) NOT NULL, name varchar(64) NOT NULL, value text, date_creation datetime NOT NULL, tms timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, fk_user_creat integer NOT NULL, fk_user_modif integer) ENGINE = innodb;';
+								print "Run sql1 ".$sql1."\n";
+								$dbinstance->query($sql1);
+								$sql2 = 'ALTER TABLE llx_einvoicing_extrafields ADD UNIQUE INDEX uk_einvoicing_extrafields (element_type, element_id, name);';
+								print "Run sql2 ".$sql2."\n";
+								$dbinstance->query($sql2);
+								$sql3 = 'UPDATE llx_extrafields SET printable = 2 WHERE printable = 1 AND elementtype IN (\'facture\', \'commande\') AND name IN (\'d4d_service_code\', \'d4d_contract_number\', \'d4d_promise_code\')';
+								print "Run sql3 ".$sql3."\n";
+								$dbinstance->query($sql3);
+								$sql4 = 'ALTER TABLE llx_einvoicing_call ADD COLUMN call_id_num integer AFTER call_id;';
+								print "Run sql4 ".$sql4."\n";
+								$dbinstance->query($sql4);
+								$sql5 = 'ALTER TABLE llx_einvoicing_call ADD COLUMN request_id varchar(36) AFTER endpoint;';
+								print "Run sql5 ".$sql5."\n";
+								$dbinstance->query($sql5);
 
 								if ($mode != "confirm") {
 									print "Rollback\n";
@@ -610,4 +631,5 @@ if ($resql) {
 	dol_print_error($db);
 }
 
-print("Deployment ended with ".$nbdeployok." contract without error, ".$nbdeployko." contract with error and ".$nbdeploynothingdone." contract where nothing was done\n");
+print("Deployment ended with ".$nbdeployok." contract without error, ".$nbdeployko." contract with error. ".$nbdeploynothingdone." contract were already present in contract.\n");
+print "\n";

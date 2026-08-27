@@ -70,15 +70,15 @@ fi
 echo "***** Disk used per instance (scan home dir duc.db file, containing the analysis of the content of home dir)"
 
 if [ "x$1" == "x" ]; then
-	echo "Missing parameter - list|update|delete"
-	echo "Usage:   "`basename ${0}`" (list|update|delete) [osu...]"
+	echo "Missing parameter - list|updateifnotfound|update|delete|deletecorrupted"
+	echo "Usage:   "`basename ${0}`" (list|updateifnotfound|update|delete|deletecorrupted) [osu...]"
 	echo "Example: "`basename ${0}`" list"
 	echo "         "`basename ${0}`" list osu123456"
 	exit 1
 fi
-if [ "x$1" != "xlist" -a "x$1" != "xupdate" -a "x$1" != "xdelete" ]; then
+if [ "x$1" != "xlist" -a "x$1" != "xupdateifnotfound" -a "x$1" != "xupdate" -a "x$1" != "xdelete" -a "x$1" != "xdeletecorrupted" ]; then
 	echo "Bad value for first parameter."
-	echo "Usage:   "`basename ${0}`" (list|update|delete) [osu...]"
+	echo "Usage:   "`basename ${0}`" (list|updateifnotfound|update|delete|deletecorrupted) [osu...]"
 	echo "Example: "`basename ${0}`" list"
 	echo "         "`basename ${0}`" list osu123456"
 	exit 1
@@ -95,19 +95,48 @@ for fic in `ls -A`; do
     		continue
     	fi
     fi
+
 	if [ "x$1" == "xlist" ]; then
 		if [ "x$2" != "x" ]; then
 			echo duc info -b -a -d "$fic/.duc.db"
 		fi
 		duc info -b -a -d "$fic/.duc.db" >>/tmp/disk_used.tmp 2>&1;
 	fi
+
 	if [ "x$1" == "xupdate" ]; then
-		echo Update duc for $homedir/$fic
+		echo Update duc with: duc index $homedir/$fic -x -m 3 -d \"$homedir/$fic/.duc.db\"
 		duc index $homedir/$fic -x -m 3 -d "$homedir/$fic/.duc.db"
 		chown $fic:$fic "$homedir/$fic/.duc.db"
+		echo done
 	fi
+
+	if [ "x$1" == "xupdateifnotfound" ]; then
+		if [ ! -f "$fic/.duc.db" ]; then
+			echo Update duc with: duc index $homedir/$fic -x -m 3 -d \"$homedir/$fic/.duc.db\"
+			duc index $homedir/$fic -x -m 3 -d "$homedir/$fic/.duc.db"
+			chown $fic:$fic "$homedir/$fic/.duc.db"
+			echo done
+		fi
+	fi
+
 	if [ "x$1" == "xdelete" ]; then
 		rm "$fic/.duc.db"
+	fi
+
+	if [ "x$1" == "xdeletecorrupted" ]; then
+		# Test if file "$fic/.duc.db" exists
+		if [ ! -f "$fic/.duc.db" ]; then
+			echo "Base duc $fic/.duc.db does not exists"
+			continue
+		fi
+		duc info -d "$fic/.duc.db" >/dev/null 2>&1
+		ret=$?
+		if [ "$ret" -ne 0 ]; then
+		    echo "Base duc $fic/.duc.db invalid (duc info returned $ret), we delete it"
+			rm "$fic/.duc.db"
+		else
+		    echo "Base duc $fic/.duc.db OK"
+		fi
 	fi
 done
 
