@@ -442,9 +442,9 @@ if [[ "$mode" == "rename" ]]; then
 				echo "cat $vhostfile | sed -e 's/__webAppDomain__/$customurl/g' | \
 						  sed -e 's/__webAppAliases__/$customurl/g' | \
 						  sed -e 's/__webAppLogName__/$instancename/g' | \
-		                  sed -e 's;/etc/apache2/__webSSLCertificateCRT__;$pathforcertiflocal/$webCustomSSLCertificateCRT;g' | \
-		                  sed -e 's;/etc/apache2/__webSSLCertificateKEY__;$pathforcertiflocal/$webCustomSSLCertificateKEY;g' | \
-		                  sed -e 's;/etc/apache2/__webSSLCertificateIntermediate__;$pathforcertiflocal/$webCustomSSLCertificateIntermediate;g' | \
+		                  sed -e 's;__webSSLCertificateCRT__;$pathforcertiflocal/$webCustomSSLCertificateCRT;g' | \
+		                  sed -e 's;__webSSLCertificateKEY__;$pathforcertiflocal/$webCustomSSLCertificateKEY;g' | \
+		                  sed -e 's;__webSSLCertificateIntermediate__;$pathforcertiflocal/$webCustomSSLCertificateIntermediate;g' | \
 						  sed -e 's/__webAdminEmail__/$EMAILFROM/g' | \
 						  sed -e 's/__osUsername__/$osusername/g' | \
 						  sed -e 's/__osGroupname__/$osusername/g' | \
@@ -464,9 +464,9 @@ if [[ "$mode" == "rename" ]]; then
 				cat $vhostfile | sed -e "s/__webAppDomain__/$customurl/g" | \
 						  sed -e "s/__webAppAliases__/$customurl/g" | \
 						  sed -e "s/__webAppLogName__/$instancename/g" | \
-		                  sed -e "s;/etc/apache2/__webSSLCertificateCRT__;$pathforcertiflocal/$webCustomSSLCertificateCRT;g" | \
-		                  sed -e "s;/etc/apache2/__webSSLCertificateKEY__;$pathforcertiflocal/$webCustomSSLCertificateKEY;g" | \
-		                  sed -e "s;/etc/apache2/__webSSLCertificateIntermediate__;$pathforcertiflocal/$webCustomSSLCertificateIntermediate;g" | \
+		                  sed -e "s;__webSSLCertificateCRT__;$pathforcertiflocal/$webCustomSSLCertificateCRT;g" | \
+		                  sed -e "s;__webSSLCertificateKEY__;$pathforcertiflocal/$webCustomSSLCertificateKEY;g" | \
+		                  sed -e "s;__webSSLCertificateIntermediate__;$pathforcertiflocal/$webCustomSSLCertificateIntermediate;g" | \
 						  sed -e "s/__webAdminEmail__/$EMAILFROM/g" | \
 						  sed -e "s/__osUsername__/$osusername/g" | \
 						  sed -e "s/__osGroupname__/$osusername/g" | \
@@ -587,9 +587,9 @@ if [[ "$mode" == "rename" ]]; then
 		echo "cat $vhostfile | sed -e 's/__webAppDomain__/$customurl/g' | \
 				  sed -e 's/__webAppAliases__/$customurl/g' | \
 				  sed -e 's/__webAppLogName__/$instancename/g' | \
-                  sed -e 's;/etc/apache2/__webSSLCertificateCRT__;$pathforcertiflocal/$webCustomSSLCertificateCRT;g' | \
-                  sed -e 's;/etc/apache2/__webSSLCertificateKEY__;$pathforcertiflocal/$webCustomSSLCertificateKEY;g' | \
-                  sed -e 's;/etc/apache2/__webSSLCertificateIntermediate__;$pathforcertiflocal/$webCustomSSLCertificateIntermediate;g' | \
+                  sed -e 's;__webSSLCertificateCRT__;$pathforcertiflocal/$webCustomSSLCertificateCRT;g' | \
+                  sed -e 's;__webSSLCertificateKEY__;$pathforcertiflocal/$webCustomSSLCertificateKEY;g' | \
+                  sed -e 's;__webSSLCertificateIntermediate__;$pathforcertiflocal/$webCustomSSLCertificateIntermediate;g' | \
 				  sed -e 's/__webAdminEmail__/$EMAILFROM/g' | \
 				  sed -e 's/__osUsername__/$osusername/g' | \
 				  sed -e 's/__osGroupname__/$osusername/g' | \
@@ -609,9 +609,9 @@ if [[ "$mode" == "rename" ]]; then
 		cat $vhostfile | sed -e "s/__webAppDomain__/$customurl/g" | \
 				  sed -e "s/__webAppAliases__/$customurl/g" | \
 				  sed -e "s/__webAppLogName__/$instancename/g" | \
-                  sed -e "s;/etc/apache2/__webSSLCertificateCRT__;$pathforcertiflocal/$webCustomSSLCertificateCRT;g" | \
-                  sed -e "s;/etc/apache2/__webSSLCertificateKEY__;$pathforcertiflocal/$webCustomSSLCertificateKEY;g" | \
-                  sed -e "s;/etc/apache2/__webSSLCertificateIntermediate__;$pathforcertiflocal/$webCustomSSLCertificateIntermediate;g" | \
+                  sed -e "s;__webSSLCertificateCRT__;$pathforcertiflocal/$webCustomSSLCertificateCRT;g" | \
+                  sed -e "s;__webSSLCertificateKEY__;$pathforcertiflocal/$webCustomSSLCertificateKEY;g" | \
+                  sed -e "s;__webSSLCertificateIntermediate__;$pathforcertiflocal/$webCustomSSLCertificateIntermediate;g" | \
 				  sed -e "s/__webAdminEmail__/$EMAILFROM/g" | \
 				  sed -e "s/__osUsername__/$osusername/g" | \
 				  sed -e "s/__osGroupname__/$osusername/g" | \
@@ -879,9 +879,9 @@ if [[ "$mode" == "suspend" || $mode == "suspendmaintenance" || $mode == "suspend
 		echo "cat $vhostfiletouse | sed -e 's/__webAppDomain__/$customurl/g' | \
 				  sed -e 's/__webAppAliases__/$customurl/g' | \
 				  sed -e 's/__webAppLogName__/$instancename/g' | \
-                  sed -e 's;/etc/apache2/__webSSLCertificateCRT__;$pathforcertiflocal/$webCustomSSLCertificateCRT;g' | \
-                  sed -e 's;/etc/apache2/__webSSLCertificateKEY__;$pathforcertiflocal/$webCustomSSLCertificateKEY;g' | \
-                  sed -e 's;/etc/apache2/__webSSLCertificateIntermediate__;$pathforcertiflocal/$webCustomSSLCertificateIntermediate;g' | \
+                  sed -e 's;__webSSLCertificateCRT__;$pathforcertiflocal/$webCustomSSLCertificateCRT;g' | \
+                  sed -e 's;__webSSLCertificateKEY__;$pathforcertiflocal/$webCustomSSLCertificateKEY;g' | \
+                  sed -e 's;__webSSLCertificateIntermediate__;$pathforcertiflocal/$webCustomSSLCertificateIntermediate;g' | \
 				  sed -e 's/__webAdminEmail__/$EMAILFROM/g' | \
 				  sed -e 's/__osUsername__/$osusername/g' | \
 				  sed -e 's/__osGroupname__/$osusername/g' | \
@@ -900,9 +900,9 @@ if [[ "$mode" == "suspend" || $mode == "suspendmaintenance" || $mode == "suspend
 		cat $vhostfiletouse | sed -e "s/__webAppDomain__/$customurl/g" | \
 				  sed -e "s/__webAppAliases__/$customurl/g" | \
 				  sed -e "s/__webAppLogName__/$instancename/g" | \
-                  sed -e "s;/etc/apache2/__webSSLCertificateCRT__;$pathforcertiflocal/$webCustomSSLCertificateCRT;g" | \
-                  sed -e "s;/etc/apache2/__webSSLCertificateKEY__;$pathforcertiflocal/$webCustomSSLCertificateKEY;g" | \
-                  sed -e "s;/etc/apache2/__webSSLCertificateIntermediate__;$pathforcertiflocal/$webCustomSSLCertificateIntermediate;g" | \
+                  sed -e "s;__webSSLCertificateCRT__;$pathforcertiflocal/$webCustomSSLCertificateCRT;g" | \
+                  sed -e "s;__webSSLCertificateKEY__;$pathforcertiflocal/$webCustomSSLCertificateKEY;g" | \
+                  sed -e "s;__webSSLCertificateIntermediate__;$pathforcertiflocal/$webCustomSSLCertificateIntermediate;g" | \
 				  sed -e "s/__webAdminEmail__/$EMAILFROM/g" | \
 				  sed -e "s/__osUsername__/$osusername/g" | \
 				  sed -e "s/__osGroupname__/$osusername/g" | \
@@ -1119,9 +1119,9 @@ if [[ "$mode" == "unsuspend" ]]; then
 		echo "cat $vhostfiletouse | sed -e 's/__webAppDomain__/$customurl/g' | \
 				  sed -e 's/__webAppAliases__/$customurl/g' | \
 				  sed -e 's/__webAppLogName__/$instancename/g' | \
-                  sed -e 's;/etc/apache2/__webSSLCertificateCRT__;$pathforcertiflocal/$webCustomSSLCertificateCRT;g' | \
-                  sed -e 's;/etc/apache2/__webSSLCertificateKEY__;$pathforcertiflocal/$webCustomSSLCertificateKEY;g' | \
-                  sed -e 's;/etc/apache2/__webSSLCertificateIntermediate__;$pathforcertiflocal/$webCustomSSLCertificateIntermediate;g' | \
+                  sed -e 's;__webSSLCertificateCRT__;$pathforcertiflocal/$webCustomSSLCertificateCRT;g' | \
+                  sed -e 's;__webSSLCertificateKEY__;$pathforcertiflocal/$webCustomSSLCertificateKEY;g' | \
+                  sed -e 's;__webSSLCertificateIntermediate__;$pathforcertiflocal/$webCustomSSLCertificateIntermediate;g' | \
 				  sed -e 's/__webAdminEmail__/$EMAILFROM/g' | \
 				  sed -e 's/__osUsername__/$osusername/g' | \
 				  sed -e 's/__osGroupname__/$osusername/g' | \
@@ -1139,9 +1139,9 @@ if [[ "$mode" == "unsuspend" ]]; then
 		cat $vhostfiletouse | sed -e "s/__webAppDomain__/$customurl/g" | \
 				  sed -e "s/__webAppAliases__/$customurl/g" | \
 				  sed -e "s/__webAppLogName__/$instancename/g" | \
-                  sed -e "s;/etc/apache2/__webSSLCertificateCRT__;$pathforcertiflocal/$webCustomSSLCertificateCRT;g" | \
-                  sed -e "s;/etc/apache2/__webSSLCertificateKEY__;$pathforcertiflocal/$webCustomSSLCertificateKEY;g" | \
-                  sed -e "s;/etc/apache2/__webSSLCertificateIntermediate__;$pathforcertiflocal/$webCustomSSLCertificateIntermediate;g" | \
+                  sed -e "s;__webSSLCertificateCRT__;$pathforcertiflocal/$webCustomSSLCertificateCRT;g" | \
+                  sed -e "s;__webSSLCertificateKEY__;$pathforcertiflocal/$webCustomSSLCertificateKEY;g" | \
+                  sed -e "s;__webSSLCertificateIntermediate__;$pathforcertiflocal/$webCustomSSLCertificateIntermediate;g" | \
 				  sed -e "s/__webAdminEmail__/$EMAILFROM/g" | \
 				  sed -e "s/__osUsername__/$osusername/g" | \
 				  sed -e "s/__osGroupname__/$osusername/g" | \
