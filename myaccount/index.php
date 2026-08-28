@@ -2404,10 +2404,14 @@ if ($action == 'updateurl') {	// update URL from the tab "Domain"
 		setEventMessages($tmpcontract->error, null, 'errors');
 		$error++;
 	}
+	$tmplineforremoteaction = null;
 	if (!$error) {
 		foreach ($tmpcontract->lines as $key => $line) {
 			// Remove service line(s) from contract
 			if ($line->fk_product == $productid) {
+				if (empty($tmplineforremoteaction)) {
+					$tmplineforremoteaction = clone $line;	// Keep a copy of the line to target only this product's option for the remote undeploy action below (passing the whole contract would undeploy every installed option)
+				}
 				$res = $tmpcontract->deleteLine($line->id, $user);
 				if ($res <= 0) {
 					setEventMessages($tmpcontract->error, null, 'errors');
@@ -2491,7 +2495,7 @@ if ($action == 'updateurl') {	// update URL from the tab "Domain"
 				$result = $sellyoursaasutils->sellyoursaasRemoteAction("rename", $object);
 			}
 		} else {
-			$result = $sellyoursaasutils->sellyoursaasRemoteAction("undeployoption", $object);
+			$result = $sellyoursaasutils->sellyoursaasRemoteAction("undeployoption", $tmplineforremoteaction);
 		}
 		if ($result <= 0) {
 			$error++;
@@ -2599,6 +2603,13 @@ if ($action == 'updateurl') {	// update URL from the tab "Domain"
 
 	// Call to remoteaction to deploy option
 	if (!$error) {
+		$tmplineforremoteaction = null;
+		foreach ($tmpcontract->lines as $key => $line) {
+			if ($line->id == $idlinecontract) {
+				$tmplineforremoteaction = $line;	// Target only this newly installed option's line for the remote deploy action below (passing the whole contract would redeploy every installed option)
+				break;
+			}
+		}
 		$object = $tmpcontract;
 		$type_db = $conf->db->type;
 		$hostname_db  = $object->array_options['options_hostname_db'];
@@ -2629,7 +2640,7 @@ if ($action == 'updateurl') {	// update URL from the tab "Domain"
 		$object->password_web = $password_web;
 
 		//$object->context["options_websitename"] = $website->ref;
-		$result = $sellyoursaasutils->sellyoursaasRemoteAction("deployoption", $object);	// Why "rename" and not "deploycustomurl" ?
+		$result = $sellyoursaasutils->sellyoursaasRemoteAction("deployoption", $tmplineforremoteaction);
 		if ($result <= 0) {
 			$error++;
 			setEventMessages($sellyoursaasutils->error, $sellyoursaasutils->errors, 'errors');
