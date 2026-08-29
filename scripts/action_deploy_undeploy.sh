@@ -440,17 +440,23 @@ if [[ "$mode" == "deployall" ]]; then
 					# Private users jail
 					if [[ "$sshaccesstype" == "2" ]]; then
 						if [[ ! -d "$chrootdir/$osusername" ]]; then
+							# Both the private and common jail archives are built by
+							# setup_server_phpfpm.sh from the same /home/jail/chroot/template
+							# directory (tar c ... template), so the top-level entry inside
+							# either archive is always literally "template", never
+							# $privatejailtemplatename itself - that variable only names the
+							# .tar.zst/.tgz *file*.
 							if [[ "x$privatejailtemplatename" != "x" && -f "$templatesdir/$privatejailtemplatename.tar.zst" ]]; then
 								echo "tar -I zstd -xf $templatesdir/$privatejailtemplatename.tar.zst --directory $chrootdir/"
 								tar -I zstd -xf $templatesdir/$privatejailtemplatename.tar.zst --directory $chrootdir/
-								echo "mv $chrootdir/$privatejailtemplatename $chrootdir/$osusername"
-								mv $chrootdir/$privatejailtemplatename $chrootdir/$osusername
+								echo "mv $chrootdir/template $chrootdir/$osusername"
+								mv $chrootdir/template $chrootdir/$osusername
 							else
 								if [[ "x$privatejailtemplatename" != "x" && -f "$templatesdir/$privatejailtemplatename.tgz" ]]; then
 									echo "tar -xzf $templatesdir/$privatejailtemplatename.tgz --directory $chrootdir/"
 									tar -xzf $templatesdir/$privatejailtemplatename.tgz --directory $chrootdir/
-									echo "mv $chrootdir/$privatejailtemplatename $chrootdir/$osusername"
-									mv $chrootdir/$privatejailtemplatename $chrootdir/$osusername
+									echo "mv $chrootdir/template $chrootdir/$osusername"
+									mv $chrootdir/template $chrootdir/$osusername
 								else
 									echo "jk_init -c /etc/jailkit/jk_init.ini $chrootdir/$osusername extendedshell limitedshell groups sftp rsync editors git php mysqlclient"
 									jk_init -c /etc/jailkit/jk_init.ini $chrootdir/$osusername extendedshell limitedshell groups sftp rsync editors git php mysqlclient >/dev/null 2>&1

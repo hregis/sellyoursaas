@@ -78,9 +78,19 @@ if [[ "$currentsshaccesstype" == "$newsshaccesstype" ]]; then
 	exit 0
 fi
 
-# Kill any process still running as this user before touching its jail/passwd entry - killall
-# only sends SIGTERM by default and a lingering process makes the usermod below fail silently
-# (see the hardened version of the same pattern in action_deploy_undeploy.sh).
+# Stop this instance's php-fpm pool first: it runs as $osusername with Restart=always, so a
+# plain killall would just have systemd relaunch it a few seconds later, still holding the
+# account "in use" and making the usermod below fail silently every time.
+phpfpmservicefile=$(ls /etc/systemd/system/sellyoursaas-php*-fpm-"$fqn".service 2>/dev/null | head -1)
+if [[ "x$phpfpmservicefile" != "x" ]]; then
+	phpfpmservicename=$(basename "$phpfpmservicefile")
+	echo "systemctl stop $phpfpmservicename"
+	systemctl stop "$phpfpmservicename" 2>/dev/null || true
+fi
+
+# Kill any other process still running as this user before touching its jail/passwd entry -
+# killall only sends SIGTERM by default and a lingering process makes the usermod below fail
+# silently (see the hardened version of the same pattern in action_deploy_undeploy.sh).
 echo "killall -9 -u $osusername"
 killall -9 -u "$osusername" 2>/dev/null || true
 for i in 1 2 3 4 5 6 7 8 9 10; do
@@ -113,9 +123,19 @@ sed -i "/$osusername/d" /etc/fstab
 
 # Reset to a clean, non-jailed baseline before applying the new type below - matters most for
 # newsshaccesstype=0, and is a harmless intermediate step otherwise since the jk_jailuser call
-# below rewrites both fields again anyway.
+# below rewrites both fields again anyway. Retry once after another kill if something else was
+# still holding the account busy - see the identical pattern (and why it is needed) in
+# action_deploy_undeploy.sh.
 echo "usermod -d $homedir --shell /bin/secureBash $osusername"
-usermod -d "$homedir" --shell /bin/secureBash "$osusername"
+if ! usermod -d "$homedir" --shell /bin/secureBash "$osusername"; then
+	echo "usermod failed for $osusername (still in use?), killing again and retrying once"
+	killall -9 -u "$osusername" 2>/dev/null || true
+	sleep 2
+	if ! usermod -d "$homedir" --shell /bin/secureBash "$osusername"; then
+		echo "Error: usermod still failed for $osusername after retry" 1>&2
+		exit 8
+	fi
+fi
 
 # Set up the new jail type (mirrors action_deploy_undeploy.sh mode deployall).
 if [[ "$newsshaccesstype" == "1" ]]; then
@@ -145,12 +165,16 @@ if [[ "$newsshaccesstype" == "1" ]]; then
 	fi
 elif [[ "$newsshaccesstype" == "2" ]]; then
 	if [[ ! -d "$chrootdir/$osusername" ]]; then
+		# Both the private and common jail archives are built by setup_server_phpfpm.sh from the
+		# same /home/jail/chroot/template directory (tar c ... template), so the top-level entry
+		# inside either archive is always literally "template", never $privatejailtemplatename
+		# itself - that variable only names the .tar.zst/.tgz *file*.
 		if [[ "x$privatejailtemplatename" != "x" && -f "$templatesdir/$privatejailtemplatename.tar.zst" ]]; then
 			tar -I zstd -xf "$templatesdir/$privatejailtemplatename.tar.zst" --directory "$chrootdir/"
-			mv "$chrootdir/$privatejailtemplatename" "$chrootdir/$osusername"
+			mv "$chrootdir/template" "$chrootdir/$osusername"
 		elif [[ "x$privatejailtemplatename" != "x" && -f "$templatesdir/$privatejailtemplatename.tgz" ]]; then
 			tar -xzf "$templatesdir/$privatejailtemplatename.tgz" --directory "$chrootdir/"
-			mv "$chrootdir/$privatejailtemplatename" "$chrootdir/$osusername"
+			mv "$chrootdir/template" "$chrootdir/$osusername"
 		else
 			jk_init -c /etc/jailkit/jk_init.ini "$chrootdir/$osusername" extendedshell limitedshell groups sftp rsync editors git php mysqlclient >/dev/null 2>&1
 		fi
@@ -164,6 +188,18 @@ elif [[ "$newsshaccesstype" == "2" ]]; then
 	if ! grep -q "$chrootdir/$osusername$homedir" /etc/fstab; then
 		echo "$homedir $chrootdir/$osusername$homedir bind defaults,bind 0" >> /etc/fstab
 	fi
+fi
+
+if [[ "x$phpfpmservicefile" != "x" ]]; then
+	echo "systemctl start $phpfpmservicename"
+	systemctl start "$phpfpmservicename"
+	phpfpmversion=$(echo "$phpfpmservicename" | sed -nE 's/^sellyoursaas-php([0-9.]+)-fpm-.*/\1/p')
+	newsocket="/run/php/php${phpfpmversion}-fpm-${fqn}.sock"
+	for i in 1 2 3 4 5 6 7 8 9 10; do
+		[ -S "$newsocket" ] && break
+		sleep 0.5
+	done
+	[ -S "$newsocket" ] || echo "Warning: $newsocket did not appear after restarting $phpfpmservicename" 1>&2
 fi
 
 echo "$(date +'%Y-%m-%d %H:%M:%S') SSH access type switch for $fqn to $newsshaccesstype done"
