@@ -39,6 +39,12 @@ templatesdir=`grep '^templatesdir=' /etc/sellyoursaas.conf | cut -d '=' -f 2`
 phpfpm=`grep '^phpfpm=' /etc/sellyoursaas.conf | cut -d '=' -f 2`
 phpversion=`grep '^phpversion=' /etc/sellyoursaas.conf | cut -d '=' -f 2`
 localip=`grep '^localip=' /etc/sellyoursaas.conf | cut -d '=' -f 2`
+# Undocumented and easy to omit from /etc/sellyoursaas.conf on a new server - left empty, this
+# used to silently produce "<VirtualHost :443 :80>" (empty address), which apache2ctl configtest
+# then refuses to load at all, breaking deployall/suspend/unsuspend/custom-URL on that server.
+if [[ "x$localip" == "x" ]]; then
+	localip="*"
+fi
 if [[ "x$templatesdir" != "x" ]]; then
   if [[ "x$phpfpm" != "x" ]]; then
     export vhostfile="$templatesdir/vhostHttps-phpfpm-sellyoursaas.template"
@@ -535,11 +541,32 @@ if [[ "$mode" == "undeploy" || "$mode" == "undeployall" ]]; then
 					fi
 					echo 'sed -i "/$osusername/d" /etc/fstab'
 					sed -i "/$osusername/d" /etc/fstab
-					# to prevent error "user osuxxxxx is currently used by process xxxx"
-					echo "killall -u $osusername; sleep 2"
-					killall -u $osusername; sleep 2
+					# to prevent error "user osuxxxxx is currently used by process xxxx" - killall only
+					# sends SIGTERM and a flat 2s sleep is not always enough for a process to actually
+					# exit before usermod below runs, and usermod's exit code was never checked: a
+					# still-running process silently leaves the passwd home field pointing at the jail
+					# path just removed above, which later breaks deluser --remove-home in undeployall
+					# mode (see the fix further down for why that matters). SIGKILL and poll for the
+					# processes to actually be gone (up to 10s) instead of blindly sleeping, then retry
+					# usermod once more after another kill if it still fails, and log clearly if it does
+					# not - this used to fail silently.
+					echo "killall -9 -u $osusername"
+					killall -9 -u $osusername 2>/dev/null
+					for i in 1 2 3 4 5 6 7 8 9 10; do
+						pgrep -u $osusername >/dev/null 2>&1 || break
+						sleep 1
+					done
 					echo "usermod -d $targetdir/$osusername --shell /bin/false $osusername"
 					usermod -d $targetdir/$osusername --shell /bin/false $osusername
+					if [[ $? != 0 ]]; then
+						echo "usermod failed for $osusername (still in use?), killing again and retrying once"
+						killall -9 -u $osusername 2>/dev/null
+						sleep 2
+						usermod -d $targetdir/$osusername --shell /bin/false $osusername
+						if [[ $? != 0 ]]; then
+							echo "Error: usermod still failed for $osusername after retry - its passwd home field may still point at the jail path just removed above"
+						fi
+					fi
 				fi
 			fi
 		fi
@@ -944,6 +971,21 @@ if [[ "$mode" == "deploy" || "$mode" == "deployall" || "$mode" == "deployoption"
 	chown -R $osusername:$osusername $targetdir/$osusername/$dbname
 	echo `date +'%Y-%m-%d %H:%M:%S'`" chmod -R go-rwxs $targetdir/$osusername/$dbname"
 	chmod -R go-rwxs $targetdir/$osusername/$dbname
+
+	# Grant the web server group read+traverse on htdocs only (never on documents/, which is
+	# only ever reached through an authenticated PHP script running under the instance's own
+	# php-fpm pool user). This keeps htdocs servable by Apache whether the server still uses
+	# mpm_itk (harmless, itk already gives full access) or has moved to mpm_event for HTTP/2
+	# (where Apache itself runs as a single shared user and needs this ACL to serve static files).
+	if command -v setfacl >/dev/null 2>&1; then
+		echo `date +'%Y-%m-%d %H:%M:%S'`" Grant www-data traverse-only on the instance directories and read+traverse on htdocs"
+		setfacl -m g:www-data:--x "$targetdir/$osusername"
+		setfacl -m g:www-data:--x "$targetdir/$osusername/$dbname"
+		setfacl -R -m g:www-data:rX "$targetdir/$osusername/$dbname/htdocs"
+		setfacl -d -m g:www-data:rX "$targetdir/$osusername/$dbname/htdocs"
+	else
+		echo `date +'%Y-%m-%d %H:%M:%S'`" Warning: setfacl not found (acl package not installed), skipping www-data ACL on htdocs - static files will only be servable while this server still uses mpm_itk"
+	fi
 fi
 
 # Undeploy option files
@@ -1759,6 +1801,19 @@ if [[ "$mode" == "undeployall" ]]; then
 
 	echo crontab -r -u $osusername
 	crontab -r -u $osusername
+
+	# Jailed users (sshaccesstype 1 or 2) had their real /etc/passwd home field rewritten by
+	# jk_jailuser to a jail-chroot-relative path (eg. .../chroot/commonjail/./home/jail/home/$osusername)
+	# at deploy time - the jail-side mirror of that path was just unmounted and rm -Rf'd earlier in
+	# this script, but the real passwd entry was never pointed back at the real home. deluser below
+	# reads that same field to know what to back up/remove: left as-is, it looks at a path that no
+	# longer exists, silently backs up and removes nothing, and still reports success - leaving the
+	# real home directory (with whatever it still contains) permanently orphaned with no account.
+	echo usermod -d $targetdir/$osusername $osusername
+	if [[ $testorconfirm == "confirm" ]]
+	then
+		usermod -d $targetdir/$osusername $osusername
+	fi
 
 	# Note: When we do this the home dir of $osusername was already archived by code few lines previously
 	echo deluser --remove-home --backup --backup-to $archivedir/$osusername $osusername
