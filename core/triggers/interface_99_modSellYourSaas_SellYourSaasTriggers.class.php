@@ -563,7 +563,12 @@ class InterfaceSellYourSaasTriggers extends DolibarrTriggers
 							setEventMessage($langs->trans("InstancePhpVersionWasChanged", $contract->ref_customer.' ('.$contract->ref.')', $contract->array_options['options_phpversion']));
 						} elseif ($remoteaction == 'changesshaccesstype') {
 							$sshaccesstypelabels = array(0 => 'SystemDefault', 1 => 'CommonUserJail', 2 => 'PrivateUserJail');
-							$newsshaccesstypelabel = $langs->trans($sshaccesstypelabels[$contract->array_options['options_sshaccesstype']] ?? $contract->array_options['options_sshaccesstype']);
+							// transnoentitiesnoconv(), not trans(): this label is not the final output, it is
+							// embedded as %s into another trans() call below, which already applies
+							// htmlentities()/charset conversion once on the fully assembled string - running
+							// it here too would double-encode accented characters (htmlentities()
+							// misinterpreting the already-converted UTF8 bytes as ISO-8859-1).
+							$newsshaccesstypelabel = $langs->transnoentitiesnoconv($sshaccesstypelabels[$contract->array_options['options_sshaccesstype']] ?? $contract->array_options['options_sshaccesstype']);
 							setEventMessage($langs->trans("InstanceSshAccessTypeWasChanged", $contract->ref_customer.' ('.$contract->ref.')', $newsshaccesstypelabel));
 						}
 					}
