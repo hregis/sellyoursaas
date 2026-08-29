@@ -245,9 +245,15 @@ class InterfaceSellYourSaasTriggers extends DolibarrTriggers
 				}
 
 				// Do we change the SSH access type (0=SystemDefault, 1=CommonUserJail, 2=PrivateUserJail) ?
+				// Gated the same way the field itself is hidden on the contract form
+				// (see modSellYourSaas.class.php addExtraField 'enabled' condition) - that only
+				// controls what is shown though, not what can change through other paths (API,
+				// bulk edit, a value left over from before the constant was turned off), so check
+				// it again here before ever touching the server.
 				if (isset($object->oldcopy)
 				&& $object->oldcopy->array_options['options_sshaccesstype'] != $object->array_options['options_sshaccesstype']
-				&& $object->array_options['options_deployment_status'] != 'undeployed') {
+				&& $object->array_options['options_deployment_status'] != 'undeployed'
+				&& getDolGlobalInt('SELLYOURSAAS_SSH_JAILKIT_ENABLED')) {
 					dol_syslog("We found a change in sshaccesstype (old=".$object->oldcopy->array_options['options_sshaccesstype'].", new=".$object->array_options['options_sshaccesstype'].") for a deployed instance, so we will call the remote action changesshaccesstype");
 					$remoteaction = 'changesshaccesstype';
 				}

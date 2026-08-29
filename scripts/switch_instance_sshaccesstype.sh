@@ -40,6 +40,43 @@ if ! getent passwd "$osusername" >/dev/null 2>&1; then
 	exit 3
 fi
 
+masterdbhost=$(grep '^databasehost=' /etc/sellyoursaas.conf | cut -d '=' -f 2)
+masterdbport=$(grep '^databaseport=' /etc/sellyoursaas.conf | cut -d '=' -f 2)
+masterdbuser=$(grep '^databaseuser=' /etc/sellyoursaas.conf | cut -d '=' -f 2)
+masterdbpass=$(grep '^databasepass=' /etc/sellyoursaas.conf | cut -d '=' -f 2)
+masterdbname=$(grep '^database=' /etc/sellyoursaas.conf | cut -d '=' -f 2)
+if [[ "x$masterdbhost" == "x" || "x$masterdbname" == "x" ]]; then
+	echo "Error: could not read the master database connection details from /etc/sellyoursaas.conf" 1>&2
+	exit 1
+fi
+mastermysql() {
+	mysql -h "$masterdbhost" -P "$masterdbport" -u "$masterdbuser" -p"$masterdbpass" "$masterdbname" --default-character-set=utf8 -N -e "$1"
+}
+
+# The Dolibarr table prefix defaults to llx_ but is configurable per install (dolibarr_main_db_prefix
+# in conf.php); read the local Dolibarr's conf.php to get the prefix actually used by this master database.
+dolibarrdir=$(grep '^dolibarrdir=' /etc/sellyoursaas.conf | cut -d '=' -f 2)
+dbprefix=llx_
+if [[ "x$dolibarrdir" != "x" && -f "$dolibarrdir/htdocs/conf/conf.php" ]]; then
+	confprefix=$(grep -vE '^\s*//' "$dolibarrdir/htdocs/conf/conf.php" 2>/dev/null | grep -oP "dolibarr_main_db_prefix\s*=\s*[\"']\K[^\"']+" || true)
+	if [[ "x$confprefix" != "x" ]]; then
+		dbprefix=$confprefix
+	fi
+fi
+
+mastermysqlerror=$(mastermysql "SELECT 1 FROM ${dbprefix}const LIMIT 1" 2>&1 >/dev/null)
+if [[ $? -ne 0 ]]; then
+	echo "Error: could not query ${dbprefix}const on the master database ($masterdbname@$masterdbhost) - check the master database credentials in /etc/sellyoursaas.conf, and that '$dbprefix' (from $dolibarrdir/htdocs/conf/conf.php, or the llx_ default if that file wasn't found) actually matches the table prefix used on the master database." 1>&2
+	echo "$mastermysqlerror" 1>&2
+	exit 1
+fi
+
+enablejailkit=$(mastermysql "SELECT value FROM ${dbprefix}const WHERE name='SELLYOURSAAS_SSH_JAILKIT_ENABLED' AND entity=1" 2>/dev/null)
+if [[ "x$enablejailkit" != "x1" ]]; then
+	echo "Error: SELLYOURSAAS_SSH_JAILKIT_ENABLED is not enabled on the master server (Home - Setup - Other). Enable it before switching any instance's SSH access type." 1>&2
+	exit 1
+fi
+
 chrootdir=$(grep '^chrootdir=' /etc/sellyoursaas.conf | cut -d '=' -f 2)
 if [[ "$newsshaccesstype" != "0" ]]; then
 	if ! command -v jk_init >/dev/null 2>&1; then
