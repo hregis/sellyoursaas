@@ -551,6 +551,12 @@ class InterfaceSellYourSaasTriggers extends DolibarrTriggers
 							setEventMessage($langs->trans("InstanceWasUndeployed", $contract->ref_customer.' ('.$contract->ref.')').' (undeployall)');
 						} elseif ($remoteaction == 'rename') {
 							setEventMessage($langs->trans("InstanceWasRenamed", $contract->ref_customer.' '.$contract->array_options['options_custom_url'].' ('.$contract->ref.')'));
+						} elseif ($remoteaction == 'changephpversion') {
+							setEventMessage($langs->trans("InstancePhpVersionWasChanged", $contract->ref_customer.' ('.$contract->ref.')', $contract->array_options['options_phpversion']));
+						} elseif ($remoteaction == 'changesshaccesstype') {
+							$sshaccesstypelabels = array(0 => 'SystemDefault', 1 => 'CommonUserJail', 2 => 'PrivateUserJail');
+							$newsshaccesstypelabel = $langs->trans($sshaccesstypelabels[$contract->array_options['options_sshaccesstype']] ?? $contract->array_options['options_sshaccesstype']);
+							setEventMessage($langs->trans("InstanceSshAccessTypeWasChanged", $contract->ref_customer.' ('.$contract->ref.')', $newsshaccesstypelabel));
 						}
 					}
 				}
