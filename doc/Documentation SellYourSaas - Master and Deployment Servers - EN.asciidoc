@@ -3013,6 +3013,14 @@ image::config_jailkit_contrat.png[SSH access type]
 
 Just set this field on the service of the Application to deploy to value *1* or *2* and new contracts will be deployed using an account in Jailkit.
 
+==== Switching SSH access type on an already-deployed instance
+
+Changing *"SSH access type"* on a contract that is already deployed (not just at first deployall) now switches it live: a `CONTRACT_MODIFY` trigger detects the change and calls the remote action `changesshaccesstype`, which `scripts/switch_instance_sshaccesstype.sh` handles - it detects the instance's *current* type from its actual passwd entry (never trusted from the caller), tears down whichever jail it has, stops/restarts its php-fpm pool around the switch (its `Restart=always` would otherwise just relaunch it mid-switch and make the account look "still busy"), and sets up the target type. All 6 possible transitions between the 3 types (SystemDefault/AppArmor, CommonUserJail, PrivateUserJail) are handled the same way, symmetrically.
+
+Like `changephpversion`, this is gated on the module-wide constant (`SELLYOURSAAS_SSH_JAILKIT_ENABLED` here) being enabled - checked both in the trigger before firing the action, and again in the script itself (as a value passed in by the caller, not re-queried, since this script has no other need for a master-DB connection).
+
+A confirmation message is shown on the contract card once the switch completes, same as for `changephpversion`.
+
 
 === Allow generation of PNG thumbs from PDFs
 
