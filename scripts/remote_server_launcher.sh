@@ -52,24 +52,32 @@ if [[ "x$remoteserverlistenport" == "x" ]]; then
 	remoteserverlistenport="8080"
 fi
 
+# This script and the served remote_server/index.php live locally under /etc/init.d/ (not a
+# symlink onto the shared mount) so the agent can still start/restart if the shared mount is
+# down. But the action_*.sh scripts it calls via relative exec() only exist on the mount, so we
+# still cd into the real (mounted) scripts directory before launching php -S, and serve the
+# local copy of index.php via absolute paths.
+dolibarrdir=`grep '^dolibarrdir=' /etc/sellyoursaas.conf | cut -d '=' -f 2`
+export realscriptsdir="$dolibarrdir/custom/sellyoursaas/scripts"
+
 if [ "x$1" == "xstart" ]; then
 	#echo "socat TCP4-LISTEN:$remoteserverlistenport,fork EXEC:$scriptdir/remote_server.sh > /var/log/remote_server.log"
 	#socat TCP4-LISTEN:$remoteserverlistenport,fork EXEC:$scriptdir/remote_server.sh & > /var/log/remote_server.log
 
 	pid=$(ps ax | grep "php -S $remoteserverlistenip" | grep -v grep | awk ' { print $1 } ')
 	if [ "x$pid" == "x" ]; then
-		echo Switch on directory $scriptdir
-		cd $scriptdir
-		
+		echo Switch on directory $realscriptsdir
+		cd $realscriptsdir
+
 		export phpversion=`php -v | head -n 1 | cut -c 5-7`
-		export abc="remote_server/index.php"
-		if [[ "x$phpversion" == "x7.0" ]]; then 
-			export abc="index.php"
+		export abc="$scriptdir/remote_server/index.php"
+		if [[ "x$phpversion" == "x7.0" ]]; then
+			export abc="$scriptdir/remote_server/index.php"
 		fi
-		
-		php -S $remoteserverlistenip:$remoteserverlistenport -t remote_server $abc 2>&1 &
-		echo "Server started with php -S $remoteserverlistenip:$remoteserverlistenport -t remote_server $abc"
-		
+
+		php -S $remoteserverlistenip:$remoteserverlistenport -t $scriptdir/remote_server $abc 2>&1 &
+		echo "Server started with php -S $remoteserverlistenip:$remoteserverlistenport -t $scriptdir/remote_server $abc"
+
 		echo "Logs of server will be in /var/log/remote_server.log"
 		echo "Server for deployment agent started - $now" >> /var/log/remote_server.log
 	else
