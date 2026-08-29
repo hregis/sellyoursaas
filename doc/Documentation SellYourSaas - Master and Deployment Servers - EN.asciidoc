@@ -3021,6 +3021,8 @@ Like `changephpversion`, this is gated on the module-wide constant (`SELLYOURSAA
 
 A confirmation message is shown on the contract card once the switch completes, same as for `changephpversion`.
 
+Tested and working end to end on a real instance, from the Dolibarr contract card down to the server: all 6 transitions (SystemDefault/AppArmor to/from CommonUserJail, SystemDefault/AppArmor to/from PrivateUserJail, and CommonUserJail to/from PrivateUserJail) confirmed via the actual `changesshaccesstype` remote call reaching the deployment server, the account ending up in the right jail (or out of one entirely) each time, and the instance staying reachable (HTTP 200) throughout.
+
 
 === Allow generation of PNG thumbs from PDFs
 
