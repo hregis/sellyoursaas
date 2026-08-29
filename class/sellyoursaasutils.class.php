@@ -4365,7 +4365,7 @@ class SellYourSaasUtils
 			// Note: remote action 'undeployall' is used to undeploy test instances
 			// Note: remote action 'undeploy' is used to undeploy paying instances
 			$doremoteaction = 0;
-			if (in_array($remoteaction, array('backup', 'deploy', 'deployall', 'rename', 'suspend', 'suspendmaintenance', 'suspendredirect', 'unsuspend', 'undeploy', 'undeployall', 'migrate', 'upgrade', 'deploywebsite', 'deploycustomurl', 'changephpversion', 'actionafterpaid')) &&
+			if (in_array($remoteaction, array('backup', 'deploy', 'deployall', 'rename', 'suspend', 'suspendmaintenance', 'suspendredirect', 'unsuspend', 'undeploy', 'undeployall', 'migrate', 'upgrade', 'deploywebsite', 'deploycustomurl', 'changephpversion', 'changesshaccesstype', 'actionafterpaid')) &&
 				($producttmp->array_options['options_app_or_option'] == 'app')) {
 				$doremoteaction = 1;
 				$listoflinesqualified[] = array('tmpobject' => $tmpobject, 'position' => 10, 'doremoteaction' => $doremoteaction, 'remoteaction' => $remoteaction, 'producttmp' => $producttmp, 'tmppackage' => $tmppackage);
@@ -4651,7 +4651,7 @@ class SellYourSaasUtils
 				}
 
 				// Prepare the script or txt files
-				if ($remoteaction != "migrate" && $remoteaction != "upgrade" && $remoteaction != "changephpversion") {
+				if ($remoteaction != "migrate" && $remoteaction != "upgrade" && $remoteaction != "changephpversion" && $remoteaction != "changesshaccesstype") {
 					dol_syslog("Create conf file ".$tmppackage->srcconffile1);
 					if ($tmppackage->srcconffile1 && $conffile) {
 						dol_delete_file($tmppackage->srcconffile1, 0, 1, 0, null, false, 0);
