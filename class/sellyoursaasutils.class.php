@@ -4758,6 +4758,7 @@ class SellYourSaasUtils
 				$commandurl.= '&'.str_replace(array(' ', '&'), '£', $tmppackage->srccliafterdeployoption); 	// Param 49 in .sh src for cli after deploy option
 				$commandurl.= '&'.str_replace(array(' ', '&'), '£', $phpversion); 	// Param 50 in .sh: per-instance PHP version override (empty = use server default from /etc/sellyoursaas.conf)
 				$commandurl.= '&'.str_replace(array(' ', '&'), '£', $oldphpversion); 	// Param 51 in .sh: previous PHP version, used by changephpversion to clean up the old pool
+				$commandurl.= '&'.(getDolGlobalInt('SELLYOURSAAS_SSH_JAILKIT_ENABLED') ? 1 : 0); 	// Param 52 in .sh: whether SSH access type switching is allowed on this master - checked again here since the extrafield's 'enabled' condition only hides it on the form, it does not stop the value from changing through some other path
 				//$outputfile = $conf->sellyoursaas->dir_temp.'/action-'.$remoteaction.'-'.dol_getmypid().'.out';
 
 				// Add a signature of message at end of message

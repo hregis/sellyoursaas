@@ -176,6 +176,11 @@ export oldphpversionforinstance=${51//£/ }
 if [ "x$oldphpversionforinstance" == "x-" ]; then
 	oldphpversionforinstance=""
 fi
+# Whether SSH access type switching is allowed on this master (SELLYOURSAAS_SSH_JAILKIT_ENABLED),
+# only used by mode "changesshaccesstype" - read fresh by the PHP caller at the moment of this
+# call rather than queried again here, since this script has no other need for a master-DB
+# connection.
+export enablejailkit=${52}
 
 
 export ErrorLog='#ErrorLog'
@@ -396,7 +401,7 @@ if [[ "$mode" == "changephpversion" ]]; then
 fi
 
 if [[ "$mode" == "changesshaccesstype" ]]; then
-	"$scriptdir/switch_instance_sshaccesstype.sh" "$fqn" "$osusername" "$instancedir" "$sshaccesstype"
+	"$scriptdir/switch_instance_sshaccesstype.sh" "$fqn" "$osusername" "$instancedir" "$sshaccesstype" "$enablejailkit"
 	if [[ "x$?" != "x0" ]]; then
 		echo "Failed to change SSH access type for $fqn"
 		echo "Failed to change SSH access type for $fqn, see the remote agent log for details" | mail -aFrom:$EMAILFROM -s "[Alert] Pb in change SSH access type" $EMAILTO
