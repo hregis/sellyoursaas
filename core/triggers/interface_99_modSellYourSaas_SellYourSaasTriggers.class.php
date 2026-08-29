@@ -541,26 +541,31 @@ class InterfaceSellYourSaasTriggers extends DolibarrTriggers
 					// completely silently: the contract field still saved fine, so nothing at all
 					// looks wrong on screen even though the server was never actually touched.
 					if (! preg_match('/sellyoursaas/', session_name())) {
-						setEventMessages($this->error, $this->errors, 'errors');
+						// $noduplicate=1: Dolibarr can call CONTRACT_MODIFY twice for a single
+						// extrafield edit (see the array_unique() comment in
+						// CommonTrigger::call_trigger()) - this trigger body then runs twice too,
+						// but the remote call itself is not repeated, so without this the same
+						// error would just be shown to the user twice.
+						setEventMessages($this->error, $this->errors, 'errors', '', 1);
 					}
 				} else {
 					if (! preg_match('/sellyoursaas/', session_name())) {	// No popup message after trigger if we are not into the backoffice
 						if ($remoteaction == 'suspend') {
-							setEventMessage($langs->trans("InstanceWasSuspended", $contract->ref_customer.' ('.$contract->ref.')'));
+							setEventMessage($langs->trans("InstanceWasSuspended", $contract->ref_customer.' ('.$contract->ref.')'), 'mesgs', 1);
 						} elseif ($remoteaction == 'unsuspend') {
-							setEventMessage($langs->trans("InstanceWasUnsuspended", $contract->ref_customer.' ('.$contract->ref.')'));
+							setEventMessage($langs->trans("InstanceWasUnsuspended", $contract->ref_customer.' ('.$contract->ref.')'), 'mesgs', 1);
 						} elseif ($remoteaction == 'deploy') {
-							setEventMessage($langs->trans("InstanceWasDeployed", $contract->ref_customer.' ('.$contract->ref.')'));
+							setEventMessage($langs->trans("InstanceWasDeployed", $contract->ref_customer.' ('.$contract->ref.')'), 'mesgs', 1);
 						} elseif ($remoteaction == 'undeploy') {
-							setEventMessage($langs->trans("InstanceWasUndeployed", $contract->ref_customer.' ('.$contract->ref.')'));
+							setEventMessage($langs->trans("InstanceWasUndeployed", $contract->ref_customer.' ('.$contract->ref.')'), 'mesgs', 1);
 						} elseif ($remoteaction == 'deployall') {
-							setEventMessage($langs->trans("InstanceWasDeployed", $contract->ref_customer.' ('.$contract->ref.')').' (deployall)');
+							setEventMessage($langs->trans("InstanceWasDeployed", $contract->ref_customer.' ('.$contract->ref.')').' (deployall)', 'mesgs', 1);
 						} elseif ($remoteaction == 'undeployall') {
-							setEventMessage($langs->trans("InstanceWasUndeployed", $contract->ref_customer.' ('.$contract->ref.')').' (undeployall)');
+							setEventMessage($langs->trans("InstanceWasUndeployed", $contract->ref_customer.' ('.$contract->ref.')').' (undeployall)', 'mesgs', 1);
 						} elseif ($remoteaction == 'rename') {
-							setEventMessage($langs->trans("InstanceWasRenamed", $contract->ref_customer.' '.$contract->array_options['options_custom_url'].' ('.$contract->ref.')'));
+							setEventMessage($langs->trans("InstanceWasRenamed", $contract->ref_customer.' '.$contract->array_options['options_custom_url'].' ('.$contract->ref.')'), 'mesgs', 1);
 						} elseif ($remoteaction == 'changephpversion') {
-							setEventMessage($langs->trans("InstancePhpVersionWasChanged", $contract->ref_customer.' ('.$contract->ref.')', $contract->array_options['options_phpversion']));
+							setEventMessage($langs->trans("InstancePhpVersionWasChanged", $contract->ref_customer.' ('.$contract->ref.')', $contract->array_options['options_phpversion']), 'mesgs', 1);
 						} elseif ($remoteaction == 'changesshaccesstype') {
 							$sshaccesstypelabels = array(0 => 'SystemDefault', 1 => 'CommonUserJail', 2 => 'PrivateUserJail');
 							// transnoentitiesnoconv(), not trans(): this label is not the final output, it is
@@ -569,7 +574,7 @@ class InterfaceSellYourSaasTriggers extends DolibarrTriggers
 							// it here too would double-encode accented characters (htmlentities()
 							// misinterpreting the already-converted UTF8 bytes as ISO-8859-1).
 							$newsshaccesstypelabel = $langs->transnoentitiesnoconv($sshaccesstypelabels[$contract->array_options['options_sshaccesstype']] ?? $contract->array_options['options_sshaccesstype']);
-							setEventMessage($langs->trans("InstanceSshAccessTypeWasChanged", $contract->ref_customer.' ('.$contract->ref.')', $newsshaccesstypelabel));
+							setEventMessage($langs->trans("InstanceSshAccessTypeWasChanged", $contract->ref_customer.' ('.$contract->ref.')', $newsshaccesstypelabel), 'mesgs', 1);
 						}
 					}
 				}
