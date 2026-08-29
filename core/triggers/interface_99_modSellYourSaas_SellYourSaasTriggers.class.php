@@ -535,6 +535,14 @@ class InterfaceSellYourSaasTriggers extends DolibarrTriggers
 					$error++;
 					$this->error=$sellyoursaasutils->error;
 					$this->errors=$sellyoursaasutils->errors;
+					// A trigger returning -1 does not automatically get its errors shown to the
+					// user the way a direct action handler's does - show them here explicitly, or
+					// a failed remote action (eg. changephpversion, changesshaccesstype) fails
+					// completely silently: the contract field still saved fine, so nothing at all
+					// looks wrong on screen even though the server was never actually touched.
+					if (! preg_match('/sellyoursaas/', session_name())) {
+						setEventMessages($this->error, $this->errors, 'errors');
+					}
 				} else {
 					if (! preg_match('/sellyoursaas/', session_name())) {	// No popup message after trigger if we are not into the backoffice
 						if ($remoteaction == 'suspend') {
