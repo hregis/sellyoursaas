@@ -395,6 +395,15 @@ if [[ "$mode" == "changephpversion" ]]; then
 	fi
 fi
 
+if [[ "$mode" == "changesshaccesstype" ]]; then
+	"$scriptdir/switch_instance_sshaccesstype.sh" "$fqn" "$osusername" "$instancedir" "$sshaccesstype"
+	if [[ "x$?" != "x0" ]]; then
+		echo "Failed to change SSH access type for $fqn"
+		echo "Failed to change SSH access type for $fqn, see the remote agent log for details" | mail -aFrom:$EMAILFROM -s "[Alert] Pb in change SSH access type" $EMAILTO
+		exit 25
+	fi
+fi
+
 
 echo `date +'%Y-%m-%d %H:%M:%S'`" Process of action $mode of $instancename.$domainname for user $osusername finished"
 sleep 1

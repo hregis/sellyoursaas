@@ -244,6 +244,14 @@ class InterfaceSellYourSaasTriggers extends DolibarrTriggers
 					$remoteaction = 'changephpversion';
 				}
 
+				// Do we change the SSH access type (0=SystemDefault, 1=CommonUserJail, 2=PrivateUserJail) ?
+				if (isset($object->oldcopy)
+				&& $object->oldcopy->array_options['options_sshaccesstype'] != $object->array_options['options_sshaccesstype']
+				&& $object->array_options['options_deployment_status'] != 'undeployed') {
+					dol_syslog("We found a change in sshaccesstype (old=".$object->oldcopy->array_options['options_sshaccesstype'].", new=".$object->array_options['options_sshaccesstype'].") for a deployed instance, so we will call the remote action changesshaccesstype");
+					$remoteaction = 'changesshaccesstype';
+				}
+
 				// Do we change end of trial ?
 				if (isset($object->oldcopy) && $object->oldcopy->array_options['options_date_endfreeperiod'] != $object->array_options['options_date_endfreeperiod']) {
 					dol_syslog("We found a change in date of end of trial (old=".dol_print_date($object->oldcopy->array_options['options_date_endfreeperiod'], 'standard').", new=".dol_print_date($object->array_options['options_date_endfreeperiod'], 'standard').", so we check if we can and, if yes, we make the update of contract");
