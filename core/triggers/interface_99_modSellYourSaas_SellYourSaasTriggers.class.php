@@ -180,6 +180,7 @@ class InterfaceSellYourSaasTriggers extends DolibarrTriggers
 				// force it here rather than silently treating an unpopulated (all-zero) object as
 				// "not suspended".
 				$object->fetch_lines();
+				dol_syslog("DEBUG sellyoursaasIsSuspended check: wait=".$object->nbofserviceswait." opened=".$object->nbofservicesopened." expired=".$object->nbofservicesexpired." closed=".$object->nbofservicesclosed." isSuspended=".(int) sellyoursaasIsSuspended($object));
 				/*var_dump($object->oldcopy->array_options['options_date_endfreeperiod']);
 				var_dump($object->array_options['options_date_endfreeperiod']);
 				var_dump($object->lines);*/
