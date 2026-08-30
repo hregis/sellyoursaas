@@ -173,6 +173,13 @@ class InterfaceSellYourSaasTriggers extends DolibarrTriggers
 				break;
 			case 'CONTRACT_MODIFY':
 				dol_include_once('/sellyoursaas/lib/sellyoursaas.lib.php');
+				// sellyoursaasIsSuspended() below reads nbofserviceswait/nbofservicesopened/
+				// nbofservicesexpired/nbofservicesclosed, which are only ever set by fetch_lines() -
+				// not guaranteed to have already run on $object for every path that can reach this
+				// trigger (a plain extrafield edit does not need line data for anything else), so
+				// force it here rather than silently treating an unpopulated (all-zero) object as
+				// "not suspended".
+				$object->fetch_lines();
 				/*var_dump($object->oldcopy->array_options['options_date_endfreeperiod']);
 				var_dump($object->array_options['options_date_endfreeperiod']);
 				var_dump($object->lines);*/
