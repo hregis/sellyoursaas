@@ -4007,6 +4007,27 @@ class SellYourSaasUtils
 		}
 		$contract->fetch_thirdparty();
 
+		// Refuse changephpversion/changesshaccesstype/rename while suspended, whichever caller asked
+		// for them (the CONTRACT_MODIFY trigger's own field-comparison isn't the only path that can
+		// reach here - the qualified-lines loop further down in this same function decides on
+		// 'rename' too, from a quantity/price line change rather than a field edit). A suspended
+		// instance's vhost has no SetHandler for changephpversion to read a version out of (it would
+		// create an orphaned second pool instead of replacing the real one), and rename fully
+		// regenerates and re-enables a normal, working vhost - silently taking the instance back
+		// online without ever going through unsuspend. options_deployment_status is never actually
+		// set to 'suspended' (only 'done' or 'undeployed'), so use the real service-status check.
+		if (in_array($remoteaction, array('changephpversion', 'changesshaccesstype', 'rename'))
+		&& $contract->array_options['options_deployment_status'] != 'undeployed') {
+			$contract->fetch_lines();
+			dol_include_once('/sellyoursaas/lib/sellyoursaas.lib.php');
+			if (sellyoursaasIsSuspended($contract)) {
+				$this->error = "Can't ".$remoteaction." while the instance is suspended";
+				$this->errors[] = $this->error;
+				dol_syslog($this->error, LOG_WARNING);
+				return -1;
+			}
+		}
+
 		include_once DOL_DOCUMENT_ROOT.'/product/class/product.class.php';
 		include_once DOL_DOCUMENT_ROOT.'/core/lib/security2.lib.php';
 
