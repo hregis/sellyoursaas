@@ -271,17 +271,10 @@ class InterfaceSellYourSaasTriggers extends DolibarrTriggers
 				// creating a second pool/service alongside the (never stopped) previous one instead of
 				// replacing it - see switch_instance_phpversion.sh for the fix on that side, this is the
 				// other half: don't even attempt it while suspended.
-				if (isset($object->oldcopy)
-				&& $object->oldcopy->array_options['options_phpversion'] != $object->array_options['options_phpversion']
-				&& $object->array_options['options_deployment_status'] != 'undeployed') {
-					if (!sellyoursaasIsSuspended($object)) {
-						dol_syslog("We found a change in phpversion (old=".$object->oldcopy->array_options['options_phpversion'].", new=".$object->array_options['options_phpversion'].") for a deployed instance, so we will call the remote action changephpversion");
-						$remoteaction = 'changephpversion';
-					} else {
-						// Revert: see the identical comment on the rename block above for why.
-						$object->array_options['options_phpversion'] = $object->oldcopy->array_options['options_phpversion'];
-						$object->updateExtraField('phpversion', null, $user);
-						setEventMessages("CantChangeThisFieldWhileSuspended", null, 'warnings');
+				if (isset($object->oldcopy)) {
+					$newremoteaction = $this->guardExtrafieldChangeWhileSuspended($object, $user, 'phpversion', 'changephpversion');
+					if ($newremoteaction) {
+						$remoteaction = $newremoteaction;
 					}
 				}
 
@@ -292,18 +285,10 @@ class InterfaceSellYourSaasTriggers extends DolibarrTriggers
 				// bulk edit, a value left over from before the constant was turned off), so check
 				// it again here before ever touching the server. Also refused while suspended
 				// (sellyoursaasIsSuspended()), same reasoning as phpversion above.
-				if (isset($object->oldcopy)
-				&& $object->oldcopy->array_options['options_sshaccesstype'] != $object->array_options['options_sshaccesstype']
-				&& $object->array_options['options_deployment_status'] != 'undeployed'
-				&& getDolGlobalInt('SELLYOURSAAS_SSH_JAILKIT_ENABLED')) {
-					if (!sellyoursaasIsSuspended($object)) {
-						dol_syslog("We found a change in sshaccesstype (old=".$object->oldcopy->array_options['options_sshaccesstype'].", new=".$object->array_options['options_sshaccesstype'].") for a deployed instance, so we will call the remote action changesshaccesstype");
-						$remoteaction = 'changesshaccesstype';
-					} else {
-						// Revert: see the identical comment on the rename block above for why.
-						$object->array_options['options_sshaccesstype'] = $object->oldcopy->array_options['options_sshaccesstype'];
-						$object->updateExtraField('sshaccesstype', null, $user);
-						setEventMessages("CantChangeThisFieldWhileSuspended", null, 'warnings');
+				if (isset($object->oldcopy) && getDolGlobalInt('SELLYOURSAAS_SSH_JAILKIT_ENABLED')) {
+					$newremoteaction = $this->guardExtrafieldChangeWhileSuspended($object, $user, 'sshaccesstype', 'changesshaccesstype');
+					if ($newremoteaction) {
+						$remoteaction = $newremoteaction;
 					}
 				}
 
@@ -637,5 +622,39 @@ class InterfaceSellYourSaasTriggers extends DolibarrTriggers
 		} else {
 			return 0;
 		}
+	}
+
+	/**
+	 * Detect a change on a contract extrafield that maps 1:1 to a remote action (phpversion,
+	 * sshaccesstype, and reusable for any similar future option) and decide what to do about it:
+	 * ignore if unchanged or the instance is undeployed, revert the value and warn if suspended
+	 * (updateExtraField() already committed the new value to the database before CONTRACT_MODIFY
+	 * even runs, so refusing only the remote action would leave the instance - unreachable while
+	 * suspended - drifting further out of sync with the database on every attempt until
+	 * unsuspended), or return the remote action to trigger otherwise.
+	 *
+	 * @param	Contrat	$object			The contract being modified (must have ->oldcopy set)
+	 * @param	User	$user			User doing the change, passed through to updateExtraField()
+	 * @param	string	$key			Extrafield key, without the 'options_' prefix
+	 * @param	string	$remoteaction	Remote action to return when the change is accepted
+	 * @return	string|null				$remoteaction if accepted, null if unchanged/undeployed/reverted
+	 */
+	private function guardExtrafieldChangeWhileSuspended($object, $user, $key, $remoteaction)
+	{
+		$optkey = 'options_'.$key;
+		if ($object->oldcopy->array_options[$optkey] == $object->array_options[$optkey]) {
+			return null;
+		}
+		if ($object->array_options['options_deployment_status'] == 'undeployed') {
+			return null;
+		}
+		if (sellyoursaasIsSuspended($object)) {
+			$object->array_options[$optkey] = $object->oldcopy->array_options[$optkey];
+			$object->updateExtraField($key, null, $user);
+			setEventMessages("CantChangeThisFieldWhileSuspended", null, 'warnings');
+			return null;
+		}
+		dol_syslog("We found a change in ".$key." (old=".$object->oldcopy->array_options[$optkey].", new=".$object->array_options[$optkey].") for a deployed instance, so we will call the remote action ".$remoteaction);
+		return $remoteaction;
 	}
 }
