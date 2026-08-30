@@ -30,4 +30,4 @@ env[TEMP] = __webAppPath__/tmp
 php_admin_value[sys_temp_dir] = __webAppPath__/tmp
 php_admin_value[upload_tmp_dir] = __webAppPath__/tmp
 
-php_admin_value[open_basedir] = __webAppPath__:/home/admin/wwwroot/dolibarr_sellyoursaas/scripts/:/usr/local/bin/
+php_admin_value[open_basedir] = __webAppPath__:__sellyoursaasScriptsPath__:/usr/local/bin/
