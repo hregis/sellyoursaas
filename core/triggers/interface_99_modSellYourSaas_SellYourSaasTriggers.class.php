@@ -235,6 +235,20 @@ class InterfaceSellYourSaasTriggers extends DolibarrTriggers
 							dol_syslog("We found a change in ref_customer or into custom url for a not undeployed instance, so we will call the remote action rename");
 							$remoteaction='rename';
 						} elseif (sellyoursaasIsSuspended($object)) {
+							// Revert: updateExtraField()/update() already saved these before this trigger even
+							// ran, so just refusing the remote action would leave the new values in the
+							// database while the instance (unreachable while suspended) still actually runs
+							// under the OLD ref_customer/custom_url - drifting further out of sync on every
+							// attempt until unsuspended. Write the old values back instead (trigger=null /
+							// notrigger=1: don't re-fire CONTRACT_MODIFY recursively).
+							if ($object->oldcopy->array_options['options_custom_url'] != $object->array_options['options_custom_url']) {
+								$object->array_options['options_custom_url'] = $object->oldcopy->array_options['options_custom_url'];
+								$object->updateExtraField('custom_url', null, $user);
+							}
+							if ($object->oldcopy->ref_customer != $object->ref_customer) {
+								$object->ref_customer = $object->oldcopy->ref_customer;
+								$object->update($user, 1);
+							}
 							setEventMessages("CantChangeThisFieldWhileSuspended", null, 'warnings');
 						}
 
@@ -264,6 +278,9 @@ class InterfaceSellYourSaasTriggers extends DolibarrTriggers
 						dol_syslog("We found a change in phpversion (old=".$object->oldcopy->array_options['options_phpversion'].", new=".$object->array_options['options_phpversion'].") for a deployed instance, so we will call the remote action changephpversion");
 						$remoteaction = 'changephpversion';
 					} else {
+						// Revert: see the identical comment on the rename block above for why.
+						$object->array_options['options_phpversion'] = $object->oldcopy->array_options['options_phpversion'];
+						$object->updateExtraField('phpversion', null, $user);
 						setEventMessages("CantChangeThisFieldWhileSuspended", null, 'warnings');
 					}
 				}
@@ -283,6 +300,9 @@ class InterfaceSellYourSaasTriggers extends DolibarrTriggers
 						dol_syslog("We found a change in sshaccesstype (old=".$object->oldcopy->array_options['options_sshaccesstype'].", new=".$object->array_options['options_sshaccesstype'].") for a deployed instance, so we will call the remote action changesshaccesstype");
 						$remoteaction = 'changesshaccesstype';
 					} else {
+						// Revert: see the identical comment on the rename block above for why.
+						$object->array_options['options_sshaccesstype'] = $object->oldcopy->array_options['options_sshaccesstype'];
+						$object->updateExtraField('sshaccesstype', null, $user);
 						setEventMessages("CantChangeThisFieldWhileSuspended", null, 'warnings');
 					}
 				}
