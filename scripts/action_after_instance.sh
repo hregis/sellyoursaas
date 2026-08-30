@@ -189,6 +189,16 @@ if [[ "$mode" == "actionafterpaid" ]]; then
 			fi
 		fi
 	fi
+
+	# Re-grant the web server group ACL on htdocs after cliafterpaid, same reason as the
+	# equivalent block in action_deploy_undeploy.sh after cliafter/cliafterdeployoption:
+	# cliafterpaid can unzip or chmod module files after the deploy-time ACL grant, which
+	# either leaves new files/dirs with no ACL at all or resets the ACL mask on existing ones.
+	if command -v setfacl >/dev/null 2>&1; then
+		echo `date +'%Y-%m-%d %H:%M:%S'`" Re-grant www-data ACL on htdocs after cliafterpaid"
+		setfacl -R -m g:www-data:rX "$instancedir/htdocs"
+		setfacl -d -m g:www-data:rX "$instancedir/htdocs"
+	fi
 fi
 
 
