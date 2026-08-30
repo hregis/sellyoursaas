@@ -87,15 +87,18 @@ if [[ "$currentsshaccesstype" == "$newsshaccesstype" ]]; then
 	exit 0
 fi
 
-# Stop this instance's php-fpm pool first: it runs as $osusername with Restart=always, so a
-# plain killall would just have systemd relaunch it a few seconds later, still holding the
-# account "in use" and making the usermod below fail silently every time.
-phpfpmservicefile=$(ls /etc/systemd/system/sellyoursaas-php*-fpm-"$fqn".service 2>/dev/null | head -1)
-if [[ "x$phpfpmservicefile" != "x" ]]; then
+# Stop this instance's php-fpm pool(s) first: each one runs as $osusername with Restart=always,
+# so a plain killall would just have systemd relaunch it a few seconds later, still holding the
+# account "in use" and making the usermod below fail silently every time. Stop every matching
+# service, not just the first one found - more than one can exist at once if a previous
+# changephpversion left an old version's service running (eg. it could not tell there already was
+# one from a vhost with no SetHandler to read a version out of, such as the suspended template).
+phpfpmservicefiles=$(ls /etc/systemd/system/sellyoursaas-php*-fpm-"$fqn".service 2>/dev/null)
+for phpfpmservicefile in $phpfpmservicefiles; do
 	phpfpmservicename=$(basename "$phpfpmservicefile")
 	echo "systemctl stop $phpfpmservicename"
 	systemctl stop "$phpfpmservicename" 2>/dev/null || true
-fi
+done
 
 # Kill any other process still running as this user before touching its jail/passwd entry -
 # killall only sends SIGTERM by default and a lingering process makes the usermod below fail
@@ -199,7 +202,8 @@ elif [[ "$newsshaccesstype" == "2" ]]; then
 	fi
 fi
 
-if [[ "x$phpfpmservicefile" != "x" ]]; then
+for phpfpmservicefile in $phpfpmservicefiles; do
+	phpfpmservicename=$(basename "$phpfpmservicefile")
 	echo "systemctl start $phpfpmservicename"
 	systemctl start "$phpfpmservicename"
 	phpfpmversion=$(echo "$phpfpmservicename" | sed -nE 's/^sellyoursaas-php([0-9.]+)-fpm-.*/\1/p')
@@ -209,6 +213,6 @@ if [[ "x$phpfpmservicefile" != "x" ]]; then
 		sleep 0.5
 	done
 	[ -S "$newsocket" ] || echo "Warning: $newsocket did not appear after restarting $phpfpmservicename" 1>&2
-fi
+done
 
 echo "$(date +'%Y-%m-%d %H:%M:%S') SSH access type switch for $fqn to $newsshaccesstype done"
