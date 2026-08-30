@@ -963,19 +963,7 @@ class modSellYourSaas extends DolibarrModules
 
 		$resultx=$extrafields->addExtraField('undeployment_date', "UndeploymentDate", 'datetime', 118, '', 'contrat', 0, 0, '', '', 1, '', 1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
 		$resultx=$extrafields->addExtraField('undeployment_ip', "UndeploymentIP", 'varchar', 119, '128', 'contrat', 0, 0, '', '', 1, '', -1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
-		// updateExtraField() always writes the submitted value before CONTRACT_MODIFY even runs, so
-		// the trigger-level guard on remote actions (see interface_99_...Triggers.class.php) can only
-		// refuse to touch the server - it can't stop the field itself from being saved. Make the
-		// pencil read-only while suspended or undeployed instead, so the value can never drift out of
-		// sync with what is actually configured on the (suspended, so unreachable) instance. Uses only
-		// $object property/array access (no custom function call) since $object is the only thing
-		// guaranteed available wherever this 'list' condition gets eval'd (see dol_eval()), not just on
-		// the contract card - a call to a module lib function would need it dol_include_once()'d first.
-		// Kept short deliberately: llx_extrafields.list is a varchar(255), and this string is stored
-		// as-is (no wrapping parens around $notsuspendednotundeployed needed before "?" - PHP's ?: has
-		// lower precedence than || so it already scopes the whole condition correctly on its own).
-		$notsuspendednotundeployed = "\$object->array_options['options_deployment_status']=='undeployed'||(\$object->nbofservicesclosed>0&&\$object->nbofserviceswait<=0&&\$object->nbofservicesopened<=0&&\$object->nbofservicesexpired<=0)";
-		$resultx=$extrafields->addExtraField('custom_url', "CustomURL", 'varchar', 122, '128', 'contrat', 0, 0, '', '', 1, '', $notsuspendednotundeployed."?5:-1", 'CustomUrlDesc:tooltipcustomurl', '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
+		$resultx=$extrafields->addExtraField('custom_url', "CustomURL", 'varchar', 122, '128', 'contrat', 0, 0, '', '', 1, '', -1, 'CustomUrlDesc:tooltipcustomurl', '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
 		$resultx=$extrafields->addExtraField('custom_virtualhostline', "CustomVirtualHostLine", 'varchar', 123, '255', 'contrat', 0, 0, '', '', 1, '', -1, 'EnterAVirtualHostLine:virthostline', '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
 		$resultx=$extrafields->addExtraField('custom_virtualhostdir', "CustomVirtualHostDir", 'varchar', 124, '255', 'contrat', 0, 0, '', '', 1, '', -1, 'EnterAVirtualHostDirLine:virthostdirline', '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
 
@@ -986,7 +974,7 @@ class modSellYourSaas extends DolibarrModules
 		$param=array('options'=>array('0'=>'SystemDefault','1'=>'CommonUserJail','2'=>'PrivateUserJail'));
 		$resultx=$extrafields->addExtraField('instance_unique_id', "Instance unique ID", 'varchar', 128, '32', 'contrat', 1, 0, '', '', 1, '', -1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
 
-		$resultx=$extrafields->addExtraField('sshaccesstype', "SshAccessType", 'select', 400, '', 'contrat', 0, 0, '', $param, 1, '', "!getDolGlobalInt(\"SELLYOURSAAS_SSH_JAILKIT_ENABLED\")?0:(".$notsuspendednotundeployed."?5:1)", 'HelpOnSshAccessType', '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
+		$resultx=$extrafields->addExtraField('sshaccesstype', "SshAccessType", 'select', 400, '', 'contrat', 0, 0, '', $param, 1, '', 'getDolGlobalInt("SELLYOURSAAS_SSH_JAILKIT_ENABLED")', 'HelpOnSshAccessType', '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
 		$param=array('options'=>array('0'=>'DefaultFromAppService','1'=>'Yes'));
 		$resultx=$extrafields->addExtraField('directaccess', "AccessToResources", 'select', 401, '', 'contrat', 0, 0, '', $param, 1, '', -1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
 
@@ -1002,7 +990,7 @@ class modSellYourSaas extends DolibarrModules
 		$resultx=$extrafields->addExtraField('prefix_db', "Special table prefix DB", 'varchar', 140, '64', 'contrat', 0, 0, '', '', 1, '', -1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
 		$resultx=$extrafields->addExtraField('timezone', "TimeZone", 'varchar', 141, '64', 'contrat', 0, 0, '', '', 1, '', -1, 'SellYourSaasTimeZoneDesc', '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")', 0, 0, array('csslist'=>'tdoverflowmax150'));
 		$param=array('options'=>array(''=>'UseServerDefault', '7.4'=>'7.4', '8.1'=>'8.1', '8.2'=>'8.2', '8.3'=>'8.3', '8.4'=>'8.4', '8.5'=>'8.5'));
-		$resultx=$extrafields->addExtraField('phpversion', "PhpVersion", 'select', 142, '', 'contrat', 0, 0, '', $param, 1, '', $notsuspendednotundeployed."?5:-1", 'PhpVersionDesc', '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
+		$resultx=$extrafields->addExtraField('phpversion', "PhpVersion", 'select', 142, '', 'contrat', 0, 0, '', $param, 1, '', -1, 'PhpVersionDesc', '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
 		$resultx=$extrafields->addExtraField('fileauthorizekey', "DateFileauthorizekey", 'datetime', 150, '', 'contrat', 0, 0, '', '', 1, '', -1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
 		$resultx=$extrafields->addExtraField('filelock', "DateFilelock", 'datetime', 151, '', 'contrat', 0, 0, '', '', 1, '', -1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
 		$resultx=$extrafields->addExtraField('fileinstallmoduleslock', "DateFileInstallmoduleslock", 'datetime', 152, '', 'contrat', 0, 0, '', '', 1, '', -1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
