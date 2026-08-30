@@ -172,6 +172,7 @@ class InterfaceSellYourSaasTriggers extends DolibarrTriggers
 				$remoteaction = 'undeployall';
 				break;
 			case 'CONTRACT_MODIFY':
+				dol_include_once('/sellyoursaas/lib/sellyoursaas.lib.php');
 				/*var_dump($object->oldcopy->array_options['options_date_endfreeperiod']);
 				var_dump($object->array_options['options_date_endfreeperiod']);
 				var_dump($object->lines);*/
@@ -218,9 +219,16 @@ class InterfaceSellYourSaasTriggers extends DolibarrTriggers
 					// @TODO
 
 					if ($testok) {
-						if ($object->oldcopy->array_options['options_deployment_status'] != 'undeployed') {
+						// Also refuse while suspended (sellyoursaasIsSuspended(), based on service status,
+						// not options_deployment_status which is never set to anything but 'done' or
+						// 'undeployed' - see the identical guard on phpversion/sshaccesstype below for why):
+						// this rename fully regenerates and re-enables a normal, working vhost, which would
+						// silently take the instance back online without ever going through unsuspend.
+						if ($object->oldcopy->array_options['options_deployment_status'] != 'undeployed' && !sellyoursaasIsSuspended($object)) {
 							dol_syslog("We found a change in ref_customer or into custom url for a not undeployed instance, so we will call the remote action rename");
 							$remoteaction='rename';
+						} elseif (sellyoursaasIsSuspended($object)) {
+							setEventMessages("CantChangeThisFieldWhileSuspended", null, 'warnings');
 						}
 
 						// Change hostname OS and hostname DB
@@ -237,11 +245,20 @@ class InterfaceSellYourSaasTriggers extends DolibarrTriggers
 				}
 
 				// Do we change the per-instance PHP version override ?
+				// Also refused while suspended (sellyoursaasIsSuspended()): the instance's php-fpm pool
+				// switch would run against a suspended vhost with no SetHandler to read a version out of,
+				// creating a second pool/service alongside the (never stopped) previous one instead of
+				// replacing it - see switch_instance_phpversion.sh for the fix on that side, this is the
+				// other half: don't even attempt it while suspended.
 				if (isset($object->oldcopy)
 				&& $object->oldcopy->array_options['options_phpversion'] != $object->array_options['options_phpversion']
 				&& $object->array_options['options_deployment_status'] != 'undeployed') {
-					dol_syslog("We found a change in phpversion (old=".$object->oldcopy->array_options['options_phpversion'].", new=".$object->array_options['options_phpversion'].") for a deployed instance, so we will call the remote action changephpversion");
-					$remoteaction = 'changephpversion';
+					if (!sellyoursaasIsSuspended($object)) {
+						dol_syslog("We found a change in phpversion (old=".$object->oldcopy->array_options['options_phpversion'].", new=".$object->array_options['options_phpversion'].") for a deployed instance, so we will call the remote action changephpversion");
+						$remoteaction = 'changephpversion';
+					} else {
+						setEventMessages("CantChangeThisFieldWhileSuspended", null, 'warnings');
+					}
 				}
 
 				// Do we change the SSH access type (0=SystemDefault, 1=CommonUserJail, 2=PrivateUserJail) ?
@@ -249,13 +266,18 @@ class InterfaceSellYourSaasTriggers extends DolibarrTriggers
 				// (see modSellYourSaas.class.php addExtraField 'enabled' condition) - that only
 				// controls what is shown though, not what can change through other paths (API,
 				// bulk edit, a value left over from before the constant was turned off), so check
-				// it again here before ever touching the server.
+				// it again here before ever touching the server. Also refused while suspended
+				// (sellyoursaasIsSuspended()), same reasoning as phpversion above.
 				if (isset($object->oldcopy)
 				&& $object->oldcopy->array_options['options_sshaccesstype'] != $object->array_options['options_sshaccesstype']
 				&& $object->array_options['options_deployment_status'] != 'undeployed'
 				&& getDolGlobalInt('SELLYOURSAAS_SSH_JAILKIT_ENABLED')) {
-					dol_syslog("We found a change in sshaccesstype (old=".$object->oldcopy->array_options['options_sshaccesstype'].", new=".$object->array_options['options_sshaccesstype'].") for a deployed instance, so we will call the remote action changesshaccesstype");
-					$remoteaction = 'changesshaccesstype';
+					if (!sellyoursaasIsSuspended($object)) {
+						dol_syslog("We found a change in sshaccesstype (old=".$object->oldcopy->array_options['options_sshaccesstype'].", new=".$object->array_options['options_sshaccesstype'].") for a deployed instance, so we will call the remote action changesshaccesstype");
+						$remoteaction = 'changesshaccesstype';
+					} else {
+						setEventMessages("CantChangeThisFieldWhileSuspended", null, 'warnings');
+					}
 				}
 
 				// Do we change end of trial ?

@@ -417,6 +417,7 @@ CurrentBAN=Numéro de compte bancaire actuel (BAN)
 NewBAN=Nouveau numéro de compte bancaire (BAN)
 CantActivateContractWhenUndeployed=Impossible d'activer l'hôte virtuel d'une instance lorsqu'un contrat est désinstallé
 CantDisableContractWhenUndeployed=Impossible de désactiver l'hôte virtuel d'une instance lorsqu'un contrat est désinstallé
+CantChangeThisFieldWhileSuspended=Ce champ ne peut pas être modifié tant que l'instance est suspendue
 SELLYOURSAAS_FORCE_STRIPE_TEST=Forcer le mode Test de Stripe (quelquesoit le paramétrage du module Stripe)
 SELLYOURSAAS_MAIN_FAQ_URL=URL d'une page avec FAQs à afficher
 SELLYOURSAAS_MAIN_FAQ_URLHelp=Si elle n'est pas définie, l'URL sera <br> https://www.__SELLYOURSAAS_MAIN_DOMAIN_NAME__/faq-__LANGCODE__.php
