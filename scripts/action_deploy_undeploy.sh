@@ -39,6 +39,15 @@ templatesdir=`grep '^templatesdir=' /etc/sellyoursaas.conf | cut -d '=' -f 2`
 phpfpm=`grep '^phpfpm=' /etc/sellyoursaas.conf | cut -d '=' -f 2`
 phpversion=`grep '^phpversion=' /etc/sellyoursaas.conf | cut -d '=' -f 2`
 localip=`grep '^localip=' /etc/sellyoursaas.conf | cut -d '=' -f 2`
+
+# php-fpm/apache open_basedir needs read access to the sellyoursaas module's own scripts/
+# directory (eg. for phpsendmail.php/phpsendmailprepend.php) - possibility to change it if
+# the module was not installed into the default /home/admin/wwwroot/dolibarr_sellyoursaas
+sellyoursaasdir=`grep '^sellyoursaasdir=' /etc/sellyoursaas.conf | cut -d '=' -f 2`
+if [[ "x$sellyoursaasdir" == "x" ]]; then
+  sellyoursaasdir="/home/admin/wwwroot/dolibarr_sellyoursaas"
+fi
+sellyoursaasscriptsdir="$sellyoursaasdir/scripts"
 # Undocumented and easy to omit from /etc/sellyoursaas.conf on a new server - left empty, this
 # used to silently produce "<VirtualHost :443 :80>" (empty address), which apache2ctl configtest
 # then refuses to load at all, breaking deployall/suspend/unsuspend/custom-URL on that server.
@@ -1231,7 +1240,8 @@ if [[ "$mode" == "deploy" || "$mode" == "deployall" ]]; then
 				sed -e 's;__fqn__;$fqn;g' | \
 				sed -e 's;__instancename__;$instancename;g' | \
 				sed -e 's;__localip__;$localip;g' | \
-			  sed -e 's;__webAppPath__;$instancedir;g' > $apacheconf"
+			  sed -e 's;__webAppPath__;$instancedir;g' | \
+			  sed -e 's;__sellyoursaasScriptsPath__;$sellyoursaasscriptsdir;g' > $apacheconf"
 	cat $vhostfile | sed -e "s/__webAppDomain__/$instancename.$domainname/g" | \
 			  sed -e "s/__webAppAliases__/$instancename.$domainname/g" | \
 			  sed -e "s/__webAppLogName__/$instancename/g" | \
@@ -1252,7 +1262,8 @@ if [[ "$mode" == "deploy" || "$mode" == "deployall" ]]; then
 				sed -e "s;__fqn__;$fqn;g" | \
 				sed -e "s;__instancename__;$instancename;g" | \
 				sed -e "s;__localip__;$localip;g" | \
-			  sed -e "s;__webAppPath__;$instancedir;g" > $apacheconf
+			  sed -e "s;__webAppPath__;$instancedir;g" | \
+			  sed -e "s;__sellyoursaasScriptsPath__;$sellyoursaasscriptsdir;g" > $apacheconf
 
 
 	# Enable conf with ln
@@ -1391,6 +1402,7 @@ if [[ "$mode" == "deploy" || "$mode" == "deployall" ]]; then
 				  sed -e 's;#ErrorLog;$ErrorLog;g' | \
 				  sed -e 's;__webMyAccount__;$SELLYOURSAAS_ACCOUNT_URL;g' | \
 				  sed -e 's;__webAppPath__;$instancedir;g' | \
+				  sed -e 's;__sellyoursaasScriptsPath__;$sellyoursaasscriptsdir;g' | \
 				  sed -e 's;__phpversion__;$phpversion;g' | \
 				  sed -e 's;__fqn__;$fqn;g' | \
 				  sed -e 's;__instancename__;$instancename;g' | \
@@ -1413,6 +1425,7 @@ if [[ "$mode" == "deploy" || "$mode" == "deployall" ]]; then
 				  sed -e "s;#ErrorLog;$ErrorLog;g" | \
 				  sed -e "s;__webMyAccount__;$SELLYOURSAAS_ACCOUNT_URL;g" | \
 				  sed -e "s;__webAppPath__;$instancedir;g" | \
+				  sed -e "s;__sellyoursaasScriptsPath__;$sellyoursaasscriptsdir;g" | \
 				  sed -e "s;__phpversion__;$phpversion;g" | \
 				  sed -e "s;__fqn__;$fqn;g" | \
 				  sed -e "s;__instancename__;$instancename;g" | \
@@ -1458,7 +1471,8 @@ if [[ "$mode" == "deploy" || "$mode" == "deployall" ]]; then
 				  sed -e 's;__fqn__;$fqn;g' | \
 				  sed -e 's;__instancename__;$instancename;g' | \
 				  sed -e 's;__localip__;$localip;g' | \
-				  sed -e 's;__webAppPath__;$instancedir;g' > $phpfpmconf"
+				  sed -e 's;__webAppPath__;$instancedir;g' | \
+				  sed -e 's;__sellyoursaasScriptsPath__;$sellyoursaasscriptsdir;g' > $phpfpmconf"
 		cat $fpmpoolfiletemplate | sed -e "s/__webAppDomain__/$instancename.$domainname/g" | \
 				  sed -e "s/__webAppAliases__/$instancename.$domainname/g" | \
 				  sed -e "s/__webAppLogName__/$instancename/g" | \
@@ -1479,7 +1493,8 @@ if [[ "$mode" == "deploy" || "$mode" == "deployall" ]]; then
 				  sed -e "s;__fqn__;$fqn;g" | \
 				  sed -e "s;__instancename__;$instancename;g" | \
 				  sed -e "s;__localip__;$localip;g" | \
-				  sed -e "s;__webAppPath__;$instancedir;g" > $phpfpmconf
+				  sed -e "s;__webAppPath__;$instancedir;g" | \
+				  sed -e "s;__sellyoursaasScriptsPath__;$sellyoursaasscriptsdir;g" > $phpfpmconf
 
 		echo `date +'%Y-%m-%d %H:%M:%S'`" ***** Create php fpm service $phpfpmservice from $fpmservicefiletemplate"
 		if [[ -s $phpfpmservice ]]
