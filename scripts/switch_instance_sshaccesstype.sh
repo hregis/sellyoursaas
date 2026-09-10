@@ -188,7 +188,7 @@ elif [[ "$newsshaccesstype" == "2" ]]; then
 			tar -xzf "$templatesdir/$privatejailtemplatename.tgz" --directory "$chrootdir/"
 			mv "$chrootdir/template" "$chrootdir/$osusername"
 		else
-			jk_init -c /etc/jailkit/jk_init.ini "$chrootdir/$osusername" extendedshell limitedshell groups sftp rsync editors git php mysqlclient >/dev/null 2>&1
+			jk_init -c /etc/jailkit/jk_init.ini "$chrootdir/$osusername" extendedshell limitedshell groups sftp rsync editors git php mysqlclient acl >/dev/null 2>&1
 		fi
 		mkdir -p "$chrootdir/$osusername$homedir"
 	fi

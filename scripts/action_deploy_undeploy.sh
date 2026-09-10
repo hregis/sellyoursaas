@@ -467,8 +467,8 @@ if [[ "$mode" == "deployall" ]]; then
 									echo "mv $chrootdir/template $chrootdir/$osusername"
 									mv $chrootdir/template $chrootdir/$osusername
 								else
-									echo "jk_init -c /etc/jailkit/jk_init.ini $chrootdir/$osusername extendedshell limitedshell groups sftp rsync editors git php mysqlclient"
-									jk_init -c /etc/jailkit/jk_init.ini $chrootdir/$osusername extendedshell limitedshell groups sftp rsync editors git php mysqlclient >/dev/null 2>&1
+									echo "jk_init -c /etc/jailkit/jk_init.ini $chrootdir/$osusername extendedshell limitedshell groups sftp rsync editors git php mysqlclient acl"
+									jk_init -c /etc/jailkit/jk_init.ini $chrootdir/$osusername extendedshell limitedshell groups sftp rsync editors git php mysqlclient acl >/dev/null 2>&1
 								fi
 							fi
 							echo "mkdir -p $chrootdir/$osusername$targetdir/$osusername"
