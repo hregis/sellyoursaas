@@ -238,7 +238,7 @@ else
 
 	rm -rf /home/jail/chroot/template
 	mkdir /home/jail/chroot/template
-	jk_init -c /etc/jailkit/jk_init.ini -j /home/jail/chroot/template extendedshell limitedshell groups sftp rsync editors git php mysqlclient
+	jk_init -c /etc/jailkit/jk_init.ini -j /home/jail/chroot/template extendedshell limitedshell groups sftp rsync editors git php mysqlclient acl
 	mkdir -p /home/jail/chroot/template/home /home/jail/chroot/template/tmp
 	chmod 1777 /home/jail/chroot/template/tmp
 

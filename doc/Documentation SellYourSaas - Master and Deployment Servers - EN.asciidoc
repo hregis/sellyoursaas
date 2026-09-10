@@ -2925,6 +2925,11 @@ comment = mysql client
 executables = /usr/bin/mysql, /usr/bin/mysqldump
 paths = /usr/lib/x86_64-linux-gnu/libmariadb.so.3
 regularfiles = /etc/mysql/my.cf, /etc/mysql/conf.d/, /etc/mysql/mariadb.conf.d/
+
+[acl]
+comment = ACL utilities (needed on mpm_event/php-fpm servers so Apache, running as a single
+  shared www-data user, can still read the instance's own htdocs static files)
+paths = /usr/bin/setfacl, /usr/bin/getfacl
 ---------------
 
 Only list the `executables` (php and mysqlclient libs) that actually exist on this server - `ls /usr/bin/php*` and `ldconfig -p | grep libmariadb` first. When adding or removing a PHP-FPM version on the server later (see the PHP-FPM per-instance section), update this list and rebuild the jail template (next section) so SSH/SFTP users get a matching `phpX.Y` binary for their instance's version.
@@ -2948,7 +2953,7 @@ mkdir /home/jail/chroot/template
 
 [source,bash]
 ---------------
-jk_init -c /etc/jailkit/jk_init.ini -j /home/jail/chroot/template extendedshell limitedshell groups sftp rsync editors git php mysqlclient
+jk_init -c /etc/jailkit/jk_init.ini -j /home/jail/chroot/template extendedshell limitedshell groups sftp rsync editors git php mysqlclient acl
 mkdir /home/jail/chroot/template/home
 mkdir /home/jail/chroot/template/tmp
 chmod 1777 /home/jail/chroot/template/tmp
