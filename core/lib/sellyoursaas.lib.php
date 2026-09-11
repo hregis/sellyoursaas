@@ -418,10 +418,14 @@ function getListOfLinks($object, $lastloginadmin, $lastpassadmin)
 
 	// Generate certificate on customer domain name
 	if (!empty($object->array_options['options_custom_url'])) {
-		$generatecertif='certbot certonly --webroot -w '.$homestring.'/'.$object->database_db.'/htdocs -d '.$object->array_options['options_custom_url']."\n";
-		$generatecertif.='ln -fs /etc/letsencrypt/live/'.$object->array_options['options_custom_url'].'/privkey.pem /home/admin/wwwroot/dolibarr_documents/sellyoursaas_local/crt/'.$object->hostname_db.'-'.$object->array_options['options_custom_url'].'.key'."\n";
-		$generatecertif.='ln -fs /etc/letsencrypt/live/'.$object->array_options['options_custom_url'].'/cert.pem /home/admin/wwwroot/dolibarr_documents/sellyoursaas_local/crt/'.$object->hostname_db.'-'.$object->array_options['options_custom_url'].'.crt'."\n";
-		$generatecertif.='ln -fs /etc/letsencrypt/live/'.$object->array_options['options_custom_url'].'/fullchain.pem /home/admin/wwwroot/dolibarr_documents/sellyoursaas_local/crt/'.$object->hostname_db.'-'.$object->array_options['options_custom_url'].'-intermediate.crt'."\n";
+		// newdoldataroot is only known on the target deployment server (its own /etc/sellyoursaas.conf),
+		// never on the master rendering this suggested command - so resolve it in the pasted shell itself,
+		// with the same fallback as every action_*.sh script, instead of hardcoding the old default path.
+		$generatecertif ='newdoldataroot=`grep "^newdoldataroot=" /etc/sellyoursaas.conf | cut -d "=" -f 2`'."\n";
+		$generatecertif.='certbot certonly --webroot -w '.$homestring.'/'.$object->database_db.'/htdocs -d '.$object->array_options['options_custom_url']."\n";
+		$generatecertif.='ln -fs /etc/letsencrypt/live/'.$object->array_options['options_custom_url'].'/privkey.pem ${newdoldataroot:-/home/admin/wwwroot/dolibarr_documents}/sellyoursaas_local/crt/'.$object->hostname_db.'-'.$object->array_options['options_custom_url'].'.key'."\n";
+		$generatecertif.='ln -fs /etc/letsencrypt/live/'.$object->array_options['options_custom_url'].'/cert.pem ${newdoldataroot:-/home/admin/wwwroot/dolibarr_documents}/sellyoursaas_local/crt/'.$object->hostname_db.'-'.$object->array_options['options_custom_url'].'.crt'."\n";
+		$generatecertif.='ln -fs /etc/letsencrypt/live/'.$object->array_options['options_custom_url'].'/fullchain.pem ${newdoldataroot:-/home/admin/wwwroot/dolibarr_documents}/sellyoursaas_local/crt/'.$object->hostname_db.'-'.$object->array_options['options_custom_url'].'-intermediate.crt'."\n";
 	} else {
 		$generatecertif='No custom domain for this instance';
 	}
