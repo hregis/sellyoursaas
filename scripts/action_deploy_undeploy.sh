@@ -1368,18 +1368,24 @@ if [[ "$mode" == "deploy" || "$mode" == "deployall" ]]; then
 			# No $CERTIFFORCUSTOMDOMAIN forced (no cert file was created initially), so we will generate one
 			export domainnameorcustomurl=`echo $customurl | cut -d "." -f 1`
 
-			# TODO We must create it using letsencrypt if not yet created. NOTE: This is done in action "rename" (suspen_unsuspend.sh), not sure we must also do it  on deploy.
-			#if [[ ! -e /home/admin/wwwroot/dolibarr_documents/sellyoursaas_local/crt/$fqn.crt ]]; then
-					# Generate the letsencrypt certificate
+			# If no cached copy exists yet for this instance's custom domain, but a real
+			# Let's Encrypt certificate for the domain itself already exists (e.g. left
+			# over from a previous custom-URL setup that was removed then recreated),
+			# link it into the cache now instead of silently falling back to the
+			# wildcard below - the wildcard does not cover an external custom domain.
+			if [[ ! -e $pathforcertiflocal/$fqn-custom.crt ]]; then
+				if [[ -e /etc/letsencrypt/live/$customurl/cert.pem ]]; then
+					ln -fs /etc/letsencrypt/live/$customurl/cert.pem $pathforcertiflocal/$fqn-custom.crt
+					ln -fs /etc/letsencrypt/live/$customurl/privkey.pem $pathforcertiflocal/$fqn-custom.key
+					ln -fs /etc/letsencrypt/live/$customurl/fullchain.pem $pathforcertiflocal/$fqn-custom-intermediate.crt
+				elif [[ -e /etc/letsencrypt/live/www.$customurl/cert.pem ]]; then
+					ln -fs /etc/letsencrypt/live/www.$customurl/cert.pem $pathforcertiflocal/$fqn-custom.crt
+					ln -fs /etc/letsencrypt/live/www.$customurl/privkey.pem $pathforcertiflocal/$fqn-custom.key
+					ln -fs /etc/letsencrypt/live/www.$customurl/fullchain.pem $pathforcertiflocal/$fqn-custom-intermediate.crt
+				fi
+			fi
 
-					# certbot certonly -n -v --webroot -w $instancedir -d $customurl
-					# create links
-
-					# If links does not exists, we disable SSL
-					#SSLON="Off"
-			#fi
-
-			if [[ ! -e /home/admin/wwwroot/dolibarr_documents/sellyoursaas_local/crt/$fqn-custom.crt ]]; then
+			if [[ ! -e $pathforcertiflocal/$fqn-custom.crt ]]; then
 				# If custom cert not found, we fallback on the wildcard one for server (it will generate a warning, but it will works and not hangs !)
 				export webCustomSSLCertificateCRT="/etc/apache2/$webSSLCertificateCRT"
 				export webCustomSSLCertificateKEY="/etc/apache2/$webSSLCertificateKEY"
@@ -1387,9 +1393,9 @@ if [[ "$mode" == "deploy" || "$mode" == "deployall" ]]; then
 				export CERTIFFORCUSTOMDOMAIN="with.sellyoursaas.com"
 			else
 				# We will use the custom cert file
-				export webCustomSSLCertificateCRT=/home/admin/wwwroot/dolibarr_documents/sellyoursaas_local/crt/$fqn-custom.crt
-				export webCustomSSLCertificateKEY=/home/admin/wwwroot/dolibarr_documents/sellyoursaas_local/crt/$fqn-custom.key
-				export webCustomSSLCertificateIntermediate=/home/admin/wwwroot/dolibarr_documents/sellyoursaas_local/crt/$fqn-custom-intermediate.crt
+				export webCustomSSLCertificateCRT=$pathforcertiflocal/$fqn-custom.crt
+				export webCustomSSLCertificateKEY=$pathforcertiflocal/$fqn-custom.key
+				export webCustomSSLCertificateIntermediate=$pathforcertiflocal/$fqn-custom-intermediate.crt
 				export CERTIFFORCUSTOMDOMAIN="$fqn-custom"
 			fi
 			echo "We will use the certificate file webCustomSSLCertificateCRT=$webCustomSSLCertificateCRT (CERTIFFORCUSTOMDOMAIN=$CERTIFFORCUSTOMDOMAIN)"

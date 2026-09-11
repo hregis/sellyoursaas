@@ -572,7 +572,7 @@ if [[ "$mode" == "rename" ]]; then
 				fi
 			fi
 			
-			if [[ ! -e "/home/admin/wwwroot/dolibarr_documents/sellyoursaas_local/crt/$fqn-custom.crt" ]]; then
+			if [[ ! -e "${newdoldataroot:-/home/admin/wwwroot/dolibarr_documents}/sellyoursaas_local/crt/$fqn-custom.crt" ]]; then
 				# If custom cert not found, we fallback on the wildcard one for server (it will generate a warning, but it will works and not hangs !)
 				export pathforcertiflocal="/etc/apache2"
 				export webCustomSSLCertificateCRT=$webSSLCertificateCRT
@@ -589,15 +589,15 @@ if [[ "$mode" == "rename" ]]; then
 			fi
 			echo "We will use the certificate file webCustomSSLCertificateCRT=$pathforcertiflocal/$webCustomSSLCertificateCRT (CERTIFFORCUSTOMDOMAIN=$CERTIFFORCUSTOMDOMAIN)"
 		fi
-		
-		
+
+
 		# If the certificate file is not found, we disable SSL
 		if [[ ! -e "$pathforcertiflocal/$webCustomSSLCertificateCRT" ]]; then
 			SSLON="Off"
 		else
 			SSLON="On"
 		fi
-		
+
 		export apacheconf="/etc/apache2/sellyoursaas-available/$fqn.custom.conf"
 		echo `date +'%Y-%m-%d %H:%M:%S'`" ***** Create final apache conf $apacheconf from $vhostfile"
 	
@@ -868,7 +868,26 @@ if [[ "$mode" == "suspend" || $mode == "suspendmaintenance" || $mode == "suspend
 			# We must create the custom CRT file using letsencrypt if not yet created
 			# Canceled: When we suspend, there is no need to generate the cert for the custom URL. Cert should already exists if a custom url has been defined.
 
-			if [[ ! -e /home/admin/wwwroot/dolibarr_documents/sellyoursaas_local/crt/$fqn-custom.crt ]]; then
+			export pathforcertiflocal="${newdoldataroot:-/home/admin/wwwroot/dolibarr_documents}/sellyoursaas_local/crt"
+
+			# If no cached copy exists yet for this instance's custom domain, but a real
+			# Let's Encrypt certificate for the domain itself already exists (e.g. left
+			# over from a previous custom-URL setup that was removed then recreated),
+			# link it into the cache now instead of silently falling back to the
+			# wildcard below - the wildcard does not cover an external custom domain.
+			if [[ ! -e $pathforcertiflocal/$fqn-custom.crt ]]; then
+				if [[ -e /etc/letsencrypt/live/$customurl/cert.pem ]]; then
+					ln -fs /etc/letsencrypt/live/$customurl/cert.pem $pathforcertiflocal/$fqn-custom.crt
+					ln -fs /etc/letsencrypt/live/$customurl/privkey.pem $pathforcertiflocal/$fqn-custom.key
+					ln -fs /etc/letsencrypt/live/$customurl/fullchain.pem $pathforcertiflocal/$fqn-custom-intermediate.crt
+				elif [[ -e /etc/letsencrypt/live/www.$customurl/cert.pem ]]; then
+					ln -fs /etc/letsencrypt/live/www.$customurl/cert.pem $pathforcertiflocal/$fqn-custom.crt
+					ln -fs /etc/letsencrypt/live/www.$customurl/privkey.pem $pathforcertiflocal/$fqn-custom.key
+					ln -fs /etc/letsencrypt/live/www.$customurl/fullchain.pem $pathforcertiflocal/$fqn-custom-intermediate.crt
+				fi
+			fi
+
+			if [[ ! -e $pathforcertiflocal/$fqn-custom.crt ]]; then
 				# If custom cert not found, we fallback on the wildcard one for server (it will generate a warning, but it will works and not hangs !)
 				export pathforcertiflocal="/etc/apache2"
 				export webCustomSSLCertificateCRT=$webSSLCertificateCRT
@@ -877,14 +896,13 @@ if [[ "$mode" == "suspend" || $mode == "suspendmaintenance" || $mode == "suspend
 				export CERTIFFORCUSTOMDOMAIN="with.sellyoursaas.com"
 			else
 				# We will use the custom cert file
-				export pathforcertiflocal="${newdoldataroot:-/home/admin/wwwroot/dolibarr_documents}/sellyoursaas_local/crt"
 				export webCustomSSLCertificateCRT="$fqn-custom.crt"
 				export webCustomSSLCertificateKEY="$fqn-custom.key"
 				export webCustomSSLCertificateIntermediate="$fqn-custom-intermediate.crt"
 				export CERTIFFORCUSTOMDOMAIN="$fqn-custom"
 			fi
 			echo "We will use the certificate file webCustomSSLCertificateCRT=$pathforcertiflocal/$webCustomSSLCertificateCRT (CERTIFFORCUSTOMDOMAIN=$CERTIFFORCUSTOMDOMAIN)"
-		fi	
+		fi
 	
 		
         # If the certificate file is not found, we disable SSL
@@ -1114,8 +1132,27 @@ if [[ "$mode" == "unsuspend" ]]; then
 			# We must create the custom CRT file using letsencrypt if not yet created
 			# Canceled: When we unsuspend, there is no need to generate the cert for the custom URL. Cert should already exists if a custom url has been defined.
 
+			export pathforcertiflocal="${newdoldataroot:-/home/admin/wwwroot/dolibarr_documents}/sellyoursaas_local/crt"
+
+			# If no cached copy exists yet for this instance's custom domain, but a real
+			# Let's Encrypt certificate for the domain itself already exists (e.g. left
+			# over from a previous custom-URL setup that was removed then recreated),
+			# link it into the cache now instead of silently falling back to the
+			# wildcard below - the wildcard does not cover an external custom domain.
+			if [[ ! -e $pathforcertiflocal/$fqn-custom.crt ]]; then
+				if [[ -e /etc/letsencrypt/live/$customurl/cert.pem ]]; then
+					ln -fs /etc/letsencrypt/live/$customurl/cert.pem $pathforcertiflocal/$fqn-custom.crt
+					ln -fs /etc/letsencrypt/live/$customurl/privkey.pem $pathforcertiflocal/$fqn-custom.key
+					ln -fs /etc/letsencrypt/live/$customurl/fullchain.pem $pathforcertiflocal/$fqn-custom-intermediate.crt
+				elif [[ -e /etc/letsencrypt/live/www.$customurl/cert.pem ]]; then
+					ln -fs /etc/letsencrypt/live/www.$customurl/cert.pem $pathforcertiflocal/$fqn-custom.crt
+					ln -fs /etc/letsencrypt/live/www.$customurl/privkey.pem $pathforcertiflocal/$fqn-custom.key
+					ln -fs /etc/letsencrypt/live/www.$customurl/fullchain.pem $pathforcertiflocal/$fqn-custom-intermediate.crt
+				fi
+			fi
+
 			# If custom cert not found, we fallback on the wildcard one for server (will generate a warning, but it will works !)
-			if [[ ! -e "/home/admin/wwwroot/dolibarr_documents/sellyoursaas_local/crt/$fqn-custom.crt" ]]; then
+			if [[ ! -e $pathforcertiflocal/$fqn-custom.crt ]]; then
 				export pathforcertiflocal="/etc/apache2"
 	            export webCustomSSLCertificateCRT=$webSSLCertificateCRT
     	        export webCustomSSLCertificateKEY=$webSSLCertificateKEY
