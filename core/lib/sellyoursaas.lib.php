@@ -428,11 +428,7 @@ function getListOfLinks($object, $lastloginadmin, $lastpassadmin)
 		// happening to match ref_customer after a rename), and using the custom domain name itself as the
 		// filename suffix instead of "-custom" would never match what the real vhost actually references.
 		$generatecertif ='newdoldataroot=`grep "^newdoldataroot=" /etc/sellyoursaas.conf | cut -d "=" -f 2`'."\n";
-		// -n (non-interactive): every real certbot call in the codebase (action_suspend_unsuspend.sh etc.)
-		// uses it; without it, certbot's "keep or renew the existing cert?" prompt (asked whenever a valid
-		// cert for this domain already exists) hangs forever when this command is piped/scripted instead
-		// of typed live into a real terminal.
-		$generatecertif.='certbot certonly -n --webroot -w '.$homestring.'/'.$object->database_db.'/htdocs -d '.$object->array_options['options_custom_url']."\n";
+		$generatecertif.='certbot certonly --webroot -w '.$homestring.'/'.$object->database_db.'/htdocs -d '.$object->array_options['options_custom_url']."\n";
 		$generatecertif.='ln -fs /etc/letsencrypt/live/'.$object->array_options['options_custom_url'].'/privkey.pem ${newdoldataroot:-/home/admin/wwwroot/dolibarr_documents}/sellyoursaas_local/crt/'.$object->ref_customer.'-custom.key'."\n";
 		$generatecertif.='ln -fs /etc/letsencrypt/live/'.$object->array_options['options_custom_url'].'/cert.pem ${newdoldataroot:-/home/admin/wwwroot/dolibarr_documents}/sellyoursaas_local/crt/'.$object->ref_customer.'-custom.crt'."\n";
 		$generatecertif.='ln -fs /etc/letsencrypt/live/'.$object->array_options['options_custom_url'].'/fullchain.pem ${newdoldataroot:-/home/admin/wwwroot/dolibarr_documents}/sellyoursaas_local/crt/'.$object->ref_customer.'-custom-intermediate.crt'."\n";
