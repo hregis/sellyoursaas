@@ -1201,6 +1201,10 @@ if [[ "$mode" == "deploy" || "$mode" == "deployall" ]]; then
 	# Remove and recreate customurl
 	rm -f /etc/apache2/sellyoursaas-available/$fqn.custom.conf
 	rm -f /etc/apache2/sellyoursaas-online/$fqn.custom.conf
+	# Also remove any certificate files left from a previous custom domain for this instance
+	# (we don't know the old customurl value here, only $fqn, so match on that prefix instead)
+	rm -f ${newdoldataroot:-/home/admin/wwwroot/dolibarr_documents}/sellyoursaas_local/crt/$fqn-*.crt
+	rm -f ${newdoldataroot:-/home/admin/wwwroot/dolibarr_documents}/sellyoursaas_local/crt/$fqn-*.key
 	if [[ "x$customurl" != "x" ]]; then
 
 		echo `date +'%Y-%m-%d %H:%M:%S'`" ***** Create apache conf $apacheconf from $vhostfile"
@@ -1525,6 +1529,10 @@ if [[ "$mode" == "undeploy" || "$mode" == "undeployall" ]]; then
 		echo Disable conf with a2dissite $fqn.custom.conf
 		#a2dissite $fqn.conf
 		rm /etc/apache2/sellyoursaas-online/$fqn.custom.conf
+
+		echo Remove any custom domain certificate files left for this instance
+		rm -f ${newdoldataroot:-/home/admin/wwwroot/dolibarr_documents}/sellyoursaas_local/crt/$fqn-*.crt
+		rm -f ${newdoldataroot:-/home/admin/wwwroot/dolibarr_documents}/sellyoursaas_local/crt/$fqn-*.key
 
 		echo Disable conf with a2dissite $fqn.website*.conf
 		#a2dissite $fqn.conf
