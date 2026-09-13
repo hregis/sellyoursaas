@@ -450,7 +450,7 @@ if [[ "$mode" == "deployall" ]]; then
 					if [[ "$sshaccesstype" == "2" ]]; then
 						if [[ ! -d "$chrootdir/$osusername" ]]; then
 							# Both the private and common jail archives are built by
-							# setup_server_phpfpm.sh from the same /home/jail/chroot/template
+							# deployment_setup_phpfpm.sh from the same /home/jail/chroot/template
 							# directory (tar c ... template), so the top-level entry inside
 							# either archive is always literally "template", never
 							# $privatejailtemplatename itself - that variable only names the

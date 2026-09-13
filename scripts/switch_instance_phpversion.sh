@@ -7,7 +7,7 @@
 # version) or still on mod_php (first-time migration, no existing SetHandler to replace).
 #
 # Used by both action_customurl_instance.sh (mode changephpversion, one instance at a time
-# from a contract change) and migrate_server_http2.sh (looping over every remaining
+# from a contract change) and deployment_migrate_server_http2.sh (looping over every remaining
 # mod_php instance on a server before it can drop mpm_itk for HTTP/2).
 #
 # Usage: switch_instance_phpversion.sh <fqn> <osusername> <instancedir> <newphpversion>

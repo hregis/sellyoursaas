@@ -1,11 +1,11 @@
 #!/bin/bash
 #
 # One-time preparation of a deployment server for PHP-FPM with one or more PHP
-# versions, before any instance is switched and before scripts/migrate_server_http2.sh
+# versions, before any instance is switched and before scripts/deployment_migrate_server_http2.sh
 # can run. Idempotent: safe to re-run, eg. to add one more PHP version later.
 #
-# Usage: setup_server_phpfpm.sh <default_version> <version> [version...]
-# Example: setup_server_phpfpm.sh 8.3 8.1 8.2 8.3 8.4
+# Usage: deployment_setup_phpfpm.sh <default_version> <version> [version...]
+# Example: deployment_setup_phpfpm.sh 8.3 8.1 8.2 8.3 8.4
 #   - installs php-fpm + a standard extension set for every <version> listed
 #   - makes <default_version> (must be one of the versions listed) the one
 #     whose own distro php<version>-fpm.service stays enabled; the others are masked
@@ -18,7 +18,7 @@
 #     keep using it until migrated). Skipped entirely if this server isn't using jailkit.
 #
 # What this script does NOT do: touch any existing vhost, or run
-# scripts/migrate_server_http2.sh's MPM switch. Existing instances keep running
+# scripts/deployment_migrate_server_http2.sh's MPM switch. Existing instances keep running
 # under mod_php until migrated individually (contract PHP version field, which
 # calls scripts/switch_instance_phpversion.sh) or in bulk later.
 
@@ -293,4 +293,4 @@ else
 fi
 
 echo "$(date +'%Y-%m-%d %H:%M:%S') ***** Done. This server is now ready: switch existing instances individually"
-echo "(contract PHP version field, or scripts/migrate_server_http2.sh once all of them are on PHP-FPM)."
+echo "(contract PHP version field, or scripts/deployment_migrate_server_http2.sh once all of them are on PHP-FPM)."
