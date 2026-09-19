@@ -56,6 +56,7 @@
 * FIX Debug master_move_instance.php - Price of old instance is kept/reused.
 * FIX code for email template to use to send email for credit transfer payment.
 * FIX exclusion of modules for upgrade feature was not using the setup.
+* FIX dist/css/alt-myaccount-example.css hid page-header-top unconditionally, but that's the only place rendering the #logo image - .customregisterheader has no logo of its own unless the unrelated "options_register_text" product field is also filled in. No logo ever showed otherwise. Now keeps the bar visible (restyled), hiding only its duplicate login/home link.
 * SEC When using ssh, a user can't see the OS and package information.
 
 
