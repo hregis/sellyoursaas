@@ -59,6 +59,7 @@
 * FIX Logo fallback chain on login, register and password-forgotten pages checked a stale/undefined $urllogo instead of $linklogo (copy-paste leftover, harmless today but fragile).
 * FIX register_instance.php fetched the partner/reseller thirdparty and its logo but never used them: the reseller's own logo never showed on the instance registration page, unlike register.php/login/password-forgotten. Now wired the same way (EcmFiles lookup with fallback to the main/domain logo).
 * FIX dist/css/alt-myaccount-example.css was missing all the base utility classes from myaccount.css (SELLYOURSAAS_EXTCSS fully replaces the stylesheet, it's not additive) - a reseller using this example as-is would get a broken myaccount dashboard. Now @imports myaccount.css first.
+* FIX dist/css/alt-myaccount-example.css hid page-header-top unconditionally, but that's the only place rendering the #logo image - .customregisterheader has no logo of its own unless the unrelated "options_register_text" product field is also filled in. No logo ever showed otherwise. Now keeps the bar visible (restyled), hiding only its duplicate login/home link.
 * SEC When using ssh, a user can't see the OS and package information.
 
 
