@@ -24,11 +24,15 @@ foreach ($arrayofstreamtodisable as $streamtodisable) {
 //var_dump($tmp);
 
 if (preg_match('/^send_/', $tmpactionprepend) || in_array($tmpactionprepend, array('send', 'sendallconfirmed', 'relance'))) {
-	$tmpfile='/tmp/phpsendmailprepend-'.posix_getuid().'-'.getmypid().'.tmp';
-	@unlink($tmpfile);
-	file_put_contents($tmpfile, '#phpsendmailprepend.php is called by any php page but here we keep a log because page has a param action="send..." on '.date('Y-m-d H:i:s')."\n");
-	file_put_contents($tmpfile, var_export($_SERVER, true));
-	chmod($tmpfile, 0660);
+	// Use the temp dir of the PHP-FPM pool (sys_temp_dir), /tmp is out of the instance's open_basedir
+	$tmpdirprepend = rtrim(sys_get_temp_dir(), '/');
+	if (@is_dir($tmpdirprepend) && @is_writable($tmpdirprepend)) {
+		$tmpfile = $tmpdirprepend.'/phpsendmailprepend-'.posix_getuid().'-'.getmypid().'.tmp';
+		@unlink($tmpfile);
+		file_put_contents($tmpfile, '#phpsendmailprepend.php is called by any php page but here we keep a log because page has a param action="send..." on '.date('Y-m-d H:i:s')."\n");
+		file_put_contents($tmpfile, var_export($_SERVER, true), FILE_APPEND);
+		chmod($tmpfile, 0660);
+	}
 }
 
 // environment variables that should be available in child processes
