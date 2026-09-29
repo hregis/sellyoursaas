@@ -466,6 +466,7 @@ function checkScriptFile($scriptfile, $fh, $params)
 			break;
 		}
 		// Check allowed pattern
+		/*
 		if (preg_match('/^#?touch __INSTANCEDIR__\/[\/a-z0-9_\.]+$/i', $newline)) {
 			continue;
 		}
@@ -487,7 +488,7 @@ function checkScriptFile($scriptfile, $fh, $params)
 		if (preg_match('/^#?cd __INSTANCEDIR__\/htdocs\/install; php upgrade2\.php 0\.0\.0 0\.0\.0 [a-z_,]+$/i', $newline)) {
 			continue;
 		}
-		// Check more patterns
+		*/
 		if (preg_match('/^#?touch \/home\/jail\/home\/osu[a-z0-9]+\/[\/a-z0-9_\.]+$/i', $newline)) {
 			continue;
 		}
@@ -521,6 +522,16 @@ function checkScriptFile($scriptfile, $fh, $params)
 		if (preg_match('/^#?cd \/home\/jail\/home\/osu[a-z0-9]+\/dbn[a-z0-9]+\/htdocs\/install\/?$/i', $newline)) {
 			continue;
 		}
+		if (preg_match('/^#?mkdir \/home\/jail\/home\/osu[a-z0-9]+\/dbn[a-z0-9]+\/htdocs\/.well-known$/i', $newline)) {
+			continue;
+		}
+		if (preg_match('/^#?chmod( -R)? [-+ugoarwx]+ \/home\/jail\/home\/osu[a-z0-9]+\/dbn[a-z0-9]+\/htdocs\/\.well-known$/i', $newline)) {
+			continue;
+		}
+		if (preg_match('/^#?chown( -R)? [\w_:]+ \/home\/jail\/home\/osu[a-z0-9]+\/dbn[a-z0-9]+\/htdocs\/\.well-known$/i', $newline)) {
+			continue;
+		}
+
 		// TODO enhance list of allowed patterns
 		// ...
 

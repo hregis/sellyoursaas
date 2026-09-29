@@ -276,7 +276,7 @@ print '
 
 	              <div class="form-body">
 	                <div class="form-group">
-	                  <label>'.img_picto('', 'email', 'class="paddingright"').$langs->trans("Email").'</label>
+	                  <label>'.img_picto('', 'email', 'class="paddingright"').$langs->trans("Email").' <small class="opacitymedium">('.$langs->trans("CustomerDashboardLogin").')</small></label>
 	                  <input type="text" class="form-control" value="'.((GETPOSTISSET('email') && GETPOST('email')) ? GETPOST('email') : $mythirdpartyaccount->email).'" name="email" spellcheck="false">
 	                  <input type="hidden" class="form-control" value="'.$mythirdpartyaccount->email.'" name="oldemail">
 					</div>
@@ -384,8 +384,8 @@ if (!is_object($hookmanager)) {
 	include_once DOL_DOCUMENT_ROOT.'/core/class/hookmanager.class.php';
 	$hookmanager = new HookManager($db);
 }
-$hookmanager->initHooks(array('mainmyaccountloginpage'));
-$parameters = array('socid' => $mythirdpartyaccount->id);
+
+$parameters = array('socid' => $mythirdpartyaccount->id, 'mainmyaccountloginpage' => 1);
 $hookmanager->executeHooks('printSecondFactorSettings', $parameters);
 print $hookmanager->resPrint;
 

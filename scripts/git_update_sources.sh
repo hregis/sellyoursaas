@@ -31,7 +31,7 @@ fi
 
 echo "Update git dirs found into $1 and generate the archive file (.zst or .tgz)"
 
-for dir in $(find "$1" -mindepth 1 -maxdepth 1 -type d)
+for dir in $(find "$1" -mindepth 1 -maxdepth 1 \( -type d -o -type l \))
 do
 	# If a subdir is given, discard if not subdir
 	if [ "x$2" != "x" -a "x$2" != "xall" ]; then
@@ -46,7 +46,7 @@ do
 	if [ $? -eq 0 ]; then
 		export gitdir=`basename $dir`
 
-		
+
 	    if [ -d ".git" ]; then
 	    	git pull
 	    	if [ $? -ne 0 ]; then
@@ -62,11 +62,15 @@ do
 	    else
 	        echo "Not a git dir. Nothing done."
 	    fi
-	   
+
 		echo "Clean some dirs to save disk spaces"
 		has_install_lock=''
 		if [[ -f documents/install.lock ]]; then has_install_lock='1'; fi
 		rm -fr documents/*
+		rm -fr .agents
+		rm -f .agentsignore
+		rm -fr .phan
+		rm -f .pre-commit-config.yaml
 		rm -fr test/ doc/ htdocs/includes/ckeditor/ckeditor/adapters htdocs/includes/ckeditor/ckeditor/samples	# Do not include /build or /dev, done later
 		rm -fr htdocs/public/test
 		rm -fr htdocs/includes/sabre/sabre/*/tests htdocs/includes/stripe/tests htdocs/includes/stripe/stripe-php/tests
@@ -74,6 +78,7 @@ do
 		rm -fr htdocs/install/doctemplates/websites/website_template-restaurant*
 		#rm -fr vendor/tecnickcom/tcpdf/fonts/dejavu-fonts-ttf-* vendor/tecnickcom/tcpdf/fonts/freefont-* vendor/tecnickcom/tcpdf/fonts/ae_fonts_*
 		rm -fr files/_cache/*
+		rm -f phpstan.neon.dist
 
 		# We remove subdir of /dev and /build. We need files into build root only.
 		find build/* -depth -type d -exec rm -fr {} +
@@ -82,7 +87,7 @@ do
 
 		echo "Clean some files to save disk spaces"
 		find . -type f -name index.html ! -path ./htdocs/includes/restler/framework/Luracast/Restler/explorer/index.html -delete
-		
+
 	    if [ -s dev/build/generate_filelist_xml.php ]; then
 	        echo "Found generate_filelist_xml.php from ".`pwd`
 	        php dev/build/generate_filelist_xml.php release=auto-sellyoursaas buildzip=1
@@ -103,16 +108,18 @@ do
 		        fi
 		    fi
 	    fi
-	
+
 		# Create a deployment tar file
 		if [[ -x /usr/bin/zstd && "x$usecompressformatforarchive" == "xzstd" ]]; then
 			echo "Compress the repository into an archive $dir/../$gitdir.tar.zst"
-			tar c -I zstd --exclude-vcs --exclude-from=$currentpath/git_update_sources.exclude -f $dir/../$gitdir.tar.zst .
+			echo tar c -I zstd --exclude-vcs --exclude-from=$currentpath/git_update_sources.exclude -f `dirname $dir`/$gitdir.tar.zst .
+			tar c -I zstd --exclude-vcs --exclude-from=$currentpath/git_update_sources.exclude -f `dirname $dir`/$gitdir.tar.zst .
 			# Delete archive in other format
 			rm $dir/../$gitdir.tgz 2>/dev/null
 		else
 			echo "Compress the repository into an archive $dir/../$gitdir.tgz"
-			tar c -I gzip --exclude-vcs --exclude-from=$currentpath/git_update_sources.exclude -f $dir/../$gitdir.tgz .
+			echo tar c -I zstd --exclude-vcs --exclude-from=$currentpath/git_update_sources.exclude -f `dirname $dir`/$gitdir.tar.zst .
+			tar c -I gzip --exclude-vcs --exclude-from=$currentpath/git_update_sources.exclude -f `dirname $dir`/$gitdir.tgz .
 			# Delete archive in other format
 			rm $dir/../$gitdir.tar.zst 2>/dev/null
 		fi

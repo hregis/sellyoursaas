@@ -46,7 +46,6 @@ define('SYSLOG_FILE_ADDSUFFIX', 'register');
 
 // Add specific definition to allow a dedicated session management
 include './mainmyaccount.inc.php';
-
 /**
  * @var Database	$db
  * @var Conf		$conf
@@ -132,6 +131,8 @@ $domainname = getDomainFromURL($_SERVER["SERVER_NAME"], 1);
 
 $productid = GETPOST('service', 'int');
 $productref = (GETPOST('productref', 'alpha') ? GETPOST('productref', 'alpha') : '');
+
+dol_syslog("register.php: productid=".$productid." productref=".$productref." plan=".$plan." sldAndSubdomain=".$sldAndSubdomain." tldid=".$tldid." partner=".$partner." partnerkey=".$partnerkey." domainname=".$domainname);
 
 $defaultproduct = '';
 

@@ -13,14 +13,14 @@ a{
     color:#608ef2;
 }
 .customregisterheader a {
-	color: #FFF;		
+	color: #FFF;
 }
 
 div.block header {
 	background-color: #4c4970;
 }
 div.block header h1 {
-	margin-bottom: 0; 
+	margin-bottom: 0;
 }
 
 .customregistermain{
@@ -106,12 +106,12 @@ textarea, input[type='text'], input[type='password'], input[type='datetime'], in
 
 @media (max-width: 768px) {
     body{
-        padding-top: 0px!important; 
+        padding-top: 0px!important;
     }
 
 	div.block header h1 {
 		margin-bottom: 0;
-		font-size: 1.1em; 
+		font-size: 1.1em;
 	}
 
     .customregistermain{
@@ -127,7 +127,7 @@ textarea, input[type='text'], input[type='password'], input[type='datetime'], in
         max-width:90%;
         padding-left:0px;
     }
-    
+
     form#formregister {
 		padding-right: unset;
 	}
