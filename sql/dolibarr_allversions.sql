@@ -211,3 +211,5 @@ ALTER TABLE llx_sellyoursaas_deploymentserver ADD COLUMN phpversiondefault varch
 ALTER TABLE llx_sellyoursaas_deploymentserver ADD COLUMN phpversionoverride integer DEFAULT 0;
 ALTER TABLE llx_sellyoursaas_deploymentserver ADD COLUMN phpversionsavailable varchar(128);
 
+ALTER TABLE llx_packages ADD COLUMN otherinformations_formula text;
+ALTER TABLE llx_packages ADD COLUMN sqltoupdateeinvoiceconst text;

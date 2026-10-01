@@ -34,12 +34,14 @@ phpversion=`grep '^phpversion=' /etc/sellyoursaas.conf | cut -d '=' -f 2`
 
 # php-fpm/apache open_basedir needs read access to the sellyoursaas module's own scripts/
 # directory (eg. for phpsendmail.php/phpsendmailprepend.php) - possibility to change it if
-# the module was not installed into the default /home/admin/wwwroot/dolibarr_sellyoursaas
+# the module was not installed into the default /home/admin/wwwroot/dolibarr_sellyoursaas.
+# Keep the trailing slash: an open_basedir entry without one is a prefix, not a directory
+# restriction.
 sellyoursaasdir=`grep '^sellyoursaasdir=' /etc/sellyoursaas.conf | cut -d '=' -f 2`
 if [[ "x$sellyoursaasdir" == "x" ]]; then
   sellyoursaasdir="/home/admin/wwwroot/dolibarr_sellyoursaas"
 fi
-sellyoursaasscriptsdir="$sellyoursaasdir/scripts"
+sellyoursaasscriptsdir="$sellyoursaasdir/scripts/"
 if [[ "x$templatesdir" != "x" ]]; then
 	export vhostfile="$templatesdir/vhostHttps-sellyoursaas.template"
 	export vhostfilesuspended="$templatesdir/vhostHttps-sellyoursaas-suspended.template"
@@ -272,8 +274,8 @@ if [[ "$mode" == "deploywebsite" ]]; then
 			  sed -e 's;__phpversion__;$phpversion;g' | \
 			  sed -e 's;__fqn__;$fqn;g' | \
 			  sed -e 's;__webAppPath__;$instancedir;g' | \
-			  sed -e 's;__sellyoursaasScriptsPath__;$sellyoursaasscriptsdir;g' | \
-			  sed -e 's;__sellyoursaasLocalCrtPath__;$pathforcertiflocal;g' > $apacheconf"
+			  sed -e 's;__sellyoursaasLocalCrtPath__;$pathforcertiflocal;g' | \
+			  sed -e 's;__sellyoursaasScriptsPath__;$sellyoursaasscriptsdir;g' > $apacheconf"
 	cat $vhostfilewebsite | sed -e "s/__webSiteDomain__/$CUSTOMDOMAIN/g" | \
 			  sed -e "s/__webSiteAliases__/$CUSTOMDOMAIN www.$CUSTOMDOMAIN/g" | \
 			  sed -e "s/__webSiteNamePath__/$WEBSITENAME/g" | \
@@ -296,8 +298,8 @@ if [[ "$mode" == "deploywebsite" ]]; then
 			  sed -e "s;__phpversion__;$phpversion;g" | \
 			  sed -e "s;__fqn__;$fqn;g" | \
 			  sed -e "s;__webAppPath__;$instancedir;g" | \
-			  sed -e "s;__sellyoursaasScriptsPath__;$sellyoursaasscriptsdir;g" | \
-			  sed -e "s;__sellyoursaasLocalCrtPath__;$pathforcertiflocal;g" > $apacheconf
+			  sed -e "s;__sellyoursaasLocalCrtPath__;$pathforcertiflocal;g" | \
+			  sed -e "s;__sellyoursaasScriptsPath__;$sellyoursaasscriptsdir;g" > $apacheconf
 	export vhostko=$?
 
 	echo `date +'%Y-%m-%d %H:%M:%S'`" Result of generation of file $apacheconf = $vhostko"
