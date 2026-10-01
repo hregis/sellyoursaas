@@ -11,7 +11,8 @@ export BLUE='\033[0;34m'
 export YELLOW='\033[0;33m'
 
 # possibility to change the path of sellyoursaas directory
-export newdoldataroot=`grep '^newdoldataroot=' /etc/sellyoursaas.conf | cut -d '=' -f 2`
+export newdoldataroot=`grep '^doldataroot=' /etc/sellyoursaas.conf | cut -d '=' -f 2`
+export newdoldataroot=${newdoldataroot:-`grep '^newdoldataroot=' /etc/sellyoursaas.conf | cut -d '=' -f 2`}
 export pathforcertiflocal="${newdoldataroot:-/home/admin/wwwroot/dolibarr_documents}/sellyoursaas_local/crt"
 
 echo "***** $0 $1 $2 $3 *****"
