@@ -1,4 +1,8 @@
--- Script run during a migration of Dolibarr
+-- Script run each time the module is enabled (Dolibarr runs sql/update*.sql from
+-- DolibarrModules::_load_tables(), after llx_*.sql, llx_*.key.sql and data*.sql).
+-- It must stay idempotent: errors like "column/table/key already exists", "no such
+-- table/field" and "no index to drop" are ignored by run_sql(), but UPDATE requests
+-- must be safe to replay.
 --
 -- To restrict request to Mysql version x.y minimum use -- VMYSQLx.y
 -- To restrict request to Pgsql version x.y minimum use -- VPGSQLx.y
