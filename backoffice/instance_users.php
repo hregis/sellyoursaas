@@ -180,6 +180,13 @@ if ($reshook < 0) {
 	setEventMessages($hookmanager->error, $hookmanager->errors, 'errors');
 }
 
+// Security check - Actions need write permission
+$arrayofprotectedactions = array('createsupportuser', 'deletesupportuser', 'disableuser', 'enableuser', 'resetpassword', 'confirm_resetpassword');
+if (in_array($action, $arrayofprotectedactions) && ! $user->hasRight('sellyoursaas', 'write')) {
+	setEventMessages($langs->trans("NotEnoughPermissions"), null, 'errors');
+	$action = 'view';
+}
+
 if (empty($reshook)) {
 	// Cancel
 	if (GETPOST('cancel', 'alpha') && ! empty($backtopage)) {
@@ -209,7 +216,7 @@ if (empty($reshook)) {
 		$newdb = getDoliDBInstance($type_db, $hostname_db, $username_db, $password_db, $database_db, $port_db);
 		$newdb->prefix_db = $prefix_db;
 
-		if (is_object($newdb)) {
+		if (is_object($newdb) && $newdb->connected) {
 			// Get login and password for support
 			$loginforsupport = getDolGlobalString('SELLYOURSAAS_LOGIN_FOR_SUPPORT');
 
@@ -348,6 +355,8 @@ if (empty($reshook)) {
 			}
 
 			setEventMessages('Password for user <b>'.$loginforsupport.'</b> set to <b>'.$password.'</b>', null, 'warnings');
+		} else {
+			setEventMessages($langs->trans("FailedToConnectMayBeOldInstance"), null, 'errors');
 		}
 	}
 	if ($action == "deletesupportuser") {
@@ -359,7 +368,7 @@ if (empty($reshook)) {
 			setEventMessages($hookmanager->error, $hookmanager->errors, 'errors');
 		}
 
-		if (is_object($newdb)) {
+		if (is_object($newdb) && $newdb->connected) {
 			$fordolibarr = 1;
 			if (preg_match('/glpi.*\.cloud/', $object->ref_customer)) {
 				$fordolibarr = 0;
@@ -391,12 +400,14 @@ if (empty($reshook)) {
 					dol_print_error($newdb);
 				}
 			}
+		} else {
+			setEventMessages($langs->trans("FailedToConnectMayBeOldInstance"), null, 'errors');
 		}
 	}
 
 	if ($action == "disableuser") {
 		$newdb = getDoliDBInstance($type_db, $hostname_db, $username_db, $password_db, $database_db, $port_db);
-		if (is_object($newdb)) {
+		if (is_object($newdb) && $newdb->connected) {
 			// TODO Set definition to disable a user into the package
 			$fordolibarr = 1;
 			if (preg_match('/glpi.*\.cloud/', $object->ref_customer)) {
@@ -416,11 +427,13 @@ if (empty($reshook)) {
 			} else {
 				setEventMessages("UserDisabled", null, 'mesgs');
 			}
+		} else {
+			setEventMessages($langs->trans("FailedToConnectMayBeOldInstance"), null, 'errors');
 		}
 	}
 	if ($action == "enableuser") {
 		$newdb = getDoliDBInstance($type_db, $hostname_db, $username_db, $password_db, $database_db, $port_db);
-		if (is_object($newdb)) {
+		if (is_object($newdb) && $newdb->connected) {
 			// TODO Set definition to disable a user into the package
 			$fordolibarr = 1;
 			if (preg_match('/glpi.*\.cloud/', $object->ref_customer)) {
@@ -440,12 +453,14 @@ if (empty($reshook)) {
 			} else {
 				setEventMessages("UserEnabled", null, 'mesgs');
 			}
+		} else {
+			setEventMessages($langs->trans("FailedToConnectMayBeOldInstance"), null, 'errors');
 		}
 	}
 
 	if ($action == "confirm_resetpassword" && GETPOST('confirm') != 'no') {
 		$newdb = getDoliDBInstance($type_db, $hostname_db, $username_db, $password_db, $database_db, $port_db);
-		if (is_object($newdb)) {
+		if (is_object($newdb) && $newdb->connected) {
 			$password=GETPOST('newpassword', 'none');
 
 			$fordolibarr = 1;
@@ -512,6 +527,8 @@ if (empty($reshook)) {
 			} else {
 				setEventMessages("PasswordModified", null, 'mesgs');
 			}
+		} else {
+			setEventMessages($langs->trans("FailedToConnectMayBeOldInstance"), null, 'errors');
 		}
 	}
 
@@ -790,6 +807,7 @@ function print_user_table($newdb, $object)
 {
 	global $db, $langs, $form, $hookmanager;
 	global $search, $id, $contextpage, $param;
+	global $conf, $mode;
 
 	$sortfield = GETPOST('sortfield', 'aZ09comma');
 	$sortorder = GETPOST('sortorder', 'aZ09comma');
@@ -1052,7 +1070,7 @@ function print_user_table($newdb, $object)
 				$obj = $newdb->fetch_object($resql);
 
 				global $object;
-				$url='https://'.$object->ref_customer.'?username='.urlencode($obj->login).'&amp;password='.urlencode($obj->pass);
+				$url='https://'.$object->ref_customer.'?username='.urlencode($obj->login);
 				print '<tr class="oddeven">';
 				// Action column
 				if ($conf->main_checkbox_left_column) {

@@ -116,6 +116,14 @@ if ($reshook < 0) {
 	setEventMessages($hookmanager->error, $hookmanager->errors, 'errors');
 }
 
+// Security check - Actions need write permission
+$arrayofprotectedactions = array('addauthorizedkey', 'delauthorizedkey', 'addinstalllock', 'delinstalllock', 'addinstallmoduleslock', 'delinstallmoduleslock',
+	'addupgradeunlock', 'delupgradeunlock', 'markasspamandclose', 'addspamtracker', 'removespamtracker', 'confirm_upgradeinstance');
+if (in_array($action, $arrayofprotectedactions) && ! $user->hasRight('sellyoursaas', 'write')) {
+	setEventMessages($langs->trans("NotEnoughPermissions"), null, 'errors');
+	$action = 'view';
+}
+
 if (empty($reshook)) {
 	// Cancel
 	if (GETPOST('cancel', 'alpha') && ! empty($backtopage)) {
@@ -553,13 +561,13 @@ if (getDolGlobalString('SELLYOURSAAS_ALLOW_DOLIBARR_SPECIFIC')) {
 // Version
 print '<tr>';
 print '<td>'.$langs->trans("Version").'</td>';
-print '<td colspan="3">'.$object->version.'</td>';
+print '<td colspan="3">'.dolPrintHTML($object->version).'</td>';
 print '</tr>';
 
 // Modules
 print '<tr>';
 print '<td>'.$langs->trans("Modules").'</td>';
-print '<td colspan="3"><span class="small">'.$object->modulesenabled.'</span></td>';
+print '<td colspan="3"><span class="small">'.dolPrintHTML($object->modulesenabled).'</span></td>';
 print '</tr>';
 
 if (getDolGlobalString('SELLYOURSAAS_ALLOW_DOLIBARR_SPECIFIC')) {

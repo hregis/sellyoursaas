@@ -82,7 +82,7 @@ class modSellYourSaas extends DolibarrModules
 									'hooks' => array('thirdpartycard','thirdpartycomm','thirdpartysupplier','thirdpartycontact','contactthirdparty','thirdpartyticket','thirdpartynote','thirdpartydocument','thirdpartypartnership',
 													'projectthirdparty','consumptionthirdparty','thirdpartybancard','thirdpartymargins','ticketlist','thirdpartynotification','agendathirdparty',
 													'thirdpartydao','formmail','searchform','thirdpartylist','customerlist','prospectlist','contractcard','contractdao','contractlist',
-													'pdfgeneration','odtgeneration','customreport','rowinterface'));
+													'pdfgeneration','odtgeneration','customreport','rowinterface','aimcp'));
 
 		// Constants
 		// List of particular constants to add when module is enabled (key, 'chaine', value, 'desc', visible, 'current' or 'allentities', deleteonunactive)
@@ -351,23 +351,6 @@ class modSellYourSaas extends DolibarrModules
 			'target'=>'',
 			'user'=>0);
 		$r++;
-
-		/*
-		$this->menu[$r]=array(
-			'fk_menu'=>'fk_mainmenu=sellyoursaas,fk_leftmenu=mysaas_packages',
-			'type'=>'left',
-			'titre'=>'LiveRefsInstances',
-			'mainmenu'=>'sellyoursaas',
-			'leftmenu'=>'mysaas_live',
-			'url'=>'__[SELLYOURSAAS_REFS_URL]__',
-			'langs'=>'sellyoursaas@sellyoursaas',
-			'position'=>212,
-			'enabled'=>'isModEnabled("sellyoursaas")',         // Define condition to show or hide menu entry. Use '$conf->NewsSubmitter->enabled' if entry must be visible if module is enabled.
-			'perms'=>'$user->hasRight("sellyoursaas", "read")',
-			'target'=>'_refs',
-			'user'=>0);
-		$r++;
-		*/
 
 		// Products - Services
 		$this->menu[$r]=array(
@@ -783,23 +766,6 @@ class modSellYourSaas extends DolibarrModules
 			'user'=>0
 		);
 		$r++;
-
-		$this->menu[$r]=array(
-			'fk_menu'=>'fk_mainmenu=sellyoursaas,fk_leftmenu=sellyoursaas_blacklist',
-			'type'=>'left',
-			'titre'=>'BlacklistMails',
-			'prefix' => '',
-			'mainmenu'=>'sellyoursaas',
-			'leftmenu'=>'sellyoursaas_blacklistmails',
-			'url'=>'/sellyoursaas/blacklistmail_list.php',
-			'langs'=>'',
-			'position'=>657,
-			'enabled'=>'isModEnabled("sellyoursaas")',         // Define condition to show or hide menu entry. Use '$conf->NewsSubmitter->enabled' if entry must be visible if module is enabled.
-			'perms'=>'$user->hasRight("sellyoursaas", "read")',
-			'target'=>'',
-			'user'=>0
-		);
-		$r++;
 	}
 
 	/**
@@ -940,6 +906,7 @@ class modSellYourSaas extends DolibarrModules
 		$resultx=$extrafields->addExtraField('flagdelsessionsbefore', "LastPasswordChangeDate", 'datetimegmt', 155, '', 'thirdparty', 0, 0, '', '', 1, '', -1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
 		$resultx=$extrafields->addExtraField('optinmessages', "OptinForCommercialMessages", 'boolean', 160, '', 'thirdparty', 0, 0, '', '', 1, '', -1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
 		$resultx=$extrafields->addExtraField('emailccinvoice', "EmailCCInvoices", 'varchar', 180, '255', 'thirdparty', 0, 0, '', '', 1, '', -1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
+		$resultx=$extrafields->addExtraField('enable_invoicing', "SendMeTheEInvoice", 'boolean', 181, '', 'thirdparty', 0, 0, '', '', 1, '', -1, 'SendMeTheEInvoiceHelp', '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas") && isModEnabled("einvoicing")');
 		$resultx=$extrafields->addExtraField('manualcollection', "ManualCollection", 'boolean', 194, '', 'thirdparty', 0, 0, '', '', 1, '', 1, 'If checked, the batch SellYourSaasValidateDraftInvoices will never validate invoices of this customer', '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
 		$resultx=$extrafields->addExtraField('date_apply_for_reseller', "DateApplyReseller", 'date', 195, '', 'thirdparty', 0, 0, '', '', 1, '', -1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');
 		$resultx=$extrafields->addExtraField('commission', "PartnerCommission", 'int', 196, '3', 'thirdparty', 0, 0, '', $param, 1, '', 1, 0, '', '', 'sellyoursaas@sellyoursaas', 'isModEnabled("sellyoursaas")');

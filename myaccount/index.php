@@ -205,8 +205,21 @@ if (GETPOSTISSET('reset')) {
 $fromsocid=GETPOST('fromsocid', 'int');
 
 // Id of connected thirdparty
-$socid = GETPOST('socid', 'int') ? GETPOST('socid', 'int') : $_SESSION['dol_loginsellyoursaas'];
-$idforfetch = $fromsocid > 0 ? $fromsocid : $socid;
+// The id of the thirdparty must come from the session only, never from the URL (avoid IDOR).
+$socid = empty($_SESSION['dol_loginsellyoursaas']) ? 0 : (int) $_SESSION['dol_loginsellyoursaas'];
+$idforfetch = $socid;
+if ($fromsocid > 0 && $fromsocid != $socid && $socid > 0) {
+	// fromsocid is accepted only if it is the thirdparty in session or a customer of the thirdparty in session (reseller)
+	$sqlcheck = "SELECT rowid FROM ".MAIN_DB_PREFIX."societe WHERE rowid = ".((int) $fromsocid)." AND parent = ".((int) $socid);
+	$resqlcheck = $db->query($sqlcheck);
+	if ($resqlcheck && $db->num_rows($resqlcheck) > 0) {
+		$idforfetch = $fromsocid;
+	} else {
+		dol_syslog("ErrorInvalidFromSocidSurelyAHackAttempt fromsocid=".$fromsocid." is not allowed for thirdparty in session id=".$socid, LOG_WARNING);
+	}
+} elseif ($fromsocid > 0) {
+	$idforfetch = $fromsocid == $socid ? $socid : 0;
+}
 if ($idforfetch > 0) {
 	$result = $mythirdpartyaccount->fetch($idforfetch);					// fromid set if creation from reseller dashboard else we use socid
 	if ($result <= 0) {
@@ -751,6 +764,10 @@ if ($action == 'updateurl') {	// update URL from the tab "Domain"
 		// Create a recurring invoice (+real invoice + contract renewal) if there is no recurring invoice yet
 		if (! $error) {
 			$result = $contract->fetch(GETPOST('contractid', 'int'));
+			if ($result > 0 && $contract->socid != $mythirdpartyaccount->id) {
+				dol_syslog("ErrorInvalidInstanceSurelyAHackAttempt validatefreemode on contract id=".$contract->id." refused for thirdparty id=".$mythirdpartyaccount->id, LOG_WARNING);
+				$result = 0;
+			}
 			if ($result > 0) {
 				$savlistofcontractid = $listofcontractid;
 
@@ -1085,6 +1102,9 @@ if ($action == 'updateurl') {	// update URL from the tab "Domain"
 	$mythirdpartyaccount->tva_assuj = $vatassuj;
 	$mythirdpartyaccount->tva_intra = preg_replace('/\s/', '', $vatnumber);
 	$mythirdpartyaccount->idprof1 = $profid;
+	if (GETPOSTINT('enable_invoicing_shown') && isModEnabled('einvoicing') && !getDolGlobalString('EINVOICING_DISABLE_SYNC_DOLI_TO_AP') && $mythirdpartyaccount->country_code == 'FR') {
+		$mythirdpartyaccount->array_options['options_enable_invoicing'] = (GETPOSTINT('enable_invoicing') ? 1 : 0);
+	}
 
 	if ($mythirdpartyaccount->tva_assuj && $mythirdpartyaccount->tva_intra) {
 		include_once DOL_DOCUMENT_ROOT.'/core/lib/functions2.lib.php';
@@ -2433,6 +2453,11 @@ if ($action == 'updateurl') {	// update URL from the tab "Domain"
 		setEventMessages($tmpcontract->error, null, 'errors');
 		$error++;
 	}
+	if (!$error && $tmpcontract->socid != $mythirdpartyaccount->id) {
+		dol_syslog("ErrorInvalidInstanceSurelyAHackAttempt action ".$action." on contract id=".$contractid." refused for thirdparty id=".$mythirdpartyaccount->id, LOG_WARNING);
+		setEventMessages($langs->trans("ErrorForbidden"), null, 'errors');
+		$error++;
+	}
 	$tmplineforremoteaction = null;
 	if (!$error) {
 		foreach ($tmpcontract->lines as $key => $line) {
@@ -2552,6 +2577,8 @@ if ($action == 'updateurl') {	// update URL from the tab "Domain"
 	header('Location: '.$_SERVER["PHP_SELF"].'?mode=instances&tab=resources_'.$object->id);
 	exit();
 } elseif ($action == 'install') {
+	include_once DOL_DOCUMENT_ROOT.'/core/lib/company.lib.php';
+
 	$error = 0;
 	$sellyoursaasutils = new SellYourSaasUtils($db);
 	$contractid = GETPOSTINT("instanceid");
@@ -2586,6 +2613,11 @@ if ($action == 'updateurl') {	// update URL from the tab "Domain"
 		setEventMessages($tmpcontract->error, null, 'errors');
 		$error++;
 	}
+	if (!$error && $tmpcontract->socid != $mythirdpartyaccount->id) {
+		dol_syslog("ErrorInvalidInstanceSurelyAHackAttempt action ".$action." on contract id=".$contractid." refused for thirdparty id=".$mythirdpartyaccount->id, LOG_WARNING);
+		setEventMessages($langs->trans("ErrorForbidden"), null, 'errors');
+		$error++;
+	}
 	if (!$error) {
 		$tmparray = sellyoursaasGetExpirationDate($tmpcontract, 0);
 		$duration_value = $tmparray['duration_value'];
@@ -2594,7 +2626,12 @@ if ($action == 'updateurl') {	// update URL from the tab "Domain"
 		$date_end = dol_time_plus_duree($now, $duration_value, $duration_unit) - 1;
 		// Create service line(s) from contract, appended after existing lines (not rang 0 = first)
 		$rangnewline = $tmpcontract->line_max() + 1;
-		$idlinecontract = $tmpcontract->addline($tmpproduct->description, $tmpproduct->price, 1, $tmpproduct->tva_tx, $tmpproduct->localtax1_tx, $tmpproduct->localtax2_tx, $productid, 0, $date_start, $date_end, 'HT', 0, 0, null, 0, array(), null, $rangnewline);
+
+		$vat = get_default_tva($mysoc, $mythirdpartyaccount, $tmpproduct->id);
+		$localtax1_tx = get_default_localtax($mysoc, $mythirdpartyaccount, 1, 0);
+		$localtax2_tx = get_default_localtax($mysoc, $mythirdpartyaccount, 2, 0);
+
+		$idlinecontract = $tmpcontract->addline($tmpproduct->description, $tmpproduct->price, 1, $vat, $localtax1_tx, $localtax2_tx, $productid, 0, $date_start, $date_end, 'HT', 0, 0, null, 0, array(), null, $rangnewline);
 		if ($idlinecontract <= 0) {
 			setEventMessages($contract->error, null, 'errors');
 			$error++;
@@ -2618,7 +2655,7 @@ if ($action == 'updateurl') {	// update URL from the tab "Domain"
 					$error ++;
 				} else {
 					$facturerec = $arrayfacturerec[0];
-					$result = $facturerec->addLine($tmpproduct->description, $tmpproduct->price, 1, $tmpproduct->tva_tx, $tmpproduct->localtax1_tx, $tmpproduct->localtax2_tx, $productid, 0, 'HT', 0, '', 0, 0, -1, 0, '', null, 0, 1, 1);
+					$result = $facturerec->addLine($tmpproduct->description, $tmpproduct->price, 1, $vat, $localtax1_tx, $localtax2_tx, $productid, 0, 'HT', 0, '', 0, 0, -1, 0, '', null, 0, 1, 1);
 					if (!$result) {
 						// TODO: Send mail auto to inform admins of error line creation facturRec
 						$error ++;
@@ -2778,8 +2815,14 @@ if ($welcomecid > 0) {
 	$contract->fetch($welcomecid);
 	$listofcontractid[$welcomecid] = $contract;
 	// Add a protection to avoid to see dashboard of others by changing welcomecid.
-	if (($mythirdpartyaccount->isareseller == 0 && $contract->socid != $_SESSION['dol_loginsellyoursaas'])           // Not reseller, and contract is for another thirdparty
-	|| ($mythirdpartyaccount->isareseller == 1 && array_key_exists($contract->socid, $listofcustomeridreseller))) { // Is a reseller and contract is for a company that is a customer of reseller
+	$welcomecidallowed = ($contract->socid == $_SESSION['dol_loginsellyoursaas']);		// Contract is for the logged thirdparty
+	if (!$welcomecidallowed && $mythirdpartyaccount->isareseller == 1 && $contract->socid > 0) {
+		// Is a reseller and contract is for a company that is a customer of the reseller
+		$sqlcheck = "SELECT rowid FROM ".MAIN_DB_PREFIX."societe WHERE rowid = ".((int) $contract->socid)." AND parent = ".((int) $mythirdpartyaccount->id);
+		$resqlcheck = $db->query($sqlcheck);
+		$welcomecidallowed = ($resqlcheck && $db->num_rows($resqlcheck) > 0);
+	}
+	if (!$welcomecidallowed) {
 		dol_print_error_email('DEPLOY-WELCOMEID'.$welcomecid, 'Bad value for welcomeid. Try to remove the parameter welcomeid from your URL.', null, 'alert alert-error');
 		exit;
 	}

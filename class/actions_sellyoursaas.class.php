@@ -1428,7 +1428,7 @@ class ActionsSellyoursaas
 				print_liste_field_titre("TrialOrPaid", $_SERVER["PHP_SELF"], '', '', $param, ' align="center"', $sortfield, $sortorder);
 			}
 			if (!getDolGlobalString('SELLYOURSAAS_DISABLE_PAYMENT_MODE_SAVED')) {
-				print_liste_field_titre("PaymentModeSaved", $_SERVER["PHP_SELF"], '', '', $param, ' align="center"', $sortfield, $sortorder);
+				print_liste_field_titre("PaymentModeRecorded", $_SERVER["PHP_SELF"], '', '', $param, ' align="center"', $sortfield, $sortorder);
 			}
 		}
 		if ($parameters['currentcontext'] == 'thirdpartybancard') {
@@ -1837,5 +1837,293 @@ class ActionsSellyoursaas
 			$res = 1;
 		}
 		return $res;
+	}
+
+	/**
+	 * Overloading the addMcpApiBridgeEnrichments function : expose the packages API methods as AI assistant tools
+	 *
+	 * @param   array           $parameters     Hook metadatas (context, etc...)
+	 * @param   Object          $object         The MCP API bridge
+	 * @param   string          $action         Current action
+	 * @param   HookManager     $hookmanager    Hook manager propagated to allow calling another hook
+	 * @return  int 		      			  	=0
+	 */
+	public function addMcpApiBridgeEnrichments($parameters, &$object, &$action, $hookmanager)
+	{
+		global $langs;
+
+		$langs->load("sellyoursaas@sellyoursaas");	// For the confirmation messages of write tools
+
+		// Business fields of the package can be written by the AI assistant. Technical fields and fields
+		// containing code executed on servers (shell, sql, cron, config files, vhost) are excluded.
+		dol_include_once('/sellyoursaas/class/packages.class.php');
+		$tmppackage = new Packages($this->db);
+		$protectedfields = array('cliafter', 'cliafterpaid', 'sqlpasswordreset', 'sqlafterundeployoption', 'cliafterdeployoption', 'sqlafter', 'crontoadd', 'conffile1', 'allowoverride', 'otherinformations_formula', 'sqltoupdateeinvoiceconst', 'sqlafterpaid', 'version_formula');
+		$writableparams = array();
+		foreach ($tmppackage->fields as $fieldname => $fielddef) {
+			if (in_array($fieldname, array('rowid', 'entity', 'date_creation', 'tms', 'fk_user_creat', 'fk_user_modif', 'import_key')) || in_array($fieldname, $protectedfields)) {
+				continue;
+			}
+			$fielddesc = $langs->transnoentitiesnoconv($fielddef['label']);
+			if (!empty($fielddef['help'])) {
+				$fielddesc .= '. '.dol_string_nohtmltag(str_replace('<br>', "\n", $langs->transnoentitiesnoconv($fielddef['help'])));
+			}
+			if (!empty($fielddef['arrayofkeyval'])) {
+				$fielddesc .= ' (values: '.implode(', ', array_map(function ($k, $v) {
+					return $k.'='.$v;
+				}, array_keys($fielddef['arrayofkeyval']), $fielddef['arrayofkeyval'])).')';
+			}
+			$writableparams[$fieldname] = $fielddesc;
+		}
+
+		$this->results['sellyoursaas'] = array(
+			'sellyoursaas' => array(
+				'label' => 'SellYourSaas packages (definition of the applications deployed for SaaS instances)',
+				'methods' => array(
+					'index' => array(
+						'suffix' => 'packages_list',
+						'default_properties' => 'id,ref,label,restrict_domains,status',
+						'description' => "List the SellYourSaas packages. Filter with sqlfilters on t.ref, t.label or t.status (1=Active, 0=Disabled).",
+						'params' => array(
+							'sqlfilters' => "Universal filter, e.g. (t.ref:like:'Dolibarr%') or (t.status:=:1)"
+						)
+					),
+					'get' => array(
+						'suffix' => 'packages_get',
+						'description' => "Get one SellYourSaas package by its rowid (id) or by its exact ref (ref).",
+						'get_by' => array('ref' => 'getByRef'),
+						'params' => array(
+							'id' => "Rowid of the package (use 0 when identifying by ref).",
+							'ref' => "Exact ref of the package, alternative to id."
+						)
+					),
+					'post' => array(
+						'suffix' => 'packages_create',
+						'description' => "Create a new SellYourSaas package. Returns the rowid of the new package. The user confirms before anything is written.",
+						'write' => array(
+							'preview' => 'SellYourSaasAIPreviewCreatePackage',
+							'required' => array('ref'),
+							'args' => array('ref', 'label'),
+							'defaults' => array('status' => 0),	// Field status is mandatory for the API
+							'right' => array('sellyoursaas', 'write')
+						),
+						'params' => $writableparams
+					),
+					'put' => array(
+						'suffix' => 'packages_update',
+						'description' => "Update an existing SellYourSaas package. Give 'id' (rowid of the package, use packages_get with ref to find it) and ONLY the fields to change. The user confirms before anything is written.",
+						'write' => array(
+							'preview' => 'SellYourSaasAIPreviewUpdatePackage',
+							'required' => array('id'),
+							'args' => array('id'),
+							'right' => array('sellyoursaas', 'write')
+						),
+						'params' => array_merge(array('id' => "Rowid of the package to update."), $writableparams)
+					)
+				)
+			),
+			'sellyoursaaswhitelist' => array(
+				'endpoint' => 'sellyoursaas',
+				'label' => 'SellYourSaas whitelists (IPs and emails allowed to register an instance or to send emails)',
+				'methods' => $this->getMcpListMethods(
+					'whitelist',
+					'Whitelist',
+					"type: 'ip' for the whitelist of IPs (bypass the IP checks when registering an instance or sending emails), 'email' for the whitelist of emails (allowed to register an instance or to be used as sender of emails).",
+					array('ip', 'email'),
+					array(
+						'content' => "The IP (type ip) or email (type email). Wild char * is allowed, for example: 1.2.3.*",
+						'comment' => "Comment",
+						'status' => "Status (values: 0=Disabled, 1=Enabled). Default is 1."
+					)
+				)
+			),
+			'sellyoursaasblacklist' => array(
+				'endpoint' => 'sellyoursaas',
+				'label' => 'SellYourSaas blacklists (forbidden IPs, email contents, email senders, email recipients and dirs on disk)',
+				'methods' => $this->getMcpListMethods(
+					'blacklist',
+					'Blacklist',
+					"type: 'ip' for IPs not allowed to register an instance or to send emails, 'content' for forbidden contents of emails sent by instances, 'from' for emails not allowed to register an instance or to be used as sender of emails, 'to' for emails not allowed as recipient of emails, 'dir' for dirs or files not allowed on the disk of instances.",
+					array('ip', 'content', 'from', 'to', 'dir'),
+					array(
+						'content' => "The IP (type ip), the forbidden string (type content), the email (type from or to) or the path of the dir or file (type dir).",
+						'comment' => "Comment (only for type ip)",
+						'date_use' => "Date of last use (only for type ip)",
+						'noblacklistif' => "Condition to not blacklist the dir (only for type dir)",
+						'status' => "Status (values: 0=Disabled, 1=Enabled). Default is 1."
+					)
+				)
+			)
+		);
+
+		return 0;
+	}
+
+	/**
+	 * Return the AI tool methods (list, get, create, update, delete) of the API for a whitelist or a blacklist
+	 *
+	 * @param	string					$name			Name of the list in the API methods ('whitelist' or 'blacklist')
+	 * @param	string					$keysuffix		Suffix of the language keys of the confirmation messages
+	 * @param	string					$typedesc		Description of the parameter type
+	 * @param	string[]				$types			Allowed values of type
+	 * @param	array<string,string>	$fieldparams	Writable field => description
+	 * @return	array<string,array<string,mixed>>		Methods
+	 */
+	private function getMcpListMethods($name, $keysuffix, $typedesc, $types, $fieldparams)
+	{
+		$ucname = dol_ucfirst($name);
+		$typeparam = array('type' => $typedesc);
+		$typeparamread = array('type' => $typedesc.' {@choice '.implode(',', $types).'}');	// Lifted into an enum for the read tools
+
+		return array(
+			'list'.$ucname => array(
+				'suffix' => 'list',
+				'default_properties' => 'id,content,status',
+				'description' => "List the entries of a SellYourSaas ".$name.". ".$typedesc." Filter with sqlfilters on t.content or t.status (1=Enabled, 0=Disabled).",
+				'params' => array_merge($typeparamread, array(
+					'sqlfilters' => "Universal filter, e.g. (t.content:like:'%example.com%') or (t.status:=:1)"
+				))
+			),
+			'get'.$ucname => array(
+				'suffix' => 'get',
+				'description' => "Get one entry of a SellYourSaas ".$name." by its rowid (id).",
+				'params' => array_merge($typeparamread, array('id' => "Rowid of the entry."))
+			),
+			'post'.$ucname => array(
+				'suffix' => 'create',
+				'description' => "Add an entry into a SellYourSaas ".$name.". ".$typedesc." Returns the rowid of the new entry. The user confirms before anything is written.",
+				'write' => array(
+					'preview' => 'SellYourSaasAIPreviewCreate'.$keysuffix,
+					'required' => array('type', 'content'),
+					'args' => array('content', 'type'),
+					'right' => array('sellyoursaas', 'write')
+				),
+				'params' => array_merge($typeparam, $fieldparams)
+			),
+			'put'.$ucname => array(
+				'suffix' => 'update',
+				'description' => "Update an entry of a SellYourSaas ".$name.". Give 'type', 'id' (rowid of the entry, use the list tool to find it) and ONLY the fields to change. The user confirms before anything is written.",
+				'write' => array(
+					'preview' => 'SellYourSaasAIPreviewUpdate'.$keysuffix,
+					'required' => array('type', 'id'),
+					'args' => array('id', 'type'),
+					'right' => array('sellyoursaas', 'write')
+				),
+				'params' => array_merge($typeparam, array('id' => "Rowid of the entry to update."), $fieldparams)
+			),
+			'delete'.$ucname => array(
+				'suffix' => 'delete',
+				'description' => "Delete an entry of a SellYourSaas ".$name.". Give 'type' and 'id' (rowid of the entry, use the list tool to find it). The user confirms before anything is written.",
+				'write' => array(
+					'preview' => 'SellYourSaasAIPreviewDelete'.$keysuffix,
+					'required' => array('type', 'id'),
+					'args' => array('id', 'type'),
+					'right' => array('sellyoursaas', 'delete')
+				),
+				'params' => array_merge($typeparam, array('id' => "Rowid of the entry to delete."))
+			)
+		);
+	}
+
+	/**
+	 * Overloading the checkMcpApiBridgeWrite function : refuse a write of an AI tool on packages before its confirmation
+	 *
+	 * @param   array           $parameters     Hook metadatas (context, etc...)
+	 * @param   Object|null     $object         Object the write is about, if known by the bridge
+	 * @param   string          $action         Operation ('create', 'update', ...)
+	 * @param   HookManager     $hookmanager    Hook manager propagated to allow calling another hook
+	 * @return  int 		      			  	=0 if OK, <0 to refuse the write
+	 */
+	public function checkMcpApiBridgeWrite($parameters, &$object, &$action, $hookmanager)
+	{
+		global $langs;
+
+		$tool = (string) $parameters['tool'];
+		$reg = array();
+		if (preg_match('/^api_sellyoursaas(whitelist|blacklist)_(create|update|delete)$/', $tool, $reg)) {
+			return $this->checkMcpListWrite($reg[1], $reg[2], (array) $parameters['args']);
+		}
+		if (!in_array($tool, array('api_sellyoursaas_packages_create', 'api_sellyoursaas_packages_update'))) {
+			return 0;
+		}
+
+		$langs->load("sellyoursaas@sellyoursaas");
+		$this->errors = array();
+
+		dol_include_once('/sellyoursaas/class/packages.class.php');
+		$args = (array) $parameters['args'];
+
+		if ($tool == 'api_sellyoursaas_packages_update') {
+			$package = new Packages($this->db);
+			if (empty($args['id']) || $package->fetch((int) $args['id']) <= 0) {
+				$this->errors[] = $langs->transnoentitiesnoconv("SellYourSaasAIPackageNotFound", (string) ($args['id'] ?? ''));
+				return -1;
+			}
+			// A ref changed to the one of another package is refused
+			if (isset($args['ref']) && (string) $args['ref'] !== '' && $args['ref'] != $package->ref) {
+				$otherpackage = new Packages($this->db);
+				if ($otherpackage->fetch(0, (string) $args['ref']) > 0) {
+					$this->errors[] = $langs->transnoentitiesnoconv("SellYourSaasAIPackageRefAlreadyExists", (string) $args['ref']);
+					return -1;
+				}
+			}
+		} else {
+			$package = new Packages($this->db);
+			if (!empty($args['ref']) && $package->fetch(0, (string) $args['ref']) > 0) {
+				$this->errors[] = $langs->transnoentitiesnoconv("SellYourSaasAIPackageRefAlreadyExists", (string) $args['ref']);
+				return -1;
+			}
+		}
+
+		return 0;
+	}
+
+	/**
+	 * Check a write of an AI tool on a whitelist or a blacklist before its confirmation
+	 *
+	 * @param	string					$name		'whitelist' or 'blacklist'
+	 * @param	string					$operation	'create', 'update' or 'delete'
+	 * @param	array<string,mixed>		$args		Arguments of the write
+	 * @return	int									0 if OK, <0 to refuse the write
+	 */
+	private function checkMcpListWrite($name, $operation, $args)
+	{
+		global $langs;
+
+		$langs->load("sellyoursaas@sellyoursaas");
+		$this->errors = array();
+
+		$classes = array(
+			'whitelist' => array('ip' => 'Whitelistip', 'email' => 'Whitelistemail'),
+			'blacklist' => array('ip' => 'Blacklistip', 'content' => 'Blacklistcontent', 'from' => 'Blacklistfrom', 'to' => 'Blacklistto', 'dir' => 'Blacklistdir')
+		);
+		$type = (string) ($args['type'] ?? '');
+		if (!isset($classes[$name][$type])) {
+			$this->errors[] = $langs->transnoentitiesnoconv("SellYourSaasAIBadListType", $type, implode(', ', array_keys($classes[$name])));
+			return -1;
+		}
+		$classname = $classes[$name][$type];
+		dol_include_once('/sellyoursaas/class/'.dol_strtolower($classname).'.class.php');
+
+		$entry = new $classname($this->db);
+		if ($operation != 'create' && (empty($args['id']) || $entry->fetch((int) $args['id']) <= 0)) {
+			$this->errors[] = $langs->transnoentitiesnoconv("SellYourSaasAIEntryNotFound", (string) ($args['id'] ?? ''), $name.' '.$type);
+			return -1;
+		}
+
+		// A content already in the list (in another entry) is refused
+		$content = (string) ($args['content'] ?? '');
+		if ($operation != 'delete' && $content !== '' && ($operation == 'create' || $content != $entry->content)) {
+			$sql = "SELECT rowid FROM ".$this->db->prefix().$entry->table_element;
+			$sql .= " WHERE content = '".$this->db->escape($content)."'";
+			$sql .= $this->db->plimit(1);
+			$resql = $this->db->query($sql);
+			if ($resql && ($obj = $this->db->fetch_object($resql))) {
+				$this->errors[] = $langs->transnoentitiesnoconv("SellYourSaasAIEntryAlreadyExists", $content, $name.' '.$type, (string) $obj->rowid);
+				return -1;
+			}
+		}
+
+		return 0;
 	}
 }

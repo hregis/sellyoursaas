@@ -177,6 +177,8 @@ repos:
     hooks:
       - id: prettier
         stages: [manual]
+        # Use the last LTS node: "latest" may be a pre-release that nodeenv fails to parse (ex: v27.0.0-alpha)
+        language_version: lts
         exclude:
           (?x)^( .*\.(phar |min\.css |lock) |htdocs/(includes|theme/common)/.*
           )$
@@ -261,6 +263,7 @@ repos:
     rev: 4.0.4
     hooks:
       - id: sqlfluff-lint
+        args: [--dialect, mysql]
         stages: [pre-commit, manual]  # manual needed for ci
         exclude: (?x)^
           (dev/initdemo/mysqldump_.*\.sql

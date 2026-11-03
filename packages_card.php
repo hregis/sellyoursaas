@@ -232,6 +232,9 @@ if ($action == 'create') {
 	print $form->buttonsSaveCancel("Create");
 
 	print '</form>';
+
+	// DolEditor forces spellcheck="true" on textarea, so we disable it again (fields contain code, not text)
+	print '<script>jQuery(document).ready(function() { jQuery("form textarea").attr("spellcheck", "false"); });</script>';
 }
 
 // Part to edit record
@@ -266,6 +269,9 @@ if (($id || $ref) && $action == 'edit') {
 	print $form->buttonsSaveCancel();
 
 	print '</form>';
+
+	// DolEditor forces spellcheck="true" on textarea, so we disable it again (fields contain code, not text)
+	print '<script>jQuery(document).ready(function() { jQuery("form textarea").attr("spellcheck", "false"); });</script>';
 }
 
 // Part to show record
@@ -398,7 +404,7 @@ if ($object->id > 0 && (empty($action) || ($action != 'edit' && $action != 'crea
 
 			// Clone
 			if ($permissiontoadd) {
-				print dolGetButtonAction('', $langs->trans("ToClone"), 'default', $_SERVER['PHP_SELF'].'?id='.$object->id.'&socid='.$object->socid.'&action=clone&token='.newToken().'&object=package', 'clone', $permissiontoadd);
+				print dolGetButtonAction($langs->trans("ToClone"), $langs->trans("ToClone"), 'clone', $_SERVER['PHP_SELF'].'?id='.$object->id.'&socid='.$object->socid.'&action=clone&token='.newToken().'&object=package', 'clone', $permissiontoadd);
 			}
 
 			/*if ($user->rights->sellyoursaas->write)
