@@ -197,7 +197,7 @@ if [[ "$mode" == "actionafterpaid" ]]; then
 	if command -v setfacl >/dev/null 2>&1; then
 		echo `date +'%Y-%m-%d %H:%M:%S'`" Re-grant www-data ACL on htdocs after cliafterpaid"
 		setfacl -R -m g:www-data:rX "$instancedir/htdocs"
-		setfacl -d -m g:www-data:rX "$instancedir/htdocs"
+		setfacl -R -d -m g:www-data:rX "$instancedir/htdocs"
 	fi
 fi
 

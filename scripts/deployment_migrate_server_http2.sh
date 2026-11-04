@@ -140,7 +140,7 @@ for d in /home/jail/home/*/*/htdocs; do
 	setfacl -m g:www-data:--x "$grandparent"
 	setfacl -m g:www-data:--x "$parent"
 	setfacl -R -m g:www-data:rX "$d"
-	setfacl -d -m g:www-data:rX "$d"
+	setfacl -R -d -m g:www-data:rX "$d"
 done
 
 echo "$(date +'%Y-%m-%d %H:%M:%S') ***** Verifying www-data can read htdocs but not documents/"

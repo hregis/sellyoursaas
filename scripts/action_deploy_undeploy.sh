@@ -1019,7 +1019,7 @@ if [[ "$mode" == "deploy" || "$mode" == "deployall" || "$mode" == "deployoption"
 		setfacl -m g:www-data:--x "$targetdir/$osusername"
 		setfacl -m g:www-data:--x "$targetdir/$osusername/$dbname"
 		setfacl -R -m g:www-data:rX "$targetdir/$osusername/$dbname/htdocs"
-		setfacl -d -m g:www-data:rX "$targetdir/$osusername/$dbname/htdocs"
+		setfacl -R -d -m g:www-data:rX "$targetdir/$osusername/$dbname/htdocs"
 	else
 		echo `date +'%Y-%m-%d %H:%M:%S'`" Warning: setfacl not found (acl package not installed), skipping www-data ACL on htdocs - static files will only be servable while this server still uses mpm_itk"
 	fi
@@ -1929,7 +1929,7 @@ if [[ "$mode" == "deploy" || "$mode" == "deployall" || "$mode" == "deployoption"
 	if command -v setfacl >/dev/null 2>&1; then
 		echo `date +'%Y-%m-%d %H:%M:%S'`" Re-grant www-data ACL on htdocs after cliafter/cliafterdeployoption"
 		setfacl -R -m g:www-data:rX "$targetdir/$osusername/$dbname/htdocs"
-		setfacl -d -m g:www-data:rX "$targetdir/$osusername/$dbname/htdocs"
+		setfacl -R -d -m g:www-data:rX "$targetdir/$osusername/$dbname/htdocs"
 	fi
 fi
 

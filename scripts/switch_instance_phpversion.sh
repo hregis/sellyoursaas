@@ -218,7 +218,7 @@ if command -v setfacl >/dev/null 2>&1; then
 	setfacl -m g:www-data:--x "$grandparent" 2>/dev/null || true
 	setfacl -m g:www-data:--x "$instancedir" 2>/dev/null || true
 	setfacl -R -m g:www-data:rX "$instancedir/htdocs" 2>/dev/null || true
-	setfacl -d -m g:www-data:rX "$instancedir/htdocs" 2>/dev/null || true
+	setfacl -R -d -m g:www-data:rX "$instancedir/htdocs" 2>/dev/null || true
 fi
 
 apache2ctl configtest
