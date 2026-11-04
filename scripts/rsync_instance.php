@@ -334,6 +334,8 @@ if (in_array($mode, array('confirm', 'confirmunlock', 'confirmwithtestdir', 'con
 		."setfacl -m g:".$webservergroupid.":--x ".escapeshellarg($targetdir)." ; "
 		."setfacl -R -m g:".$webservergroupid.":rX ".escapeshellarg($targetdir.'/htdocs')." ; "
 		."setfacl -R -d -m g:".$webservergroupid.":rX ".escapeshellarg($targetdir.'/htdocs')." ; "
+		// Apache never serves conf/: conf.php and its secrets stay with the instance's own account.
+		."[ ! -d ".escapeshellarg($targetdir.'/htdocs/conf')." ] || setfacl -R -n -x g:".$webservergroupid.",d:g:".$webservergroupid." ".escapeshellarg($targetdir.'/htdocs/conf')." ; "
 		."echo 'ACL grant done'; "
 		."else echo 'Warning: setfacl not found (acl package not installed), skipping www-data ACL on htdocs - static files will only be servable while this server still uses mpm_itk'; fi";
 	$sshaclcommand = "ssh -p ".$server_port." -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -o PasswordAuthentication=no "

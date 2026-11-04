@@ -201,6 +201,8 @@ if [[ "$mode" == "actionafterpaid" ]]; then
 		echo `date +'%Y-%m-%d %H:%M:%S'`" Re-grant www-data ACL on htdocs after cliafterpaid"
 		setfacl -R -m g:www-data:rX "$instancedir/htdocs"
 		setfacl -R -d -m g:www-data:rX "$instancedir/htdocs"
+		# Apache never serves conf/: conf.php and its secrets stay with the instance's own account.
+		[ ! -d "$instancedir/htdocs/conf" ] || setfacl -R -n -x g:www-data,d:g:www-data "$instancedir/htdocs/conf"
 	fi
 fi
 

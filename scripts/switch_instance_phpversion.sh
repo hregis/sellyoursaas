@@ -219,6 +219,8 @@ if command -v setfacl >/dev/null 2>&1; then
 	setfacl -m g:www-data:--x "$instancedir" 2>/dev/null || true
 	setfacl -R -m g:www-data:rX "$instancedir/htdocs" 2>/dev/null || true
 	setfacl -R -d -m g:www-data:rX "$instancedir/htdocs" 2>/dev/null || true
+	# Apache never serves conf/: conf.php and its secrets stay with the instance's own account.
+	[ ! -d "$instancedir/htdocs/conf" ] || setfacl -R -n -x g:www-data,d:g:www-data "$instancedir/htdocs/conf" 2>/dev/null || true
 fi
 
 apache2ctl configtest

@@ -382,6 +382,8 @@ if [[ "$mode" == "upgrade" ]];then
 			setfacl -m g:www-data:--x "$targetdir/$osusername/$dbname"
 			setfacl -R -m g:www-data:rX "$targetdir/$osusername/$dbname/htdocs"
 			setfacl -R -d -m g:www-data:rX "$targetdir/$osusername/$dbname/htdocs"
+			# Apache never serves conf/: conf.php and its secrets stay with the instance's own account.
+			[ ! -d "$targetdir/$osusername/$dbname/htdocs/conf" ] || setfacl -R -n -x g:www-data,d:g:www-data "$targetdir/$osusername/$dbname/htdocs/conf"
 		else
 			echo `date +'%Y-%m-%d %H:%M:%S'`" Warning: setfacl not found (acl package not installed), skipping www-data ACL on htdocs - static files will only be servable while this server still uses mpm_itk"
 		fi

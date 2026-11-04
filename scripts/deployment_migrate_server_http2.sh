@@ -141,6 +141,8 @@ for d in /home/jail/home/*/*/htdocs; do
 	setfacl -m g:www-data:--x "$parent"
 	setfacl -R -m g:www-data:rX "$d"
 	setfacl -R -d -m g:www-data:rX "$d"
+	# Apache never serves conf/: conf.php and its secrets stay with the instance's own account.
+	[ ! -d "$d/conf" ] || setfacl -R -n -x g:www-data,d:g:www-data "$d/conf"
 done
 
 echo "$(date +'%Y-%m-%d %H:%M:%S') ***** Verifying www-data can read htdocs but not documents/"
