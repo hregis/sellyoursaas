@@ -164,6 +164,10 @@ if [[ "x$imagickdir" == "x" ]]; then
 	echo "Warning: no /etc/ImageMagick-* found, skipping the ImageMagick allowance in the AppArmor override (add it by hand if ImageMagick gets installed later)."
 	imagickdir="ImageMagick-6"
 fi
+# AppArmor checks the real path, and the spam dir is often behind a link to a shared mount
+spamdir=$(grep '^pathtospamdir=' /etc/sellyoursaas-public.conf 2>/dev/null | cut -d '=' -f 2)
+spamdir=${spamdir:-/home/admin/wwwroot/dolibarr_documents/sellyoursaas_local/spam}
+spamdir=$(readlink -f "$spamdir" || echo "$spamdir")
 cat > /etc/apparmor.d/local/php-fpm << EOF
 owner /run/systemd/notify w,
 # added by claude migration - allow ImageMagick policy read
@@ -175,6 +179,24 @@ owner /run/systemd/notify w,
 /run/php/php*-fpm-*.pid rw,
 # added by claude migration - allow reading/writing instance webroots (isolation enforced by open_basedir per pool)
 /home/jail/home/** rwk,
+# added for phpsendmail called from instance pools (no apparmor_hat, top profile)
+#include <abstractions/postfix-common>
+/usr/local/bin/phpsendmail.php rix,
+/usr/local/bin/phpsendmailprepend.php r,
+/etc/sellyoursaas-public.conf r,
+/etc/postfix/** r,
+/var/log/phpsendmail.log rw,
+/var/log/phpmail.log w,
+/{usr/,}bin/cat rix,
+/usr/sbin/sendmail rix,
+/usr/sbin/postdrop rix,
+/var/spool/postfix/maildrop/ rw,
+/var/spool/postfix/maildrop/** rw,
+/var/spool/postfix/public/pickup rw,
+/tmp/ r,
+owner /tmp/phpsendmail-* rw,
+$spamdir/ r,
+$spamdir/** r,
 EOF
 chown root:root /etc/apparmor.d/local/php-fpm
 chmod 644 /etc/apparmor.d/local/php-fpm
