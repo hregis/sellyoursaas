@@ -1201,19 +1201,31 @@ if [[ "$mode" == "deploy" || "$mode" == "deployall" ]]; then
 				then
 					rm -f $targetfileforconfig1
 				fi
-				echo "cp $fileforconfig1 $targetfileforconfig1"
+				# Read with cat, not cp: the file is on the NFS temp dir and cp >= 9.3 skips it with
+				# "replaced while being copied" when the master has just recreated it (stale cached inode).
+				echo "cat $fileforconfig1 > $targetfileforconfig1"
 				if [[ $testorconfirm == "confirm" ]]
 				then
-					cp $fileforconfig1 $targetfileforconfig1
+					if [[ -f $fileforconfig1 ]]; then
+						cat $fileforconfig1 > $targetfileforconfig1
+					else
+						echo `date +'%Y-%m-%d %H:%M:%S'`" ERROR config file $fileforconfig1 not found"
+					fi
 				fi
 			else
 				echo File $targetfileforconfig1 already exists and content includes database parameters. We change nothing.
 			fi
 		else
-			echo "cp $fileforconfig1 $targetfileforconfig1"
+			# Read with cat, not cp: the file is on the NFS temp dir and cp >= 9.3 skips it with
+			# "replaced while being copied" when the master has just recreated it (stale cached inode).
+			echo "cat $fileforconfig1 > $targetfileforconfig1"
 			if [[ $testorconfirm == "confirm" ]]
 			then
-				cp $fileforconfig1 $targetfileforconfig1
+				if [[ -f $fileforconfig1 ]]; then
+					cat $fileforconfig1 > $targetfileforconfig1
+				else
+					echo `date +'%Y-%m-%d %H:%M:%S'`" ERROR config file $fileforconfig1 not found"
+				fi
 			fi
 		fi
 		chown -R $osusername:$osusername $targetfileforconfig1
@@ -1704,8 +1716,9 @@ if [[ "$mode" == "deploy" || "$mode" == "deployall" ]]; then
 			rm -f /tmp/$dbname.tmp
 		else
 			echo cron file /var/spool/cron/crontabs/$osusername does not exists yet
-			echo cp $cronfile /var/spool/cron/crontabs/$osusername
-			cp $cronfile /var/spool/cron/crontabs/$osusername
+			# Read with cat, not cp: $cronfile is on the NFS temp dir (see the config file above)
+			echo "cat $cronfile > /var/spool/cron/crontabs/$osusername"
+			cat $cronfile > /var/spool/cron/crontabs/$osusername
 		fi
 
 		chown $osusername:$osusername /var/spool/cron/crontabs/$osusername

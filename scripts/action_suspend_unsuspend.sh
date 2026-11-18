@@ -1295,8 +1295,10 @@ if [[ "$mode" == "unsuspend" ]]; then
 		rm -f /tmp/$dbname.tmp
 	else
 		echo cron file /var/spool/cron/crontabs/$osusername does not exists yet
-		echo cp $cronfile /var/spool/cron/crontabs/$osusername
-		cp $cronfile /var/spool/cron/crontabs/$osusername
+		# Read with cat, not cp: $cronfile is on the NFS temp dir and cp >= 9.3 skips it with
+		# "replaced while being copied" when the master has just recreated it (stale cached inode).
+		echo "cat $cronfile > /var/spool/cron/crontabs/$osusername"
+		cat $cronfile > /var/spool/cron/crontabs/$osusername
 	fi
 
 	chown $osusername:$osusername /var/spool/cron/crontabs/$osusername
