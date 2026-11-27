@@ -4315,7 +4315,9 @@ class SellYourSaasUtils
 				$originalConnectionTimeout = ini_get('default_socket_timeout');
 				ini_set('default_socket_timeout', $TIMEOUTSSH);
 
-				$server=$object->array_options['options_hostname_os'];
+				// Connect to the deployment server IP when known: the instance hostname may not
+				// resolve yet just after a deployall (negative or stale DNS cache on the master).
+				$server = (empty($object->array_options['options_deployment_host']) ? $object->array_options['options_hostname_os'] : $object->array_options['options_deployment_host']);
 				dol_syslog("Try to ssh2_connect to ".$server." with timeout of ".$TIMEOUTSSH." instead of ".$originalConnectionTimeout);
 
 				$server_port = getDolGlobalInt('SELLYOURSAAS_SSH_SERVER_PORT', 22);
@@ -5345,7 +5347,7 @@ class SellYourSaasUtils
 
 						// SFTP refresh
 						if (function_exists("ssh2_connect")) {
-							$server = $contract->array_options['options_hostname_os'];
+							$server = (empty($contract->array_options['options_deployment_host']) ? $contract->array_options['options_hostname_os'] : $contract->array_options['options_deployment_host']);
 							$server_port = getDolGlobalInt('SELLYOURSAAS_SSH_SERVER_PORT', 22);
 
 							$methods = array();
